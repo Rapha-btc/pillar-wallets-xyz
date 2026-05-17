@@ -114,6 +114,14 @@ function specAddAdmin(authId, newAdmin) {
   });
 }
 
+function specConfirmAdmin(authId, newAdmin) {
+  return tupleCV({
+    topic: stringAsciiCV("confirm-admin"),
+    "auth-id": uintCV(authId),
+    "new-admin": principalCV(newAdmin),
+  });
+}
+
 function specStxTransfer(authId, amount, recipient, memoCV) {
   return tupleCV({
     topic: stringAsciiCV("stx-transfer"),
@@ -247,6 +255,11 @@ function buildOperations() {
       label: `confirm-transfer-wallet (new-admin=FAKFUN_DEPLOYER)`,
       challenge: buildChallenge(WALLET, specConfirmTransfer(9, FAKFUN_DEPLOYER)),
     },
+    {
+      authId: 99,
+      label: "confirm-admin (USER) -- finalizes 3-step admin add (after 440-block cooldown)",
+      challenge: buildChallenge(WALLET, specConfirmAdmin(99, USER)),
+    },
   ];
 }
 
@@ -305,6 +318,28 @@ function loadSignedBundle(path) {
       clientDataPrefixHex: op.clientDataPrefixHex,
       clientDataSuffixHex: op.clientDataSuffixHex,
     });
+  }
+
+  // Also load shared followup bundle for the 3-step admin bootstrap
+  // (auth-id 99 = confirm-admin). One sig is reused across all
+  // bootstrap-affected sims because the hash depends only on the wallet
+  // principal + topic + auth-id + new-admin, all of which match.
+  const here = new URL(".", import.meta.url).pathname;
+  const followupPath = `${here}signed-bundle-followup.json`;
+  if (fs.existsSync(followupPath)) {
+    const followup = JSON.parse(fs.readFileSync(followupPath, "utf8"));
+    for (const op of followup.operations) {
+      if (!byAuthId.has(op.authId)) {
+        byAuthId.set(op.authId, {
+          authId: op.authId,
+          pubkeyHex: followup.pubkeyHex,
+          signatureHex: op.signatureHex,
+          authenticatorDataHex: op.authenticatorDataHex,
+          clientDataPrefixHex: op.clientDataPrefixHex,
+          clientDataSuffixHex: op.clientDataSuffixHex,
+        });
+      }
+    }
   }
   return {
     pubkeyHex: raw.pubkeyHex,
@@ -386,8 +421,21 @@ async function runSimulation(signedPath) {
     .withSender(USER)
     .addContractCall({
       contract_id: WALLET,
-      function_name: "add-admin-with-signature",
+      function_name: "propose-admin-with-signature",
       function_args: [principalCV(USER), sigAuthTuple(signed.sig(0)), noneCV()],
+      post_condition_mode: PostConditionMode.Allow,
+    })
+    .addContractCall({
+      contract_id: WALLET,
+      function_name: "accept-admin-proposal",
+      function_args: [],
+      post_condition_mode: PostConditionMode.Allow,
+    })
+    .addAdvanceBlocks({ bitcoin_blocks: 440, stacks_blocks_per_bitcoin: 1 })
+    .addContractCall({
+      contract_id: WALLET,
+      function_name: "confirm-admin-with-signature",
+      function_args: [sigAuthTuple(signed.sig(99)), noneCV()],
       post_condition_mode: PostConditionMode.Allow,
     })
 

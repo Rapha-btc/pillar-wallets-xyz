@@ -1,0 +1,43 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "pubkeyHex": "02eca875ad4e06371c75a1fb889f69b52c4900d7f4f4d17e2a059152213ba2d785",
+  "operations": [
+    {
+      "authId": 0,
+      "label": "propose-admin (USER) -- to be vetoed",
+      "challengeHex": "0xade02c1b4ae5310d09175a25b5b274280688309328830246e557134c34faf4ba",
+      "signatureHex": "0xd7537e8b74b194b31f17205eacced0453f7e4db5ec948644c7639fb7f525e873f481965b36a268c0c5f26de4efc53bd29fe6931018e61598116aa027eed7083b",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 1,
+      "label": "veto-init (USER) -- clears pending after propose A",
+      "challengeHex": "0x12651700422b232b72528caffa07930998971b4c86a09c914926ae13ba932a03",
+      "signatureHex": "0x0118487b1ca2000a489a12c134fb00f20e11943f9ee2441f9b7b042faee85d24a9fa4f13df4c903569df78cefb14fbbb55902aa8a317eb66fe8e0e639442f632",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 2,
+      "label": "propose-admin (USER) -- second propose, will be confirmed",
+      "challengeHex": "0x384ff36d0b24350051f0e75c0993149dcbd8c11d78aaa6c0c5cf58aa672f75dd",
+      "signatureHex": "0xfa83d4aafbc89a5da9ee1864658b3ece09540423b0c7df3be94a89d3f8439bc6571631e4dfc9ecaf06d9a5da8fb3efd7dd1708688eb04eb76c5f2897cd4352a4",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 3,
+      "label": "confirm-admin (USER) -- finalizes after cooldown",
+      "challengeHex": "0x2d922c662b109c01aa366e797424591c8254c5778375e3c501a85e0068f4de8b",
+      "signatureHex": "0x9541bbdaedac154600cd3519158f397dc0d4c7c272678d7e813ee4f3bfcf6b7f7f3bcee6cf2763e61025ff51798d5f5604847efd970ba2794d36ed1c3dbd66c3",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    }
+  ]
+}

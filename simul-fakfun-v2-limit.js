@@ -210,7 +210,10 @@ function printChallenges() {
 async function runSimulation(limitBundlePath, adminBundlePath) {
   const limitB = loadBundle(limitBundlePath);
   const adminB = loadBundle(adminBundlePath);
-  const signed = mergeBundles(adminB, limitB);
+  const followupPath = `${new URL(".", import.meta.url).pathname}signed-bundle-followup.json`;
+  const bundlesToMerge = [adminB, limitB];
+  if (fs.existsSync(followupPath)) bundlesToMerge.push(loadBundle(followupPath));
+  const signed = mergeBundles(...bundlesToMerge);
   if (signed.walletPrincipal !== WALLET) {
     throw new Error(
       `Bundle wallet (${signed.walletPrincipal}) doesn't match this sim (${WALLET}).`,
@@ -268,8 +271,21 @@ async function runSimulation(limitBundlePath, adminBundlePath) {
     .withSender(USER)
     .addContractCall({
       contract_id: WALLET,
-      function_name: "add-admin-with-signature",
+      function_name: "propose-admin-with-signature",
       function_args: [principalCV(USER), sigAuthTuple(signed.sig(0)), noneCV()],
+      post_condition_mode: PostConditionMode.Allow,
+    })
+    .addContractCall({
+      contract_id: WALLET,
+      function_name: "accept-admin-proposal",
+      function_args: [],
+      post_condition_mode: PostConditionMode.Allow,
+    })
+    .addAdvanceBlocks({ bitcoin_blocks: 440, stacks_blocks_per_bitcoin: 1 })
+    .addContractCall({
+      contract_id: WALLET,
+      function_name: "confirm-admin-with-signature",
+      function_args: [sigAuthTuple(signed.sig(99)), noneCV()],
       post_condition_mode: PostConditionMode.Allow,
     })
     .addContractCall({

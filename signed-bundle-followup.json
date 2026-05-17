@@ -1,0 +1,16 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "pubkeyHex": "02eca875ad4e06371c75a1fb889f69b52c4900d7f4f4d17e2a059152213ba2d785",
+  "operations": [
+    {
+      "authId": 99,
+      "label": "confirm-admin (USER) -- finalizes 3-step admin add (after 440-block cooldown)",
+      "challengeHex": "0xdd9bda9dda3aee83bc2b497a8bad15f6b28093c73f3f527e4aa68d30e1feeebb",
+      "signatureHex": "0x36e5ff79a2346d51950295e0bd057b1df794351a23c400693efaf98b857c3d85b69a1e9500d2a74dc0b54dfba9bd7226ebbeccf4514bc3a7ceae23bc059696b1",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    }
+  ]
+}

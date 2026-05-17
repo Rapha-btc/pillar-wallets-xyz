@@ -1,29 +1,35 @@
 // simul-fakfun-v2-wager.js
-// Stxer mainnet-fork simulation covering fakfun-wallet-v2.wager-deposit.
+// Stxer mainnet-fork sim covering fakfun-wallet-v2.wager-deposit against
+// game-wager-v2 (webauthn end-to-end -- no more secp256k1 bridge).
 //
-// Bridges two signing schemes:
-//   - The wallet itself authenticates via WebAuthn / secp256r1 (sig-auth tuple
-//     and challenge from SP28MP1H...auth-v7.build-wager-deposit-hash).
-//   - game-wager-v1 identifies users via secp256k1 pubkeys registered through
-//     SP28MP1H...game-wager-v1.register-wallet (consumes a secp256k1 sig built
-//     against SP28MP1H...auth-v7.build-register-wallet-hash).
+// game-wager-v2 + pillar-wallet-trait don't exist on mainnet yet, so the sim
+// deploys them under SP28MP1H... (the game-wager deployer principal). The
+// wallet declares (impl-trait pillar-wallet-trait); v2.register-wallet then
+// accepts it as a <pillar-wallet-trait> arg and calls back into the wallet's
+// is-admin-pubkey to verify the pubkey belongs to this wallet.
 //
 // Coverage:
-//   - new auth-helpers domain (auth-v7) builds the challenge for the
-//     wallet's wager-deposit webauthn sig
-//   - register-wallet secp256k1 flow on game-wager-v1
-//   - wallet.wager-deposit end-to-end deposit into game-wager-v1
+//   - pillar-wallet-trait deploy
+//   - game-wager-v2 deploy
+//   - game-wager-v2.set-token-whitelist
+//   - game-wager-v2.register-wallet (webauthn sig over v2's SIP-018 domain)
+//   - fakfun-wallet-v2.wager-deposit -> game-wager-v2.deposit (webauthn sig
+//     over auth-v7's domain, same as v1 flow)
 //
 // Steps:
-//   A  setup (deploy + onboard + add-admin USER + fund wallet sBTC)
-//   B  game-wager-v1.set-token-whitelist(sBTC, true) as the SP28MP1H deployer
-//   C  game-wager-v1.register-wallet(pubkey, wallet, auth-id, secp256k1-sig)
-//      with secp256k1 sig computed in-script (RSV format)
-//   D  wallet.wager-deposit(sBTC, "sbtc-token", amount, pubkey, sig-auth, gas)
-//      with sig-auth = webauthn signature over the auth-v7-built challenge
+//   A. Setup (deploy webauthn + auth-helpers + pillar-wallet-trait +
+//      game-wager-v2 + wallet, register hash, onboard, 3-step admin add, fund)
+//   B. game-wager-v2.set-token-whitelist(sBTC, true) as v2 deployer
+//   C. game-wager-v2.register-wallet(wallet, sig-auth-200)
+//   D. fakfun-wallet-v2.wager-deposit(sBTC, amount, USER_PUBKEY, sig-auth-201)
 //
-// New webauthn sigs needed (1): auth-id 20 for wager-deposit.
-// Reused from signed-bundle-admin.json (1): auth-id 0 (add-admin).
+// New webauthn sigs needed (2):
+//   auth-id 200 = register-wallet on game-wager-v2 (v2 domain)
+//   auth-id 201 = wager-deposit on the wallet (auth-v7 domain, embeds USER's
+//                 webauthn pubkey -- distinct from the prior secp256k1 pubkey
+//                 sig that lived at auth-id 20)
+// Reused from signed-bundle-admin.json: auth-id 0 (propose-admin).
+// Reused from signed-bundle-followup.json: auth-id 99 (confirm-admin).
 
 import fs from "node:fs";
 import crypto from "node:crypto";
@@ -42,9 +48,8 @@ import {
   PostConditionMode,
 } from "@stacks/transactions";
 import { SimulationBuilder } from "stxer";
-import { secp256k1 } from "@noble/curves/secp256k1.js";
 
-// Addresses & contracts -------------------------------------------------------
+// ── Addresses & contracts ───────────────────────────────────────────────────
 
 const DEPLOYER = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 const FAKFUN_DEPLOYER = "SP1G655MB1JVQ5FBE2JJ3E01HEA6KBM4H39F5EW63";
@@ -54,42 +59,54 @@ const GAME_WAGER_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
 const WALLET_NAME = "fakfun-wallet-v2";
 const WALLET = `${DEPLOYER}.${WALLET_NAME}`;
 const WALLET_CORE = `${DEPLOYER}.fakfun-wallet-core`;
+const GAME_WAGER_V2 = `${GAME_WAGER_DEPLOYER}.game-wager-v2`;
+const PILLAR_TRAIT = `${GAME_WAGER_DEPLOYER}.pillar-wallet-trait`;
 const AUTH_V7 = `${GAME_WAGER_DEPLOYER}.auth-v7`;
-const GAME_WAGER = `${GAME_WAGER_DEPLOYER}.game-wager-v1`;
 const SBTC_TOKEN = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 
-// Hardcoded secp256k1 keypair (used to register the wallet in game-wager-v1).
-// Keeping it stable across sim runs so the webauthn challenge for wager-deposit
-// (which embeds this pubkey) stays constant -- the user only ever signs once.
-const SECP256K1_PRIVKEY_HEX = "945994b4e05d50847dad2f8e34e3d86bc3e6d0f2958bfd22f7b2d1f3e1974cd9";
-const SECP256K1_PUBKEY_HEX = "033eef2296419524fe6ccc6c968b7a217bb76aad6b2b68e776e2ef4bf044a6a3d4";
+// Wager params
+const WAGER_AMOUNT = 1000;
 
-// Wager-deposit params
-const WAGER_AMOUNT = 1000; // 1000 sats sBTC (well below wallet sBTC funding)
-
-// auth-v7 SIP-018 challenge builder ------------------------------------------
-// (auth-v7's domain differs from auth-helpers-v7's: it binds to game-wager-v1,
-// name="game-wager", version="1.0.0".)
+// ── SIP-018 challenge builders ──────────────────────────────────────────────
 
 const SIP018_PREFIX = Buffer.from("534950303138", "hex");
 const sha256 = (b) => crypto.createHash("sha256").update(b).digest();
 
-function authV7DomainHash() {
+// Wallet domain -- used by the wallet's local auth helpers
+// (smart-wallet-standard-auth-helpers-v7). Matches its get-domain-hash:
+// name="smart-wallet-standard", version="1.0.0", wallet=contract-caller.
+function walletDomainHash() {
   const domain = tupleCV({
-    "chain-id": uintCV(1),
-    contract: principalCV(GAME_WAGER),
-    name: stringAsciiCV("game-wager"),
+    name: stringAsciiCV("smart-wallet-standard"),
     version: stringAsciiCV("1.0.0"),
+    "chain-id": uintCV(1),
+    wallet: principalCV(WALLET),
   });
   return sha256(Buffer.from(serializeCV(domain), "hex"));
 }
 
-function authV7Challenge(topicTuple) {
+function walletChallenge(topicTuple) {
   const msgHash = sha256(Buffer.from(serializeCV(topicTuple), "hex"));
-  return sha256(Buffer.concat([SIP018_PREFIX, authV7DomainHash(), msgHash]));
+  return sha256(Buffer.concat([SIP018_PREFIX, walletDomainHash(), msgHash]));
 }
 
-function specRegisterWallet(authId, walletPrincipal) {
+// game-wager-v2 domain -- used by v2.register-wallet, v2.withdraw, v2.create-game.
+function v2DomainHash() {
+  const domain = tupleCV({
+    "chain-id": uintCV(1),
+    contract: principalCV(GAME_WAGER_V2),
+    name: stringAsciiCV("game-wager"),
+    version: stringAsciiCV("2.0.0"),
+  });
+  return sha256(Buffer.from(serializeCV(domain), "hex"));
+}
+
+function v2Challenge(topicTuple) {
+  const msgHash = sha256(Buffer.from(serializeCV(topicTuple), "hex"));
+  return sha256(Buffer.concat([SIP018_PREFIX, v2DomainHash(), msgHash]));
+}
+
+function specRegisterWalletV2(authId, walletPrincipal) {
   return tupleCV({
     "auth-id": uintCV(authId),
     topic: stringAsciiCV("register-wallet"),
@@ -101,44 +118,17 @@ function specWagerDeposit(authId, amount, pubkeyHex, tokenPrincipal) {
   return tupleCV({
     amount: uintCV(amount),
     "auth-id": uintCV(authId),
-    pubkey: bufferCV(Buffer.from(pubkeyHex, "hex")),
+    pubkey: bufferCV(Buffer.from(stripHex(pubkeyHex), "hex")),
     token: principalCV(tokenPrincipal),
     topic: stringAsciiCV("wager-deposit"),
   });
 }
 
-// secp256k1 signing -----------------------------------------------------------
-// Clarity's secp256k1-recover? expects RSV (r || s || v). noble's `recovered`
-// format returns V || R || S, so we re-pack.
+// ── Sig-auth helpers ────────────────────────────────────────────────────────
 
-function signSecp256k1Rsv(challenge, privkeyHex) {
-  const sk = Buffer.from(privkeyHex, "hex");
-  const sig = secp256k1.sign(challenge, sk, { prehash: false, format: "recovered" });
-  // sig is 65 bytes: [v, r..(32), s..(32)]
-  const v = sig[0];
-  const rs = sig.slice(1);
-  return Buffer.concat([Buffer.from(rs), Buffer.from([v])]); // r||s||v = 65 bytes
+function stripHex(s) {
+  return s.startsWith("0x") ? s.slice(2) : s;
 }
-
-function buildOperations() {
-  // The webauthn challenge for wager-deposit. user signs this with the v2 wallet
-  // passkey; the wallet then verifies via auth-v7.build-wager-deposit-hash +
-  // verify-signature.
-  const wagerChallenge = authV7Challenge(
-    specWagerDeposit(20, WAGER_AMOUNT, SECP256K1_PUBKEY_HEX, SBTC_TOKEN),
-  );
-  return [
-    {
-      authId: 20,
-      label: `wager-deposit ${WAGER_AMOUNT} sats sBTC into game-wager-v1 (pubkey=${SECP256K1_PUBKEY_HEX.slice(0, 12)}...)`,
-      challenge: wagerChallenge,
-    },
-  ];
-}
-
-// Sig-auth helpers ------------------------------------------------------------
-
-const stripHex = (s) => (s.startsWith("0x") ? s.slice(2) : s);
 
 function sigAuthTuple(signed) {
   return tupleCV({
@@ -191,13 +181,37 @@ function mergeBundles(...bundles) {
   };
 }
 
-// Modes -----------------------------------------------------------------------
+// ── Operations ──────────────────────────────────────────────────────────────
+
+function buildOperations(userPubkeyHex) {
+  return [
+    {
+      authId: 200,
+      label: "game-wager-v2.register-wallet (wallet=fakfun-wallet-v2)",
+      challenge: v2Challenge(specRegisterWalletV2(200, WALLET)),
+    },
+    {
+      authId: 201,
+      label: `wager-deposit ${WAGER_AMOUNT} sats sBTC for USER pubkey`,
+      challenge: walletChallenge(
+        specWagerDeposit(201, WAGER_AMOUNT, userPubkeyHex, SBTC_TOKEN),
+      ),
+    },
+  ];
+}
+
+// ── Modes ───────────────────────────────────────────────────────────────────
 
 function printChallenges() {
-  const ops = buildOperations();
+  // Pull the user pubkey from the existing init bundle (so the wager-deposit
+  // hash binds to the same passkey the wallet was initialized with).
+  const initBundle = JSON.parse(fs.readFileSync("./signed-bundle-init.json", "utf8"));
+  const userPubkeyHex = initBundle.pubkeyHex;
+  const ops = buildOperations(userPubkeyHex);
   const bundle = {
     walletPrincipal: WALLET,
     rpId: "fak.fun",
+    pubkeyHex: userPubkeyHex,
     operations: ops.map((op) => ({
       authId: op.authId,
       label: op.label,
@@ -210,32 +224,39 @@ function printChallenges() {
 async function runSimulation(wagerBundlePath, adminBundlePath) {
   const wagerB = loadBundle(wagerBundlePath);
   const adminB = loadBundle(adminBundlePath);
-  const signed = mergeBundles(adminB, wagerB);
+  const here = new URL(".", import.meta.url).pathname;
+  const followupPath = `${here}signed-bundle-followup.json`;
+  const bundlesToMerge = [adminB, wagerB];
+  if (fs.existsSync(followupPath)) bundlesToMerge.push(loadBundle(followupPath));
+  const signed = mergeBundles(...bundlesToMerge);
   if (signed.walletPrincipal !== WALLET) {
     throw new Error(`Bundle wallet ${signed.walletPrincipal} != sim wallet ${WALLET}`);
   }
-  const pubkeyBuff = bufferCV(Buffer.from(stripHex(signed.pubkeyHex), "hex"));
+  const pubkeyHex = signed.pubkeyHex;
+  const pubkeyBuff = bufferCV(Buffer.from(stripHex(pubkeyHex), "hex"));
 
-  const here = new URL(".", import.meta.url).pathname;
   const walletSource = fs.readFileSync(`${here}contracts/fakfun-wallet-v2.clar`, "utf8");
   const webauthnSource = fs.readFileSync(`${here}contracts/clarity-webauthn.clar`, "utf8");
   const authHelpersSource = fs.readFileSync(
     `${here}contracts/smart-wallet-standard-auth-helpers-v7.clar`,
     "utf8",
   );
+  const pillarTraitSource = fs.readFileSync(
+    `${here}contracts/deployed/deploying/pillar-wallet-trait.clar`,
+    "utf8",
+  );
+  const gameWagerV2Source = fs.readFileSync(
+    `${here}contracts/game-wager-v2.clar`,
+    "utf8",
+  );
+
   const v2Hash = crypto.createHash("sha512-256").update(walletSource).digest();
   console.error("fakfun-wallet-v2 hash:", v2Hash.toString("hex"));
 
-  // Build the secp256k1 register-wallet signature in-script.
-  const regChallenge = authV7Challenge(specRegisterWallet(0, WALLET));
-  const regSig = signSecp256k1Rsv(regChallenge, SECP256K1_PRIVKEY_HEX);
-  console.error("register-wallet challenge:", regChallenge.toString("hex"));
-  console.error("register-wallet sec256k1 sig (RSV):", regSig.toString("hex"));
-
   const builder = SimulationBuilder.new()
-    .withSender(DEPLOYER)
 
-    // ── Phase A: setup wallet ─────────────────────────────────────────────
+    // ── Phase A: setup ────────────────────────────────────────────────────
+    .withSender(DEPLOYER)
     .addContractDeploy({
       contract_name: "clarity-webauthn",
       source_code: webauthnSource,
@@ -246,6 +267,21 @@ async function runSimulation(wagerBundlePath, adminBundlePath) {
       source_code: authHelpersSource,
       clarity_version: ClarityVersion.Clarity5,
     })
+    // pillar-wallet-trait deploys from SP28MP1H so its address matches the
+    // wallet's (use-trait .../pillar-wallet-trait.pillar-wallet-trait) ref.
+    .withSender(GAME_WAGER_DEPLOYER)
+    .addContractDeploy({
+      contract_name: "pillar-wallet-trait",
+      source_code: pillarTraitSource,
+      clarity_version: ClarityVersion.Clarity5,
+    })
+    .addContractDeploy({
+      contract_name: "game-wager-v2",
+      source_code: gameWagerV2Source,
+      clarity_version: ClarityVersion.Clarity5,
+    })
+    // back to DEPLOYER to register wallet hash and deploy the wallet
+    .withSender(DEPLOYER)
     .addContractCall({
       contract_id: WALLET_CORE,
       function_name: "set-verified-contract",
@@ -267,8 +303,21 @@ async function runSimulation(wagerBundlePath, adminBundlePath) {
     .withSender(USER)
     .addContractCall({
       contract_id: WALLET,
-      function_name: "add-admin-with-signature",
+      function_name: "propose-admin-with-signature",
       function_args: [principalCV(USER), sigAuthTuple(signed.sig(0)), noneCV()],
+      post_condition_mode: PostConditionMode.Allow,
+    })
+    .addContractCall({
+      contract_id: WALLET,
+      function_name: "accept-admin-proposal",
+      function_args: [],
+      post_condition_mode: PostConditionMode.Allow,
+    })
+    .addAdvanceBlocks({ bitcoin_blocks: 440, stacks_blocks_per_bitcoin: 1 })
+    .addContractCall({
+      contract_id: WALLET,
+      function_name: "confirm-admin-with-signature",
+      function_args: [sigAuthTuple(signed.sig(99)), noneCV()],
       post_condition_mode: PostConditionMode.Allow,
     })
     .addContractCall({
@@ -283,36 +332,29 @@ async function runSimulation(wagerBundlePath, adminBundlePath) {
       post_condition_mode: PostConditionMode.Allow,
     })
 
-    // ── Phase B: whitelist sBTC in game-wager-v1 as its deployer ──────────
+    // ── Phase B: whitelist sBTC on game-wager-v2 ──────────────────────────
     .withSender(GAME_WAGER_DEPLOYER)
     .addContractCall({
-      contract_id: GAME_WAGER,
+      contract_id: GAME_WAGER_V2,
       function_name: "set-token-whitelist",
       function_args: [principalCV(SBTC_TOKEN), trueCV()],
       post_condition_mode: PostConditionMode.Allow,
     })
 
-    // ── Phase C: register the wallet's secp256k1 pubkey in game-wager ─────
-    // tx-sender can be anyone; game-wager verifies the secp256k1 sig recovers
-    // the expected pubkey.
+    // ── Phase C: register the wallet on game-wager-v2 (webauthn sig 200) ──
     .withSender(USER)
     .addContractCall({
-      contract_id: GAME_WAGER,
+      contract_id: GAME_WAGER_V2,
       function_name: "register-wallet",
       function_args: [
-        bufferCV(Buffer.from(SECP256K1_PUBKEY_HEX, "hex")),
-        principalCV(WALLET),
-        uintCV(0), // auth-id used inside the secp256k1 message-hash
-        bufferCV(regSig),
+        contractPrincipalCV(DEPLOYER, WALLET_NAME),
+        sigAuthTuple(signed.sig(200)),
       ],
       post_condition_mode: PostConditionMode.Allow,
     })
-    .addEvalCode(
-      GAME_WAGER,
-      `(get-registered-wallet 0x${SECP256K1_PUBKEY_HEX})`,
-    )
+    .addEvalCode(GAME_WAGER_V2, `(get-registered-wallet 0x${stripHex(pubkeyHex)})`)
 
-    // ── Phase D: wallet.wager-deposit (webauthn-signed auth-id 20) ────────
+    // ── Phase D: wager-deposit (webauthn sig 201) ─────────────────────────
     .addContractCall({
       contract_id: WALLET,
       function_name: "wager-deposit",
@@ -320,8 +362,8 @@ async function runSimulation(wagerBundlePath, adminBundlePath) {
         contractPrincipalCV("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token"),
         stringAsciiCV("sbtc-token"),
         uintCV(WAGER_AMOUNT),
-        bufferCV(Buffer.from(SECP256K1_PUBKEY_HEX, "hex")),
-        sigAuthOptional(signed.sig(20)),
+        pubkeyBuff,
+        sigAuthOptional(signed.sig(201)),
         noneCV(),
       ],
       post_condition_mode: PostConditionMode.Allow,
@@ -329,15 +371,13 @@ async function runSimulation(wagerBundlePath, adminBundlePath) {
 
     // ── Final state checks ────────────────────────────────────────────────
     .addEvalCode(WALLET, "(get-owner)")
-    .addEvalCode(
-      GAME_WAGER,
-      `(get-balance 0x${SECP256K1_PUBKEY_HEX} '${SBTC_TOKEN})`,
-    );
+    .addEvalCode(GAME_WAGER_V2, `(get-balance 0x${stripHex(pubkeyHex)} '${SBTC_TOKEN})`)
+    .addEvalCode(GAME_WAGER_V2, `(is-token-whitelisted '${SBTC_TOKEN})`);
 
   await builder.run();
 }
 
-// CLI -------------------------------------------------------------------------
+// ── CLI ─────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
 if (args.includes("--print-challenges")) {
