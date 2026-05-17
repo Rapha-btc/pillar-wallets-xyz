@@ -43,6 +43,19 @@ function buildAuthenticatorData() {
 const CLIENT_DATA_PREFIX = Buffer.from('{"type":"webauthn.get","challenge":"', "utf8");
 const CLIENT_DATA_SUFFIX = Buffer.from(`","origin":"https://${TEST_RP_ID}","crossOrigin":false}`, "utf8");
 
+// Variant with a caller-supplied rp.id -- used by negative-path sims to
+// forge authenticator-data with a domain the contract doesn't whitelist.
+function buildAuthenticatorDataForRpId(rpId) {
+  const rpIdHash = sha256(Buffer.from(rpId, "ascii"));
+  const flags = Buffer.from([0x05]);
+  const signCount = Buffer.from([0x00, 0x00, 0x00, 0x05]);
+  return Buffer.concat([rpIdHash, flags, signCount]);
+}
+
+function buildClientDataSuffixForRpId(rpId) {
+  return Buffer.from(`","origin":"https://${rpId}","crossOrigin":false}`, "utf8");
+}
+
 /**
  * Generate a fresh P-256 keypair for a test "player".
  * Returns { privKeyHex, pubKeyHex } -- pubKey is the 33-byte compressed form
@@ -88,6 +101,33 @@ export function signChallenge(challengeBytes, privKey) {
     authenticatorDataHex: "0x" + authenticatorData.toString("hex"),
     clientDataPrefixHex: "0x" + CLIENT_DATA_PREFIX.toString("hex"),
     clientDataSuffixHex: "0x" + CLIENT_DATA_SUFFIX.toString("hex"),
+  };
+}
+
+/**
+ * Sign a challenge under a CALLER-SUPPLIED rp.id. The contract will reject
+ * (err-invalid-signature) when the rp.id isn't whitelisted -- this is the
+ * primary tool for the negative "wrong rp.id" sim.
+ */
+export function signChallengeWithRpId(challengeBytes, privKey, rpId) {
+  if (challengeBytes.length !== 32) {
+    throw new Error(`challenge must be 32 bytes, got ${challengeBytes.length}`);
+  }
+  const authenticatorData = buildAuthenticatorDataForRpId(rpId);
+  const clientDataSuffix = buildClientDataSuffixForRpId(rpId);
+  const challengeB64 = base64url(challengeBytes);
+  const clientDataJSON = Buffer.concat([
+    CLIENT_DATA_PREFIX,
+    Buffer.from(challengeB64, "ascii"),
+    clientDataSuffix,
+  ]);
+  const signedDigest = sha256(Buffer.concat([authenticatorData, sha256(clientDataJSON)]));
+  const sig = p256.sign(signedDigest, privKey, { prehash: false, format: "compact", lowS: true });
+  return {
+    signatureHex: "0x" + Buffer.from(sig).toString("hex"),
+    authenticatorDataHex: "0x" + authenticatorData.toString("hex"),
+    clientDataPrefixHex: "0x" + CLIENT_DATA_PREFIX.toString("hex"),
+    clientDataSuffixHex: "0x" + clientDataSuffix.toString("hex"),
   };
 }
 
