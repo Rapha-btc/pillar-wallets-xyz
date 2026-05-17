@@ -19,6 +19,7 @@ WebAuthn / secp256r1 (`secp256r1-verify`) over a reconstructed digest
 | `simul-fakfun-v2-token-lock.js` | 0, 1, 2 (+ 3 dummy) | [29cbbb44…](https://stxer.xyz/simulations/mainnet/29cbbb44b7b4cf3332bbefca3c63086f) | ✅ toggle-token-lock asymmetric auth — all 9 phases pass |
 | `simul-fakfun-v2-admin.js` | 0–9 | [fc5737fb…](https://stxer.xyz/simulations/mainnet/fc5737fb815ae34a5a580bee318d1de5) | ✅ all 25 steps pass — covers the 10 remaining helpers (stx-transfer, extension flows, veto, recovery, dual-stacking, fast-pool, confirm-transfer-wallet) |
 | `simul-fakfun-v2-governance.js` | reuses 0 + 6 from admin bundle | [f56c6525…](https://stxer.xyz/simulations/mainnet/f56c6525110605ddf73944a960fd66d4) | ✅ all 39 steps pass — covers the 12 untested admin/config/recovery functions: set-max-gas-amount, signal-config-change, set-wallet-config, signal-pubkey-cooldown-change, confirm-pubkey-cooldown-change, propose/confirm/remove-admin-pubkey, execute-pending-stx-transfer, execute-pending-sbtc-transfer, confirm-recovery, recover-inactive-wallet (after `addAdvanceBlocks(52_700)`) |
+| `simul-fakfun-v2-limit.js` | 10–12 new + reuses 0/2/3 from admin bundle | [ab4c481f…](https://stxer.xyz/simulations/mainnet/ab4c481f8099b2e450c7be26b3de5e6f) | ✅ faktory-execute-limit happy + replay + min-out (retryable) + expired (after advance) + extension-call under token-lock (NEW assert) |
 
 Each sim is two-phase: print the SIP-018 challenges, sign them in a browser
 with your passkey, paste the bundle back, then run.

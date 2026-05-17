@@ -847,8 +847,14 @@
     (match gas g (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount))) (try! (contract-call? g pay-gas)))) true)
     (let ((op (get-byte (default-to 0x00 opcode) u0)))
       (if (or (is-eq op EXECUTE-OP-BUY) (is-eq op EXECUTE-OP-SELL))
-        (let ((result (as-contract? ((with-ft (contract-of sip010) sip010-name amount))
-                        (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 execute pool amount opcode)))))
+        ;; as-contract? wraps its body in (response ... uint), so the outer
+        ;; try! is needed to unwrap into the swap-result tuple before we can
+        ;; read dy. If either the inner contract-call OR the outer unwrap
+        ;; errs, the whole tx reverts and consume-signature's write to
+        ;; used-pubkey-authorizations is rolled back, so the sig stays valid
+        ;; for retry.
+        (let ((result (try! (as-contract? ((with-ft (contract-of sip010) sip010-name amount))
+                              (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 execute pool amount opcode))))))
           (asserts! (>= (get dy result) limit-out) err-limit-not-hit)
           (ok result))
         err-invalid-operation))
