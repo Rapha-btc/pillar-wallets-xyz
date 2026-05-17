@@ -61,7 +61,6 @@ const SBTC_TOKEN = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 // modest amounts.
 const NEW_STX_THRESHOLD = 100_000; // 0.1 STX — 1 STX transfer triggers pending
 const NEW_SBTC_THRESHOLD = 10_000; // 0.0001 sBTC — 50_000-sat transfer triggers pending
-const NEW_ZSBTC_THRESHOLD = 100_000;
 const NEW_COOLDOWN = 144; // keep at default
 
 const NEW_PUBKEY_COOLDOWN = 200; // shorter than default u432
@@ -297,7 +296,6 @@ async function runSimulation(signedPath) {
       function_args: [
         uintCV(NEW_STX_THRESHOLD),
         uintCV(NEW_SBTC_THRESHOLD),
-        uintCV(NEW_ZSBTC_THRESHOLD),
         uintCV(NEW_COOLDOWN),
       ],
       post_condition_mode: PostConditionMode.Allow,

@@ -35,14 +35,12 @@
 (define-constant err-token-locked (err u4023))
 (define-constant err-limit-expired (err u4024))
 (define-constant err-limit-not-hit (err u4025))
-(define-constant err-not-keeper (err u4026))
 (define-constant err-fatal-owner-not-admin (err u9999))
 
 (define-constant INACTIVITY-PERIOD u52560) 
 (define-constant MAX-CONFIG-COOLDOWN u4032) 
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
-(define-constant ZSBTC-CONTRACT 'SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zsbtc-token)
 (define-constant FAKFUN-DEPLOYER 'SP1G655MB1JVQ5FBE2JJ3E01HEA6KBM4H39F5EW63)
 (define-constant PUBK 0x000000000000000000000000000000000000000000000000000000000000000000)
 
@@ -109,13 +107,11 @@
 (define-data-var wallet-config {
   stx-threshold: uint,
   sbtc-threshold: uint,
-  zsbtc-threshold: uint,
   cooldown-period: uint,
   config-signaled-at: (optional uint),
 } {
   stx-threshold: u100000000,
   sbtc-threshold: u100000,
-  zsbtc-threshold: u100000,
   cooldown-period: u144,
   config-signaled-at: none,
 })
@@ -125,22 +121,14 @@
 
 (define-data-var token-lock-enabled bool false)
 
-;; Designated keeper allowed to broadcast user-signed limit-order txs.
-;; Default = faktory-dao backend (SPV9K21...). Admin can change this; set to
-;; cant-be-evil.stx (SP000000000000000000002Q6VF78) to permanently disable
-;; third-party broadcasts of pre-signed limit orders for this wallet, even
-;; if a pubkey is compromised, since no one controls that principal.
-(define-data-var keeper principal 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22)
 
 (define-data-var spent-this-period {
   stx: uint,
   sbtc: uint,
-  zsbtc: uint,
   period-start: uint,
 } {
   stx: u0,
   sbtc: u0,
-  zsbtc: u0,
   period-start: DEPLOYED-BURNT-BLOCK,
 })
 
@@ -151,7 +139,7 @@
       (period-expired (> burn-block-height (+ (get period-start spent) (get cooldown-period config))))
     )
     (if period-expired
-      { stx: u0, sbtc: u0, zsbtc: u0, period-start: burn-block-height }
+      { stx: u0, sbtc: u0, period-start: burn-block-height }
       spent
     )
   )
@@ -166,12 +154,6 @@
 (define-private (add-spent-sbtc (amount uint))
   (let ((current (get-current-spent)))
     (var-set spent-this-period (merge current { sbtc: (+ (get sbtc current) amount) }))
-  )
-)
-
-(define-private (add-spent-zsbtc (amount uint))
-  (let ((current (get-current-spent)))
-    (var-set spent-this-period (merge current { zsbtc: (+ (get zsbtc current) amount) }))
   )
 )
 
@@ -202,18 +184,6 @@
   )
 )
 
-(define-read-only (get-keeper) (var-get keeper))
-
-;; Admin-only setter for the limit-order keeper. Set to
-;; SP000000000000000000002Q6VF78 (cant-be-evil.stx) to disable third-party
-;; broadcast of pre-signed limit orders entirely.
-(define-public (set-keeper (new-keeper principal))
-  (begin
-    (try! (is-admin-calling tx-sender))
-    (var-set keeper new-keeper)
-    (ok true)
-  )
-)
 
 (define-read-only (get-token-lock-enabled)
   (var-get token-lock-enabled)
@@ -273,7 +243,6 @@
 (define-public (set-wallet-config
     (new-stx-threshold uint)
     (new-sbtc-threshold uint)
-    (new-zsbtc-threshold uint)
     (new-cooldown-period uint)
   )
   (let (
@@ -291,11 +260,13 @@
     (var-set wallet-config {
       stx-threshold: new-stx-threshold,
       sbtc-threshold: new-sbtc-threshold,
-      zsbtc-threshold: new-zsbtc-threshold,
       cooldown-period: new-cooldown-period,
       config-signaled-at: none,
     })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-wallet-config-set new-stx-threshold new-sbtc-threshold new-zsbtc-threshold new-cooldown-period))
+    ;; u0 is a placeholder for the now-deprecated zsbtc-threshold slot in
+    ;; the existing mainnet fakfun-wallet-core log signature; wallet no
+    ;; longer tracks zsbtc internally.
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-wallet-config-set new-stx-threshold new-sbtc-threshold u0 new-cooldown-period))
     (ok true)
   )
 )
@@ -387,15 +358,6 @@
       (spent (get-current-spent))
     )
     (> (+ (get sbtc spent) amount) (get sbtc-threshold config))
-  )
-)
-
-(define-private (would-exceed-zsbtc-threshold (amount uint))
-  (let (
-      (config (var-get wallet-config))
-      (spent (get-current-spent))
-    )
-    (> (+ (get zsbtc spent) amount) (get zsbtc-threshold config))
   )
 )
 
@@ -679,24 +641,16 @@
         (unwrap-panic (create-pending-operation "sbtc-transfer" amount recipient (some SBTC-CONTRACT) none none))
         (ok true)
       )
-      (if (and (is-eq (contract-of sip010) ZSBTC-CONTRACT) (would-exceed-zsbtc-threshold amount))
-      (begin
-        (unwrap-panic (create-pending-operation "zsbtc-transfer" amount recipient (some ZSBTC-CONTRACT) none none))
-        (ok true)
-      )
       (begin
         (if (is-eq (contract-of sip010) SBTC-CONTRACT)
           (add-spent-sbtc amount)
-          (if (is-eq (contract-of sip010) ZSBTC-CONTRACT)
-            (add-spent-zsbtc amount)
-            true
-          )
+          true
         )
         (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-sip010-transfer (contract-of sip010) amount recipient memo))
         (as-contract? ((with-ft (contract-of sip010) token-name amount))
           (try! (contract-call? sip010 transfer amount current-contract recipient memo))
         )
-      ))
+      )
     )
   )
 )
@@ -715,25 +669,6 @@
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op) memo))
     (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (get amount op)))
       (try! (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token transfer
-        (get amount op) current-contract (get recipient op) memo))
-    )
-  )
-)
-
-(define-public (execute-pending-zsbtc-transfer
-    (op-id uint)
-    (memo (optional (buff 34)))
-  )
-  (let ((op (unwrap! (map-get? pending-operations op-id) err-invalid-operation)))
-    (asserts! (is-eq (get op-type op) "zsbtc-transfer") err-invalid-operation)
-    (asserts! (not (get executed op)) err-already-executed)
-    (asserts! (not (get vetoed op)) err-vetoed)
-    (asserts! (>= burn-block-height (get execute-after op)) err-cooldown-not-passed)
-    (try! (is-authorized none))
-    (map-set pending-operations op-id (merge op { executed: true }))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-sip010-transfer ZSBTC-CONTRACT (get amount op) (get recipient op) memo))
-    (as-contract? ((with-ft ZSBTC-CONTRACT "zsbtc" (get amount op)))
-      (try! (contract-call? 'SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zsbtc-token transfer
         (get amount op) current-contract (get recipient op) memo))
     )
   )
@@ -890,10 +825,6 @@
   )
   (begin
     (update-activity)
-    ;; Keeper gate -- checked BEFORE is-authorized so a wrong-keeper attempt
-    ;; does not consume the sig. The pre-signed payload stays valid for the
-    ;; designated keeper to retry.
-    (asserts! (is-eq tx-sender (var-get keeper)) err-not-keeper)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (asserts! (<= burn-block-height expiry-burn-block) err-limit-expired)
     (try! (is-authorized (some {
