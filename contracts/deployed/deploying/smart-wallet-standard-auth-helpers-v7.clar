@@ -66,6 +66,24 @@
     )))
 )
 
+(define-read-only (build-wager-deposit-hash (details {
+  auth-id: uint,
+  amount: uint,
+  pubkey: (buff 33),
+  token: principal,
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "wager-deposit",
+        auth-id: (get auth-id details),
+        amount: (get amount details),
+        pubkey: (get pubkey details),
+        token: (get token details),
+      })))
+    )))
+)
+
 (define-read-only (build-extension-call-hash (details {
   auth-id: uint,
   extension: principal,
