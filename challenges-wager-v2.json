@@ -1,0 +1,17 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "pubkeyHex": "02eca875ad4e06371c75a1fb889f69b52c4900d7f4f4d17e2a059152213ba2d785",
+  "operations": [
+    {
+      "authId": 200,
+      "label": "game-wager-v2.register-wallet (wallet=fakfun-wallet-v2)",
+      "challengeHex": "0x539f5cb9a2539216a9c9b4fd99b3c321027388307547bbc07d14dc7032bd4ac4"
+    },
+    {
+      "authId": 201,
+      "label": "wager-deposit 1000 sats sBTC for USER pubkey",
+      "challengeHex": "0x882ab676c00f89efc534019b009441c7d7275414510f141abd7f01481c0375d4"
+    }
+  ]
+}

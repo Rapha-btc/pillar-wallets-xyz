@@ -1,0 +1,11 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "operations": [
+    {
+      "authId": 99,
+      "label": "confirm-admin (USER) -- finalizes 3-step admin add (after 440-block cooldown)",
+      "challengeHex": "0xdd9bda9dda3aee83bc2b497a8bad15f6b28093c73f3f527e4aa68d30e1feeebb"
+    }
+  ]
+}

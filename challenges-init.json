@@ -1,0 +1,26 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "operations": [
+    {
+      "authId": 0,
+      "label": "propose-admin (USER) -- to be vetoed",
+      "challengeHex": "0xade02c1b4ae5310d09175a25b5b274280688309328830246e557134c34faf4ba"
+    },
+    {
+      "authId": 1,
+      "label": "veto-init (USER) -- clears pending after propose A",
+      "challengeHex": "0x12651700422b232b72528caffa07930998971b4c86a09c914926ae13ba932a03"
+    },
+    {
+      "authId": 2,
+      "label": "propose-admin (USER) -- second propose, will be confirmed",
+      "challengeHex": "0x384ff36d0b24350051f0e75c0993149dcbd8c11d78aaa6c0c5cf58aa672f75dd"
+    },
+    {
+      "authId": 3,
+      "label": "confirm-admin (USER) -- finalizes after cooldown",
+      "challengeHex": "0x2d922c662b109c01aa366e797424591c8254c5778375e3c501a85e0068f4de8b"
+    }
+  ]
+}

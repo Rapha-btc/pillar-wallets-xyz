@@ -35,20 +35,41 @@
 (define-data-var withdraw-fee-rate uint u100)
 (define-data-var treasury principal DEPLOYER)
 
-(define-map balances { pubkey: (buff 33), token: principal } uint)
-(define-map used-signatures (buff 32) (buff 33))
-(define-map games uint {
-  player-a: (buff 33),
-  player-b: (buff 33),
-  token: principal,
-  wager-amount: uint,
-  status: (string-ascii 10),
-  winner: (optional (buff 33)),
-  created-at: uint,
-})
-(define-map accumulated-fees principal uint)
-(define-map whitelisted-tokens principal bool)
-(define-map pubkey-wallet (buff 33) principal)
+(define-map balances
+  {
+    pubkey: (buff 33),
+    token: principal,
+  }
+  uint
+)
+(define-map used-signatures
+  (buff 32)
+  (buff 33)
+)
+(define-map games
+  uint
+  {
+    player-a: (buff 33),
+    player-b: (buff 33),
+    token: principal,
+    wager-amount: uint,
+    status: (string-ascii 10),
+    winner: (optional (buff 33)),
+    created-at: uint,
+  }
+)
+(define-map accumulated-fees
+  principal
+  uint
+)
+(define-map whitelisted-tokens
+  principal
+  bool
+)
+(define-map pubkey-wallet
+  (buff 33)
+  principal
+)
 
 ;; -----------------------------------------------------------------------------
 ;; SIP-018 message hashes (domain = game-wager-v2)
@@ -64,24 +85,25 @@
 )
 
 (define-read-only (build-register-wallet-hash (details {
-    auth-id: uint,
-    wallet: principal,
-  }))
+  auth-id: uint,
+  wallet: principal,
+}))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
         auth-id: (get auth-id details),
         topic: "register-wallet",
         wallet: (get wallet details),
-      }))))))
+      })))
+    )))
 )
 
 (define-read-only (build-withdraw-hash (details {
-    auth-id: uint,
-    amount: uint,
-    recipient: principal,
-    token: principal,
-  }))
+  auth-id: uint,
+  amount: uint,
+  recipient: principal,
+  token: principal,
+}))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
@@ -90,15 +112,16 @@
         recipient: (get recipient details),
         token: (get token details),
         topic: "withdraw",
-      }))))))
+      })))
+    )))
 )
 
 (define-read-only (build-wager-hash (details {
-    auth-id: uint,
-    opponent: (buff 33),
-    token: principal,
-    wager-amount: uint,
-  }))
+  auth-id: uint,
+  opponent: (buff 33),
+  token: principal,
+  wager-amount: uint,
+}))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
@@ -107,15 +130,23 @@
         token: (get token details),
         topic: "wager",
         wager-amount: (get wager-amount details),
-      }))))))
+      })))
+    )))
 )
 
 ;; -----------------------------------------------------------------------------
 ;; Read-only accessors
 ;; -----------------------------------------------------------------------------
 
-(define-read-only (get-balance (pubkey (buff 33)) (token principal))
-  (default-to u0 (map-get? balances { pubkey: pubkey, token: token }))
+(define-read-only (get-balance
+    (pubkey (buff 33))
+    (token principal)
+  )
+  (default-to u0 (map-get? balances {
+    pubkey: pubkey,
+    token: token,
+  })
+  )
 )
 
 (define-read-only (get-game (game-id uint))
@@ -167,23 +198,31 @@
     (client-data-suffix (buff 512))
   )
   (let ((auth-rp-id (unwrap!
-          (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
-            get-rp-id-hash authenticator-data)
-          err-invalid-signature)))
-    (asserts! (or (is-eq auth-rp-id RP-ID-HASH-FAKFUN-COM)
-                  (is-eq auth-rp-id RP-ID-HASH-FAK-FUN))
-              err-invalid-signature)
-    (asserts! (contract-call?
-                'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
-                is-user-present authenticator-data)
-              err-invalid-signature)
-    (ok (asserts! (contract-call?
-                    'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
-                    verify-webauthn-signature
-                    pubkey message-hash authenticator-data
-                    client-data-prefix client-data-suffix signature)
-                  err-invalid-signature))
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+        get-rp-id-hash authenticator-data
+      )
+      err-invalid-signature
+    )))
+    (asserts!
+      (or
+        (is-eq auth-rp-id RP-ID-HASH-FAKFUN-COM)
+        (is-eq auth-rp-id RP-ID-HASH-FAK-FUN)
+      )
+      err-invalid-signature
+    )
+    (asserts!
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+        is-user-present authenticator-data
+      )
+      err-invalid-signature
+    )
+    (ok (asserts!
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+        verify-webauthn-signature pubkey message-hash authenticator-data
+        client-data-prefix client-data-suffix signature
+      )
+      err-invalid-signature
+    ))
   )
 )
 
@@ -196,9 +235,12 @@
     (client-data-suffix (buff 512))
   )
   (begin
-    (try! (verify-signature message-hash pubkey signature
-            authenticator-data client-data-prefix client-data-suffix))
-    (asserts! (is-none (map-get? used-signatures message-hash)) err-signature-replay)
+    (try! (verify-signature message-hash pubkey signature authenticator-data
+      client-data-prefix client-data-suffix
+    ))
+    (asserts! (is-none (map-get? used-signatures message-hash))
+      err-signature-replay
+    )
     (map-set used-signatures message-hash pubkey)
     (ok true)
   )
@@ -208,17 +250,32 @@
 ;; Balance bookkeeping
 ;; -----------------------------------------------------------------------------
 
-(define-private (credit-balance (pubkey (buff 33)) (token principal) (amount uint))
-  (map-set balances
-    { pubkey: pubkey, token: token }
+(define-private (credit-balance
+    (pubkey (buff 33))
+    (token principal)
+    (amount uint)
+  )
+  (map-set balances {
+    pubkey: pubkey,
+    token: token,
+  }
     (+ (get-balance pubkey token) amount)
   )
 )
 
-(define-private (debit-balance (pubkey (buff 33)) (token principal) (amount uint))
+(define-private (debit-balance
+    (pubkey (buff 33))
+    (token principal)
+    (amount uint)
+  )
   (let ((current (get-balance pubkey token)))
     (asserts! (<= amount current) err-insufficient-balance)
-    (map-set balances { pubkey: pubkey, token: token } (- current amount))
+    (map-set balances {
+      pubkey: pubkey,
+      token: token,
+    }
+      (- current amount)
+    )
     (ok true)
   )
 )
@@ -227,10 +284,16 @@
 ;; Entry points
 ;; -----------------------------------------------------------------------------
 
-(define-public (deposit (token <sip-010-trait>) (amount uint) (pubkey (buff 33)))
+(define-public (deposit
+    (token <sip-010-trait>)
+    (amount uint)
+    (pubkey (buff 33))
+  )
   (begin
     (asserts! (> amount u0) err-invalid-amount)
-    (asserts! (is-token-whitelisted (contract-of token)) err-token-not-whitelisted)
+    (asserts! (is-token-whitelisted (contract-of token))
+      err-token-not-whitelisted
+    )
     (try! (contract-call? token transfer amount tx-sender current-contract none))
     (credit-balance pubkey (contract-of token) amount)
     (print {
@@ -238,7 +301,7 @@
       pubkey: pubkey,
       token: (contract-of token),
       amount: amount,
-      sender: tx-sender
+      sender: tx-sender,
     })
     (ok true)
   )
@@ -253,28 +316,26 @@
       authenticator-data: (buff 256),
       client-data-prefix: (buff 128),
       client-data-suffix: (buff 512),
-    }))
-  (let (
-    (pubkey (get pubkey sig-auth))
-    (wallet-principal (contract-of wallet))
-    (message-hash (build-register-wallet-hash {
-      auth-id: (get auth-id sig-auth),
-      wallet: wallet-principal,
-    }))
+    })
   )
-    (try! (consume-signature
-      message-hash
-      pubkey
-      (get signature sig-auth)
-      (get authenticator-data sig-auth)
-      (get client-data-prefix sig-auth)
-      (get client-data-suffix sig-auth)))
+  (let (
+      (pubkey (get pubkey sig-auth))
+      (wallet-principal (contract-of wallet))
+      (message-hash (build-register-wallet-hash {
+        auth-id: (get auth-id sig-auth),
+        wallet: wallet-principal,
+      }))
+    )
+    (try! (consume-signature message-hash pubkey (get signature sig-auth)
+      (get authenticator-data sig-auth) (get client-data-prefix sig-auth)
+      (get client-data-suffix sig-auth)
+    ))
     (try! (contract-call? wallet is-admin-pubkey pubkey))
     (map-set pubkey-wallet pubkey wallet-principal)
     (print {
       event: "wallet-registered",
       pubkey: pubkey,
-      wallet: wallet-principal
+      wallet: wallet-principal,
     })
     (ok true)
   )
@@ -292,33 +353,33 @@
       authenticator-data: (buff 256),
       client-data-prefix: (buff 128),
       client-data-suffix: (buff 512),
-    }))
-  (let (
-    (pubkey (get pubkey sig-auth))
-    (tokn (contract-of token))
-    (actual-recipient (default-to recipient (map-get? pubkey-wallet pubkey)))
-    (message-hash (build-withdraw-hash {
-      auth-id: (get auth-id sig-auth),
-      amount: amount,
-      recipient: actual-recipient,
-      token: tokn,
-    }))
-    (fee (/ (* amount (var-get withdraw-fee-rate)) u10000))
-    (payout (- amount fee))
+    })
   )
+  (let (
+      (pubkey (get pubkey sig-auth))
+      (tokn (contract-of token))
+      (actual-recipient (default-to recipient (map-get? pubkey-wallet pubkey)))
+      (message-hash (build-withdraw-hash {
+        auth-id: (get auth-id sig-auth),
+        amount: amount,
+        recipient: actual-recipient,
+        token: tokn,
+      }))
+      (fee (/ (* amount (var-get withdraw-fee-rate)) u10000))
+      (payout (- amount fee))
+    )
     (asserts! (> amount u0) err-invalid-amount)
-    (try! (consume-signature
-      message-hash
-      pubkey
-      (get signature sig-auth)
-      (get authenticator-data sig-auth)
-      (get client-data-prefix sig-auth)
-      (get client-data-suffix sig-auth)))
+    (try! (consume-signature message-hash pubkey (get signature sig-auth)
+      (get authenticator-data sig-auth) (get client-data-prefix sig-auth)
+      (get client-data-suffix sig-auth)
+    ))
     (try! (debit-balance pubkey tokn amount))
-    (map-set accumulated-fees tokn
-      (+ (get-accumulated-fees tokn) fee))
+    (map-set accumulated-fees tokn (+ (get-accumulated-fees tokn) fee))
     (try! (as-contract? ((with-ft tokn token-name payout))
-      (try! (contract-call? token transfer payout current-contract actual-recipient none))))
+      (try! (contract-call? token transfer payout current-contract actual-recipient
+        none
+      ))
+    ))
     (print {
       event: "withdraw",
       pubkey: pubkey,
@@ -326,7 +387,7 @@
       amount: amount,
       fee: fee,
       payout: payout,
-      recipient: actual-recipient
+      recipient: actual-recipient,
     })
     (ok true)
   )
@@ -350,40 +411,35 @@
       authenticator-data: (buff 256),
       client-data-prefix: (buff 128),
       client-data-suffix: (buff 512),
-    }))
-  (let (
-    (game-id (var-get game-nonce))
-    (hash-a (build-wager-hash {
-      auth-id: (get auth-id sig-a),
-      opponent: player-b,
-      token: token,
-      wager-amount: wager-amount,
-    }))
-    (hash-b (build-wager-hash {
-      auth-id: (get auth-id sig-b),
-      opponent: player-a,
-      token: token,
-      wager-amount: wager-amount,
-    }))
+    })
   )
+  (let (
+      (game-id (var-get game-nonce))
+      (hash-a (build-wager-hash {
+        auth-id: (get auth-id sig-a),
+        opponent: player-b,
+        token: token,
+        wager-amount: wager-amount,
+      }))
+      (hash-b (build-wager-hash {
+        auth-id: (get auth-id sig-b),
+        opponent: player-a,
+        token: token,
+        wager-amount: wager-amount,
+      }))
+    )
     (asserts! (is-eq tx-sender (var-get oracle)) err-not-oracle)
     (asserts! (> wager-amount u0) err-invalid-amount)
     (asserts! (not (is-eq player-a player-b)) err-same-player)
     (asserts! (is-token-whitelisted token) err-token-not-whitelisted)
-    (try! (consume-signature
-      hash-a
-      player-a
-      (get signature sig-a)
-      (get authenticator-data sig-a)
-      (get client-data-prefix sig-a)
-      (get client-data-suffix sig-a)))
-    (try! (consume-signature
-      hash-b
-      player-b
-      (get signature sig-b)
-      (get authenticator-data sig-b)
-      (get client-data-prefix sig-b)
-      (get client-data-suffix sig-b)))
+    (try! (consume-signature hash-a player-a (get signature sig-a)
+      (get authenticator-data sig-a) (get client-data-prefix sig-a)
+      (get client-data-suffix sig-a)
+    ))
+    (try! (consume-signature hash-b player-b (get signature sig-b)
+      (get authenticator-data sig-b) (get client-data-prefix sig-b)
+      (get client-data-suffix sig-b)
+    ))
     (try! (debit-balance player-a token wager-amount))
     (try! (debit-balance player-b token wager-amount))
     (map-set games game-id {
@@ -403,37 +459,46 @@
       player-b: player-b,
       token: token,
       wager-amount: wager-amount,
-      created-at: burn-block-height
+      created-at: burn-block-height,
     })
     (ok game-id)
   )
 )
 
-(define-public (resolve-game (game-id uint) (winner (buff 33)))
-  (let (
-    (game (unwrap! (map-get? games game-id) err-game-not-found))
-    (pot (* (get wager-amount game) u2))
-    (fee (/ (* pot (var-get fee-rate)) u10000))
-    (payout (- pot fee))
-    (token (get token game))
+(define-public (resolve-game
+    (game-id uint)
+    (winner (buff 33))
   )
+  (let (
+      (game (unwrap! (map-get? games game-id) err-game-not-found))
+      (pot (* (get wager-amount game) u2))
+      (fee (/ (* pot (var-get fee-rate)) u10000))
+      (payout (- pot fee))
+      (token (get token game))
+    )
     (asserts! (is-eq tx-sender (var-get oracle)) err-not-oracle)
     (asserts! (is-eq (get status game) "active") err-game-not-active)
     (asserts!
-      (or (is-eq winner (get player-a game))
-          (is-eq winner (get player-b game)))
-      err-invalid-winner)
+      (or
+        (is-eq winner (get player-a game))
+        (is-eq winner (get player-b game))
+      )
+      err-invalid-winner
+    )
     (credit-balance winner token payout)
-    (map-set accumulated-fees token
-      (+ (get-accumulated-fees token) fee))
+    (map-set accumulated-fees token (+ (get-accumulated-fees token) fee))
     (map-set games game-id
-      (merge game { status: "resolved", winner: (some winner) }))
+      (merge game {
+        status: "resolved",
+        winner: (some winner),
+      })
+    )
     (print {
       event: "game-resolved",
       game-id: game-id,
       winner: winner,
       payout: payout,
-      fee: fee
+      fee: fee,
     })
     (ok true)
   )
@@ -441,28 +506,29 @@
 
 (define-public (cancel-game (game-id uint))
   (let (
-    (game (unwrap! (map-get? games game-id) err-game-not-found))
-    (tokn (get token game))
-    (wager (get wager-amount game))
-    (fee (/ (* wager (var-get withdraw-fee-rate)) u10000))
-    (refund (- wager fee))
-  )
+      (game (unwrap! (map-get? games game-id) err-game-not-found))
+      (tokn (get token game))
+      (wager (get wager-amount game))
+      (fee (/ (* wager (var-get withdraw-fee-rate)) u10000))
+      (refund (- wager fee))
+    )
     (asserts! (is-eq (get status game) "active") err-game-not-active)
     (asserts!
-      (or (is-eq tx-sender (var-get oracle))
-          (> burn-block-height (+ (get created-at game) GAME_TIMEOUT)))
-      err-game-not-expired)
+      (or
+        (is-eq tx-sender (var-get oracle))
+        (> burn-block-height (+ (get created-at game) GAME_TIMEOUT))
+      )
+      err-game-not-expired
+    )
     (credit-balance (get player-a game) tokn refund)
     (credit-balance (get player-b game) tokn refund)
-    (map-set accumulated-fees tokn
-      (+ (get-accumulated-fees tokn) (* fee u2)))
-    (map-set games game-id
-      (merge game { status: "cancelled" }))
+    (map-set accumulated-fees tokn (+ (get-accumulated-fees tokn) (* fee u2)))
+    (map-set games game-id (merge game { status: "cancelled" }))
     (print {
       event: "game-cancelled",
       game-id: game-id,
       fee-per-player: fee,
-      refund-per-player: refund
+      refund-per-player: refund,
     })
     (ok true)
   )
@@ -502,31 +568,42 @@
   )
 )
 
-(define-public (set-token-whitelist (token principal) (enabled bool))
+(define-public (set-token-whitelist
+    (token principal)
+    (enabled bool)
+  )
   (begin
     (asserts! (is-eq tx-sender DEPLOYER) err-not-deployer)
     (map-set whitelisted-tokens token enabled)
-    (print { event: "token-whitelist-updated", token: token, enabled: enabled })
+    (print {
+      event: "token-whitelist-updated",
+      token: token,
+      enabled: enabled,
+    })
     (ok true)
   )
 )
 
-(define-public (sweep-fees (token <sip-010-trait>) (token-name (string-ascii 128)))
-  (let (
-    (amount (get-accumulated-fees (contract-of token)))
-    (tokn (contract-of token))
-    (treas (var-get treasury))
+(define-public (sweep-fees
+    (token <sip-010-trait>)
+    (token-name (string-ascii 128))
   )
+  (let (
+      (amount (get-accumulated-fees (contract-of token)))
+      (tokn (contract-of token))
+      (treas (var-get treasury))
+    )
     (asserts! (is-eq tx-sender DEPLOYER) err-not-deployer)
     (asserts! (> amount u0) err-invalid-amount)
     (map-set accumulated-fees tokn u0)
     (try! (as-contract? ((with-ft tokn token-name amount))
-      (try! (contract-call? token transfer amount current-contract treas none))))
+      (try! (contract-call? token transfer amount current-contract treas none))
+    ))
     (print {
       event: "fees-swept",
       token: tokn,
       amount: amount,
-      treasury: treas
+      treasury: treas,
     })
     (ok true)
   )
