@@ -1,9 +1,18 @@
-;; SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v1
+;; game-wager-v2 -- WebAuthn-authenticated wager escrow.
+;; Replaces game-wager-v1's secp256k1 (Privy) signatures with passkey
+;; (WebAuthn P-256) signatures verified via clarity-webauthn. The economic
+;; flow is unchanged: deposit -> wager -> resolve/cancel -> withdraw.
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 
 (define-constant DEPLOYER tx-sender)
 (define-constant GAME_TIMEOUT u144)
+(define-constant SIP018_MSG_PREFIX 0x534950303138)
+
+;; rp.id = "fakfun.com" (apex; covers www.fakfun.com via webauthn rp.id rule)
+(define-constant RP-ID-HASH-FAKFUN-COM 0x5e8ba70d734d2bd57e0225bfd9a25f2c4d70db36fa1128e5eeb00cdab7a1ccdb)
+;; rp.id = "fak.fun"
+(define-constant RP-ID-HASH-FAK-FUN 0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f2249)
 
 (define-constant err-not-oracle (err u7001))
 (define-constant err-not-deployer (err u7002))
@@ -39,6 +48,70 @@
 (define-map accumulated-fees principal uint)
 (define-map whitelisted-tokens principal bool)
 (define-map pubkey-wallet (buff 33) principal)
+
+;; -----------------------------------------------------------------------------
+;; SIP-018 message hashes (domain = game-wager-v2)
+;; -----------------------------------------------------------------------------
+
+(define-read-only (get-domain-hash)
+  (sha256 (unwrap-panic (to-consensus-buff? {
+    chain-id: chain-id,
+    contract: current-contract,
+    name: "game-wager",
+    version: "2.0.0",
+  })))
+)
+
+(define-read-only (build-register-wallet-hash (details {
+    auth-id: uint,
+    wallet: principal,
+  }))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        auth-id: (get auth-id details),
+        topic: "register-wallet",
+        wallet: (get wallet details),
+      }))))))
+)
+
+(define-read-only (build-withdraw-hash (details {
+    auth-id: uint,
+    amount: uint,
+    recipient: principal,
+    token: principal,
+  }))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        amount: (get amount details),
+        auth-id: (get auth-id details),
+        recipient: (get recipient details),
+        token: (get token details),
+        topic: "withdraw",
+      }))))))
+)
+
+(define-read-only (build-wager-hash (details {
+    auth-id: uint,
+    opponent: (buff 33),
+    token: principal,
+    wager-amount: uint,
+  }))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        auth-id: (get auth-id details),
+        opponent: (get opponent details),
+        token: (get token details),
+        topic: "wager",
+        wager-amount: (get wager-amount details),
+      }))))))
+)
+
+;; -----------------------------------------------------------------------------
+;; Read-only accessors
+;; -----------------------------------------------------------------------------
 
 (define-read-only (get-balance (pubkey (buff 33)) (token principal))
   (default-to u0 (map-get? balances { pubkey: pubkey, token: token }))
@@ -80,26 +153,59 @@
   (map-get? pubkey-wallet pubkey)
 )
 
-(define-private (verify-signature
-    (message-hash (buff 32)) (signature (buff 65)) (expected-pubkey (buff 33)))
-  (match (secp256k1-recover? message-hash signature)
-    recovered-pubkey (begin
-      (asserts! (is-eq recovered-pubkey expected-pubkey) err-invalid-signature)
-      (ok true)
-    )
-    e err-invalid-signature
+;; -----------------------------------------------------------------------------
+;; WebAuthn signature verification (mirrors fakfun-wallet-v2)
+;; -----------------------------------------------------------------------------
+
+(define-read-only (verify-signature
+    (message-hash (buff 32))
+    (pubkey (buff 33))
+    (signature (buff 64))
+    (authenticator-data (buff 256))
+    (client-data-prefix (buff 128))
+    (client-data-suffix (buff 512))
+  )
+  (let ((auth-rp-id (unwrap!
+          (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+            get-rp-id-hash authenticator-data)
+          err-invalid-signature)))
+    (asserts! (or (is-eq auth-rp-id RP-ID-HASH-FAKFUN-COM)
+                  (is-eq auth-rp-id RP-ID-HASH-FAK-FUN))
+              err-invalid-signature)
+    (asserts! (contract-call?
+                'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+                is-user-present authenticator-data)
+              err-invalid-signature)
+    (ok (asserts! (contract-call?
+                    'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+                    verify-webauthn-signature
+                    pubkey message-hash authenticator-data
+                    client-data-prefix client-data-suffix signature)
+                  err-invalid-signature))
   )
 )
 
 (define-private (consume-signature
-    (message-hash (buff 32)) (signature (buff 65)) (pubkey (buff 33)))
+    (message-hash (buff 32))
+    (pubkey (buff 33))
+    (signature (buff 64))
+    (authenticator-data (buff 256))
+    (client-data-prefix (buff 128))
+    (client-data-suffix (buff 512))
+  )
   (begin
-    (try! (verify-signature message-hash signature pubkey))
+    (try! (verify-signature message-hash pubkey signature
+            authenticator-data client-data-prefix client-data-suffix))
     (asserts! (is-none (map-get? used-signatures message-hash)) err-signature-replay)
     (map-set used-signatures message-hash pubkey)
     (ok true)
   )
 )
+
+;; -----------------------------------------------------------------------------
+;; Balance bookkeeping
+;; -----------------------------------------------------------------------------
 
 (define-private (credit-balance (pubkey (buff 33)) (token principal) (amount uint))
   (map-set balances
@@ -115,6 +221,10 @@
     (ok true)
   )
 )
+
+;; -----------------------------------------------------------------------------
+;; Entry points
+;; -----------------------------------------------------------------------------
 
 (define-public (deposit (token <sip-010-trait>) (amount uint) (pubkey (buff 33)))
   (begin
@@ -134,17 +244,29 @@
 )
 
 (define-public (register-wallet
-    (pubkey (buff 33))
     (wallet principal)
-    (auth-id uint)
-    (signature (buff 65)))
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
   (let (
-    (message-hash (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.auth-v7 build-register-wallet-hash {
-      auth-id: auth-id,
+    (pubkey (get pubkey sig-auth))
+    (message-hash (build-register-wallet-hash {
+      auth-id: (get auth-id sig-auth),
       wallet: wallet,
     }))
   )
-    (try! (consume-signature message-hash signature pubkey))
+    (try! (consume-signature
+      message-hash
+      pubkey
+      (get signature sig-auth)
+      (get authenticator-data sig-auth)
+      (get client-data-prefix sig-auth)
+      (get client-data-suffix sig-auth)))
     (map-set pubkey-wallet pubkey wallet)
     (print {
       event: "wallet-registered",
@@ -160,14 +282,20 @@
     (token-name (string-ascii 128))
     (amount uint)
     (recipient principal)
-    (pubkey (buff 33))
-    (auth-id uint)
-    (signature (buff 65)))
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
   (let (
+    (pubkey (get pubkey sig-auth))
     (tokn (contract-of token))
     (actual-recipient (default-to recipient (map-get? pubkey-wallet pubkey)))
-    (message-hash (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.auth-v7 build-withdraw-hash {
-      auth-id: auth-id,
+    (message-hash (build-withdraw-hash {
+      auth-id: (get auth-id sig-auth),
       amount: amount,
       recipient: actual-recipient,
       token: tokn,
@@ -176,7 +304,13 @@
     (payout (- amount fee))
   )
     (asserts! (> amount u0) err-invalid-amount)
-    (try! (consume-signature message-hash signature pubkey))
+    (try! (consume-signature
+      message-hash
+      pubkey
+      (get signature sig-auth)
+      (get authenticator-data sig-auth)
+      (get client-data-prefix sig-auth)
+      (get client-data-suffix sig-auth)))
     (try! (debit-balance pubkey tokn amount))
     (map-set accumulated-fees tokn
       (+ (get-accumulated-fees tokn) fee))
@@ -200,17 +334,29 @@
     (player-b (buff 33))
     (token principal)
     (wager-amount uint)
-    (sig-a { auth-id: uint, signature: (buff 65) })
-    (sig-b { auth-id: uint, signature: (buff 65) }))
+    (sig-a {
+      auth-id: uint,
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (sig-b {
+      auth-id: uint,
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
   (let (
     (game-id (var-get game-nonce))
-    (hash-a (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.auth-v7 build-wager-hash {
+    (hash-a (build-wager-hash {
       auth-id: (get auth-id sig-a),
       opponent: player-b,
       token: token,
       wager-amount: wager-amount,
     }))
-    (hash-b (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.auth-v7 build-wager-hash {
+    (hash-b (build-wager-hash {
       auth-id: (get auth-id sig-b),
       opponent: player-a,
       token: token,
@@ -221,8 +367,20 @@
     (asserts! (> wager-amount u0) err-invalid-amount)
     (asserts! (not (is-eq player-a player-b)) err-same-player)
     (asserts! (is-token-whitelisted token) err-token-not-whitelisted)
-    (try! (consume-signature hash-a (get signature sig-a) player-a))
-    (try! (consume-signature hash-b (get signature sig-b) player-b))
+    (try! (consume-signature
+      hash-a
+      player-a
+      (get signature sig-a)
+      (get authenticator-data sig-a)
+      (get client-data-prefix sig-a)
+      (get client-data-suffix sig-a)))
+    (try! (consume-signature
+      hash-b
+      player-b
+      (get signature sig-b)
+      (get authenticator-data sig-b)
+      (get client-data-prefix sig-b)
+      (get client-data-suffix sig-b)))
     (try! (debit-balance player-a token wager-amount))
     (try! (debit-balance player-b token wager-amount))
     (map-set games game-id {
