@@ -12,32 +12,49 @@ WebAuthn / secp256r1 (`secp256r1-verify`) over a reconstructed digest
 
 ## Sims
 
-| File | Auth-IDs signed | Latest stxer run | What it proves |
+Every wallet sim deploys `pillar-wallet-trait` + `game-wager-v2` under
+SP28MP1H before the wallet, because the wallet `(impl-trait …)` line
+and the `wager-deposit` cross-contract call are both statically
+resolved at deploy time.
+
+| File | Auth-IDs | Latest stxer run | What it proves |
 |---|---|---|---|
-| `simul-fakfun-v2-wallet.js` | 0–5, 7–13 | [62ce078c…](https://stxer.xyz/simulations/mainnet/62ce078cc225101d055578fdf9fce7dd) | Full lifecycle + stacking — `stack-stx-juice` and `revoke-stacking` (formerly `revoke-fast-pool`) now covered |
-| `simul-fakfun-v2-nft.js` | 0, 1, 2, 3, 4, 5 | [193cc8d5…](https://stxer.xyz/simulations/mainnet/193cc8d5ff49ff6b8c7ab42ab81390ce) | ✅ NFT marketplace: BUY → LIST → UPDATE-PRICE → UPDATE-FT → UNLIST → SIP009-TRANSFER (all 6 ops green) |
-| `simul-fakfun-v2-token-lock.js` | 0, 1, 2 (+ 3 dummy) | [29cbbb44…](https://stxer.xyz/simulations/mainnet/29cbbb44b7b4cf3332bbefca3c63086f) | ✅ toggle-token-lock asymmetric auth — all 9 phases pass |
-| `simul-fakfun-v2-admin.js` | 0–9 | [fc5737fb…](https://stxer.xyz/simulations/mainnet/fc5737fb815ae34a5a580bee318d1de5) | ✅ all 25 steps pass — covers the 10 remaining helpers (stx-transfer, extension flows, veto, recovery, dual-stacking, fast-pool, confirm-transfer-wallet) |
-| `simul-fakfun-v2-governance.js` | reuses 0 + 6 from admin bundle | [f56c6525…](https://stxer.xyz/simulations/mainnet/f56c6525110605ddf73944a960fd66d4) | ✅ all 39 steps pass — covers the 12 untested admin/config/recovery functions: set-max-gas-amount, signal-config-change, set-wallet-config, signal-pubkey-cooldown-change, confirm-pubkey-cooldown-change, propose/confirm/remove-admin-pubkey, execute-pending-stx-transfer, execute-pending-sbtc-transfer, confirm-recovery, recover-inactive-wallet (after `addAdvanceBlocks(52_700)`) |
-| `simul-fakfun-v2-limit.js` | 10–12 new + reuses 0/2/3 from admin bundle | [ab4c481f…](https://stxer.xyz/simulations/mainnet/ab4c481f8099b2e450c7be26b3de5e6f) | ✅ faktory-execute-limit happy + replay + min-out (retryable) + expired (after advance) + extension-call under token-lock (NEW assert) |
-| `simul-fakfun-v2-wager.js` | 20 new + reuses 0 from admin bundle | [ca433deb…](https://stxer.xyz/simulations/mainnet/ca433deb9e02b49f3fdf3299a767a56e) | ✅ wager-deposit cross-curve bridge — secp256k1 register-wallet + webauthn sig-auth + 1000 sats sBTC deposited into game-wager-v1 (final public function, brings wallet coverage to 39/39) |
+| `simul-fakfun-v2-init.js` | 0–3 (init bundle) | [2441264b…](https://stxer.xyz/simulations/mainnet/2441264b871774cebd3350a2ace45178) | ✅ 3-step admin init + veto path. propose → veto → propose-B → accept → confirm BEFORE cooldown errs `u4012` (sig NOT consumed) → advance 440 blocks → confirm succeeds. Final: `is-initialized=true`, owner=USER, pending cleared. |
+| `simul-fakfun-v2-wallet.js` | 0/99 + 1–5, 7–13 | [25572596…](https://stxer.xyz/simulations/mainnet/25572596cbc25490f6ba76eaa048496f) | Full lifecycle + stacking. Bootstrap via 3-step admin (propose → accept → advance440 → confirm). 14 documented downstream errs are pre-existing expected mainnet-state behaviors (cooldowns / DEX not graduated yet / pool not authorized). |
+| `simul-fakfun-v2-nft.js` | 0–5 | [193cc8d5…](https://stxer.xyz/simulations/mainnet/193cc8d5ff49ff6b8c7ab42ab81390ce) | ✅ NFT marketplace: BUY → LIST → UPDATE-PRICE → UPDATE-FT → UNLIST → SIP009-TRANSFER. Never used `add-admin-with-signature` so the 3-step bootstrap doesn't apply here. |
+| `simul-fakfun-v2-token-lock.js` | 0/99 + 1, 2 (+ 3 dummy) | [27af7847…](https://stxer.xyz/simulations/mainnet/27af7847c107113be2382f768eefac00) | ✅ toggle-token-lock asymmetric auth — all 9 phases pass with the 3-step admin bootstrap. |
+| `simul-fakfun-v2-admin.js` | 0/99 + 1–9 | [69d99c3c…](https://stxer.xyz/simulations/mainnet/69d99c3ca81f9470e3ceff70b42cbece) | ✅ stx-transfer, extension flows, veto, recovery, dual-stacking, fast-pool, confirm-transfer-wallet. |
+| `simul-fakfun-v2-governance.js` | reuses 0/99 + 6 | [d3582627…](https://stxer.xyz/simulations/mainnet/d35826271389b1fa5243052f7cd528f2) | ✅ set-max-gas-amount, signal-config-change, set-wallet-config, signal-pubkey-cooldown-change, confirm-pubkey-cooldown-change, propose/confirm/remove-admin-pubkey, execute-pending-stx-transfer, execute-pending-sbtc-transfer, confirm-recovery, recover-inactive-wallet (after `addAdvanceBlocks(52_700)`). |
+| `simul-fakfun-v2-limit.js` | 10–12 + reuses 0/99 | [98124c6c…](https://stxer.xyz/simulations/mainnet/98124c6c3c46495ed6ed72bba8a915b3) | ✅ faktory-execute-limit happy + replay + min-out (retryable) + expired (after advance) + extension-call under token-lock. |
+| `simul-fakfun-v2-wager.js` | 200, 201 + reuses 0/99 | [27582a2b…](https://stxer.xyz/simulations/mainnet/27582a2bea9132cbd7489a3b1055839b) | ✅ wallet → game-wager-v2 webauthn end-to-end (no secp256k1 bridge). `wager-deposit` hash now built via the wallet's local `smart-wallet-standard-auth-helpers-v7.build-wager-deposit-hash` (wallet-bound domain) — the prior `auth-v7` dep that referenced game-wager-v1 in its SIP-018 domain bytes is gone. |
+| `simul-fakfun-v2-negative.js` (NEW) | reuses 0–3 (init bundle) | [64eff4ea…](https://stxer.xyz/simulations/mainnet/64eff4ea1ff6b4728b2116ae6e709fe4) | ✅ every guard / err code on the new 3-step admin + veto + toggle-token-lock burn-owner surface: `u4001 / u4012 / u4022 / u4026 / u4027 / u4028 / u4029`. All 19 expected results hit. |
+
+The shared `signed-bundle-followup.json` (auth-id 99 = confirm-admin) is one sig reused across all bootstrap-affected sims because the hash depends only on the wallet principal + topic + auth-id + new-admin (all identical across sims). One signing round → six sims initialize.
+
+For the standalone game-wager-v2 sim suite (separate from this list), see
+`simul-game-wager-v2*.js` + `README-simul-game-wager-v2.md`.
 
 Each sim is two-phase: print the SIP-018 challenges, sign them in a browser
-with your passkey, paste the bundle back, then run.
+with your passkey, paste the bundle back, then run. The `init` and
+`negative` sims share `signed-bundle-init.json` (4 sigs).
 
 ## auth-helpers-v7 coverage
 
-`smart-wallet-standard-auth-helpers-v7` defines 22 SIP-018 hash builders.
-Across all four sims, **22 of 22** are exercised via real signed wallet
-calls — full coverage:
+`smart-wallet-standard-auth-helpers-v7` now defines **25 SIP-018 hash
+builders** (originally 22; +3 added with the 3-step admin / veto / local
+wager-deposit-hash work). All 25 are exercised via real signed wallet
+calls across the sim suite:
 
 | Tested helper | Sim · auth-id |
 |---|---|
-| `build-add-admin-hash` | wallet/token-lock auth-id 0 |
+| `build-add-admin-hash` | init auth-ids 0, 2 (propose-admin); reused by every bootstrap sim at auth-id 0 |
+| `build-confirm-admin-hash` (NEW) | init auth-id 3; followup auth-id 99 (reused across 5 bootstrap sims) |
+| `build-veto-init-hash` (NEW) | init auth-id 1; negative auth-id 1 |
 | `build-toggle-token-lock-hash` | token-lock auth-id 1 |
 | `build-sip010-transfer-hash` | token-lock auth-id 2 |
 | `build-sip009-transfer-hash` | nft auth-id 5 |
 | `build-faktory-execute-hash` | wallet auth-ids 1, 2, 10, 11 |
+| `build-faktory-execute-limit-hash` | limit auth-id 10 |
 | `build-faktory-place-order-hash` | wallet auth-ids 3, 4 |
 | `build-faktory-process-hash` | wallet auth-id 5 |
 | `build-faktory-process-claim-hash` | wallet auth-id 7 |
@@ -46,6 +63,7 @@ calls — full coverage:
 | `build-faktory-nft-execute-hash` | nft auth-ids 0–4 |
 | `build-stack-stx-juice-hash` | wallet auth-id 12 |
 | `build-revoke-stacking-hash` | wallet auth-id 13 |
+| `build-wager-deposit-hash` (NEW, local — replaces mainnet `auth-v7`) | wager auth-id 201 |
 | `build-stx-transfer-hash` | admin auth-id 1 |
 | `build-whitelist-extension-hash` | admin auth-id 2 |
 | `build-extension-call-hash` | admin auth-id 3 |
@@ -66,6 +84,60 @@ calls — full coverage:
   mainnet deployment of `fakfun-wallet-core`. If/when that core is
   upgraded, the event can be renamed to `log-revoke-stacking` for full
   consistency.
+
+## May 2026 amendments
+
+Major contract-side changes landed during this iteration; the sim suite was
+extended to cover them end-to-end.
+
+### `add-admin-with-signature` → 3-step flow
+
+The one-shot init is now `propose-admin-with-signature` →
+`accept-admin-proposal` → `confirm-admin-with-signature`, plus
+`veto-pending-init` to clear a malicious propose. The confirm step
+requires `pubkey-cooldown-period` burn blocks to have elapsed since the
+propose (default ~3 days). The accept step requires `tx-sender =
+pending new-admin` — proves the Leather/Xverse principal that becomes
+the new admin actually controls that key. Three new err codes:
+`u4026 err-init-already-proposed`, `u4027 err-no-pending-init`, `u4028
+err-init-not-pending-admin`, `u4029 err-init-not-accepted`. Covered by
+`simul-fakfun-v2-init.js` (happy + veto path) and `simul-fakfun-v2-negative.js`
+(every err code).
+
+### `(impl-trait pillar-wallet-trait)` on the wallet
+
+Required by `game-wager-v2.register-wallet`, which takes
+`(wallet <pillar-wallet-trait>)` and calls back to
+`wallet.is-admin-pubkey(pubkey)` to prove the pubkey belongs to the
+registering wallet. Without the impl-trait declaration the wallet would
+be rejected with `BadTraitImplementation`. Covered by
+`simul-fakfun-v2-wager.js` end-to-end and by every wallet sim deploying
+`pillar-wallet-trait` as a prereq.
+
+### `auth-v7.build-wager-deposit-hash` → local
+`smart-wallet-standard-auth-helpers-v7.build-wager-deposit-hash`
+
+The old mainnet `auth-v7` baked `game-wager-v1` into its SIP-018
+domain bytes — so the user signed "v1 deposit intent" while the wallet
+actually deposited into `game-wager-v2`. The new local helper builds
+the hash under the wallet's own domain (`name: "smart-wallet-standard"`,
+`version: "1.0.0"`, `wallet: contract-caller`), independent of any
+game-wager version. The user's signed bytes now bind to the wallet
+itself.
+
+### `toggle-token-lock` burn-owner assert
+
+Added a guard that blocks toggling the token-lock while `owner = burn
+address`. Prevents bricking a wallet that's been transferred to the
+burn address (or never properly initialized). Covered explicitly in
+`simul-fakfun-v2-negative.js` Phase B.
+
+### Public function count: 39 → 42
+
+Net change from 1 removed (`add-admin-with-signature`) and 4 added
+(`propose-admin-with-signature`, `accept-admin-proposal`,
+`confirm-admin-with-signature`, `veto-pending-init`). All 42 covered
+by the sim suite.
 
 ## How to run a sim
 

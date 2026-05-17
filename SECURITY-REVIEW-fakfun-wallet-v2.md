@@ -203,22 +203,137 @@ holds through the indirection.
   `asserts!` reverts the entire tx including `consume-signature`'s
   write to `used-pubkey-authorizations`, so the signed payload stays
   valid for retry. Verified end-to-end in `simul-fakfun-v2-limit`.
-* **Cross-curve bridge in `wager-deposit`** — webauthn sig over the
-  auth-v7 challenge + secp256k1 pubkey registered in game-wager-v1.
-  Two independent verifications must both succeed. Verified end-to-end
-  in `simul-fakfun-v2-wager`.
+* **Cross-curve bridge in `wager-deposit`** — *superseded by the May 2026
+  switch to game-wager-v2*. Originally: webauthn sig over the `auth-v7`
+  challenge + secp256k1 pubkey registered in game-wager-v1, two
+  independent verifications. Now: pure webauthn end-to-end against
+  game-wager-v2, no secp256k1 path. See May 2026 amendments below.
 
 ## Operational recommendations (not code changes)
 
 These are project-level practices the owner already follows but worth
 documenting:
 
-* Batch `onboard` + `add-admin-with-signature` in a single sponsored
-  transaction (faktory-dao BE) to close the pre-init window.
+* `onboard` (FAKFUN-DEPLOYER only) sets `initial-pubkey` and registers
+  it in `pubkey-to-admin → burn-address`. That mapping is what makes
+  the 3-step `propose-admin-with-signature` non-squattable — only the
+  user's own passkey can pass `consume-signature` because it's the
+  only pubkey accepted by `is-admin-pubkey`. See the May 2026 amendments
+  below for the rest of the threat model.
 * Monitor `(var-get recovery-address)` for unexpected changes — emit
   a chainhook event or a UI alert.
+* Monitor `(var-get pending-init-admin)` for unexpected pending
+  proposes — if a malicious frontend slips a propose past the user,
+  the ~3-day cooldown is a detection window. Frontend should surface
+  a pending-init banner that the user can `veto-pending-init` to
+  clear.
 * Frontend post-conditions on `extension-call` payloads (showing
   human-readable intent at signing time) carry significant security
   weight. Audit the FE signing flow as carefully as the contract.
 * Keep `max-gas-amount` modest (default `u1000` is fine for current
-  gas-station economics).
+  gas-station economics). See "Gas extension is relayer-chosen" in the
+  May 2026 amendments below for why this matters.
+
+## May 2026 amendments
+
+Changes that landed after the initial review, with end-to-end stxer
+coverage. Each was authored to close a specific concern or clean up a
+labelling inconsistency.
+
+### A. `add-admin-with-signature` → 3-step admin init
+
+**Concern**: the one-shot init finalised the wallet in a single tx.
+A compromised frontend could trick the user into signing one webauthn
+assertion for `new-admin = attacker`, and the wallet would initialize
+directly to the attacker. No second chance for the user to notice.
+
+**Change**: the one-shot is now three steps —
+`propose-admin-with-signature` (webauthn sig 1 from `initial-pubkey`)
+→ `accept-admin-proposal` (`tx-sender = pending new-admin`, no sig)
+→ `confirm-admin-with-signature` (webauthn sig 2 from
+`initial-pubkey`, after `pubkey-cooldown-period` burn blocks ≈ 3
+days). `veto-pending-init` (webauthn sig from `initial-pubkey`)
+clears a pending propose.
+
+* The 3-day cooldown gives the user time to notice a malicious
+  pending state in their wallet UI and either (a) refuse to sign
+  step 3, or (b) `veto-pending-init`. Doesn't defeat a persistently
+  compromised FE, but defeats the "sign two things in one sitting"
+  variant.
+* `accept-admin-proposal` proves the Leather/Xverse principal that's
+  becoming admin actually controls that key. Closes the variant
+  where an attacker tricks the user into signing for an STX address
+  the attacker doesn't control.
+* New err codes: `u4026 err-init-already-proposed`,
+  `u4027 err-no-pending-init`,
+  `u4028 err-init-not-pending-admin`,
+  `u4029 err-init-not-accepted`. All verified by
+  `simul-fakfun-v2-negative.js`.
+
+### B. `auth-v7` (mainnet, v1-domain) → local `build-wager-deposit-hash`
+
+**Concern**: the mainnet `auth-v7` contract at
+`SP28MP1H...auth-v7` hardcodes
+`{contract: 'SP28MP1H...game-wager-v1, name: "game-wager",
+version: "1.0.0"}` in its `get-domain-hash` (lines 6 + 8 of the on-chain
+source). The wallet's `wager-deposit` used `auth-v7` to build the
+user's signing challenge but then routed the actual deposit to
+**game-wager-v2**. So the user signed bytes that encoded "v1 deposit
+intent" while the funds went to v2.
+
+Functionally safe (v2.deposit is permissionless; the wallet's own
+`used-pubkey-authorizations` map prevents reuse), but semantically
+inconsistent — and a footgun if a second wallet ever reused the same
+auth-v7 builder.
+
+**Change**: added `build-wager-deposit-hash` to the wallet's own
+`smart-wallet-standard-auth-helpers-v7`. Domain is
+`{name: "smart-wallet-standard", version: "1.0.0", chain-id,
+wallet: contract-caller}` — bound to the wallet's principal, not any
+game-wager version. The wallet no longer references `auth-v7` at all;
+one mainnet dependency removed.
+
+### C. `(impl-trait pillar-wallet-trait)` on the wallet
+
+**Concern**: `game-wager-v2.register-wallet` takes
+`(wallet <pillar-wallet-trait>)`. Without an `impl-trait` declaration
+on the wallet, that call would reject the wallet with
+`BadTraitImplementation`, breaking the deposit flow.
+
+**Change**: added
+`(impl-trait 'SP28MP1H...pillar-wallet-trait.pillar-wallet-trait)`
+at the top of the wallet. The wallet's existing `is-admin-pubkey`
+function already had the matching signature. End-to-end verified by
+`simul-fakfun-v2-wager.js`.
+
+### D. `toggle-token-lock` burn-owner assert
+
+**Concern**: pre-init the wallet's `owner = burn-address`. If
+someone called `toggle-token-lock(true)` in that window, the wallet
+would enter a locked state with no recoverable owner.
+
+**Change**: one-line assert at the top of `toggle-token-lock` —
+`(asserts! (not (is-eq (var-get owner) 'SP000000000000000000002Q6VF78))
+err-unauthorised)`. Returns `u4001` if owner is burn. Verified in
+`simul-fakfun-v2-negative.js` Phase B.
+
+### E. Gas extension is relayer-chosen (operational note, no fix)
+
+**Concern**: every sig-gated public function takes
+`(gas (optional <gas-trait>))`. The user's webauthn hash binds
+amount/recipient/etc. but NOT the `gas` extension principal — so a
+relayer broadcasting the signed tx can swap to any gas-trait impl,
+including a malicious one.
+
+**Loss bound**: `max-gas-amount` × `with-ft "sbtc-token"` per call.
+A malicious gas contract can drain at most `max-gas-amount` sBTC per
+relayed tx, and every relayed tx consumes one auth-id, so the same
+sig can't be reused.
+
+**Owner's response**: keep `max-gas-amount` at its current default of
+`u1000` (1000 sats). At that level the worst case is a few thousand
+sats leaked across many relayed txs — well below operational cost of
+running sponsored-tx infrastructure. **No code change**; flagged as
+operational risk. Closing it properly would require including
+`(contract-of gas)` in every `build-*-hash`, which means re-signing
+every existing sim bundle.
