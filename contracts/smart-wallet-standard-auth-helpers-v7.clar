@@ -164,6 +164,34 @@
     )))
 )
 
+(define-read-only (build-confirm-admin-hash (details {
+  auth-id: uint,
+  new-admin: principal,
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "confirm-admin",
+        auth-id: (get auth-id details),
+        new-admin: (get new-admin details),
+      })))
+    )))
+)
+
+(define-read-only (build-veto-init-hash (details {
+  auth-id: uint,
+  new-admin: principal,
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "veto-init",
+        auth-id: (get auth-id details),
+        new-admin: (get new-admin details),
+      })))
+    )))
+)
+
 (define-read-only (build-confirm-transfer-hash (details {
   auth-id: uint,
   new-admin: principal,

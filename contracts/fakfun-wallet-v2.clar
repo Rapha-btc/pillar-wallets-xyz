@@ -35,10 +35,15 @@
 (define-constant err-token-locked (err u4023))
 (define-constant err-limit-expired (err u4024))
 (define-constant err-limit-not-hit (err u4025))
+(define-constant err-init-already-proposed (err u4026))
+(define-constant err-no-pending-init (err u4027))
+(define-constant err-init-not-pending-admin (err u4028))
+(define-constant err-init-not-accepted (err u4029))
 (define-constant err-fatal-owner-not-admin (err u9999))
 
-(define-constant INACTIVITY-PERIOD u52560) 
-(define-constant MAX-CONFIG-COOLDOWN u4032) 
+(define-constant INACTIVITY-PERIOD u52560)
+(define-constant MAX-CONFIG-COOLDOWN u4032)
+(define-constant INIT-ADMIN-COOLDOWN u432) ;; ~3d burn blocks between propose and confirm
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
 (define-constant FAKFUN-DEPLOYER 'SP1G655MB1JVQ5FBE2JJ3E01HEA6KBM4H39F5EW63)
@@ -82,6 +87,24 @@
 } {
   pubkey: (var-get initial-pubkey),
   proposed-at: u0,
+})
+
+;; Three-step first-init flow (replaces one-shot add-admin-with-signature):
+;;   1. propose-admin-with-signature -- webauthn sig 1 from initial-pubkey
+;;   2. accept-admin-proposal       -- tx-sender = new-admin (Leather/Xverse proof of control)
+;;   3. confirm-admin-with-signature -- webauthn sig 2 from initial-pubkey, after INIT-ADMIN-COOLDOWN
+;; Both `accepted` and a fresh second signature must fire. The 3-day cooldown
+;; is the user-awareness window: if a compromised frontend slips a malicious
+;; propose past step 1, the user has ~3 days to see the pending state and either
+;; refuse to sign step 3 or veto via veto-pending-init.
+(define-data-var pending-init-admin {
+  new-admin: principal,
+  proposed-at: uint,
+  accepted: bool,
+} {
+  new-admin: 'SP000000000000000000002Q6VF78,
+  proposed-at: u0,
+  accepted: false,
 })
 
 (define-data-var pending-pubkey-cooldown {
@@ -202,6 +225,7 @@
     (gas (optional <gas-trait>))
   )
   (begin
+    (asserts! (not (is-eq (var-get owner) 'SP000000000000000000002Q6VF78)) err-unauthorised)
     (if enabled
       (match sig-auth
         sig-auth-details (begin
@@ -1363,7 +1387,9 @@
   (var-set last-activity-block burn-block-height)
 )
 
-(define-public (add-admin-with-signature
+;; Step 1: propose a new admin. Webauthn sig 1 from initial-pubkey binds
+;; the proposed principal. Records propose timestamp; does NOT initialize.
+(define-public (propose-admin-with-signature
     (new-admin principal)
     (sig-auth {
       auth-id: uint,
@@ -1377,6 +1403,7 @@
   )
   (begin
     (asserts! (not (var-get is-initialized)) err-already-initialized)
+    (asserts! (is-eq (get proposed-at (var-get pending-init-admin)) u0) err-init-already-proposed)
     (try! (is-authorized (some {
       message-hash: (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
@@ -1391,13 +1418,116 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas g (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount))) (try! (contract-call? g pay-gas)))) true)
+    (var-set pending-init-admin {
+      new-admin: new-admin,
+      proposed-at: burn-block-height,
+      accepted: false,
+    })
+    (ok true)
+  )
+)
+
+;; Step 2: proposed admin proves control of the Leather/Xverse principal by
+;; sending the tx themselves. No signature needed -- tx-sender check is the
+;; proof. Idempotent if called twice.
+(define-public (accept-admin-proposal)
+  (let ((pending (var-get pending-init-admin)))
+    (asserts! (not (var-get is-initialized)) err-already-initialized)
+    (asserts! (not (is-eq (get proposed-at pending) u0)) err-no-pending-init)
+    (asserts! (is-eq tx-sender (get new-admin pending)) err-init-not-pending-admin)
+    (var-set pending-init-admin (merge pending { accepted: true }))
+    (ok true)
+  )
+)
+
+;; Step 3: finalize the init. Webauthn sig 2 from initial-pubkey, requires
+;; the proposal was accepted by the new-admin AND INIT-ADMIN-COOLDOWN burn
+;; blocks elapsed since propose. The cooldown is what catches a compromised
+;; frontend that slipped a malicious propose past step 1.
+(define-public (confirm-admin-with-signature
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (let ((pending (var-get pending-init-admin))
+       (new-a (get new-admin pending)))
+    (asserts! (not (var-get is-initialized)) err-already-initialized)
+    (asserts! (not (is-eq (get proposed-at pending) u0)) err-no-pending-init)
+    (asserts! (get accepted pending) err-init-not-accepted)
+    (asserts! (>= burn-block-height (+ (get proposed-at pending) INIT-ADMIN-COOLDOWN)) err-in-cooldown)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+        build-confirm-admin-hash {
+        auth-id: (get auth-id sig-auth),
+        new-admin: new-a,
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas g (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount))) (try! (contract-call? g pay-gas)))) true)
     (map-delete admins 'SP000000000000000000002Q6VF78)
-    (map-set admins new-admin true)
-    (map-set pubkey-to-admin (get pubkey sig-auth) new-admin)
-    (var-set owner new-admin)
+    (map-set admins new-a true)
+    (map-set pubkey-to-admin (get pubkey sig-auth) new-a)
+    (var-set owner new-a)
     (update-activity)
     (var-set is-initialized true)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-admin-added new-admin))
+    (var-set pending-init-admin {
+      new-admin: 'SP000000000000000000002Q6VF78,
+      proposed-at: u0,
+      accepted: false,
+    })
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core log-admin-added new-a))
+    (ok true)
+  )
+)
+
+;; Veto an outstanding propose-admin-with-signature. Webauthn sig from
+;; initial-pubkey clears the pending state so onboarding can retry. Lets the
+;; user kill a malicious propose driven by a compromised frontend instead of
+;; being locked into a bricked uninitialized wallet.
+(define-public (veto-pending-init
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (let ((pending (var-get pending-init-admin)))
+    (asserts! (not (var-get is-initialized)) err-already-initialized)
+    (asserts! (not (is-eq (get proposed-at pending) u0)) err-no-pending-init)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+        build-veto-init-hash {
+        auth-id: (get auth-id sig-auth),
+        new-admin: (get new-admin pending),
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas g (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount))) (try! (contract-call? g pay-gas)))) true)
+    (var-set pending-init-admin {
+      new-admin: 'SP000000000000000000002Q6VF78,
+      proposed-at: u0,
+      accepted: false,
+    })
     (ok true)
   )
 )
