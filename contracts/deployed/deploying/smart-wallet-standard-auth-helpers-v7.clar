@@ -1,4 +1,3 @@
-
 (define-constant SIP018_MSG_PREFIX 0x534950303138)
 
 (define-read-only (get-domain-hash)
@@ -214,9 +213,7 @@
     )))
 )
 
-(define-read-only (build-enroll-dual-stacking-hash (details {
-  auth-id: uint,
-}))
+(define-read-only (build-enroll-dual-stacking-hash (details { auth-id: uint }))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
@@ -240,9 +237,7 @@
     )))
 )
 
-(define-read-only (build-revoke-stacking-hash (details {
-  auth-id: uint,
-}))
+(define-read-only (build-revoke-stacking-hash (details { auth-id: uint }))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
@@ -370,9 +365,7 @@
     )))
 )
 
-(define-read-only (build-faktory-burn-bob-hash (details {
-  auth-id: uint,
-}))
+(define-read-only (build-faktory-burn-bob-hash (details { auth-id: uint }))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {

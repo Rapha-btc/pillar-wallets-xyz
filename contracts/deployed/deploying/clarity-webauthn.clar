@@ -82,9 +82,7 @@
     (client-data-prefix (buff 128))
     (client-data-suffix (buff 512))
   )
-  (sha256 (concat client-data-prefix
-    (concat (base64url-32 challenge) client-data-suffix)
-  ))
+  (sha256 (concat client-data-prefix (concat (base64url-32 challenge) client-data-suffix)))
 )
 
 (define-read-only (compute-signed-digest
@@ -107,9 +105,11 @@
     (signature (buff 64))
   )
   (secp256r1-verify
-    (compute-signed-digest challenge authenticator-data
-      client-data-prefix client-data-suffix)
-    signature public-key)
+    (compute-signed-digest challenge authenticator-data client-data-prefix
+      client-data-suffix
+    )
+    signature public-key
+  )
 )
 
 (define-read-only (verify-assertion
@@ -126,8 +126,11 @@
       (flags (unwrap! (get-flags-byte authenticator-data) ERR_BAD_AUTH_DATA))
     )
     (asserts! (is-eq auth-rp-id rp-id-hash) ERR_BAD_RP_ID)
-    (asserts! (is-eq (bit-and (buff-to-uint-be flags) u1) u1) ERR_USER_NOT_PRESENT)
+    (asserts! (is-eq (bit-and (buff-to-uint-be flags) u1) u1)
+      ERR_USER_NOT_PRESENT
+    )
     (ok (verify-webauthn-signature public-key challenge authenticator-data
-          client-data-prefix client-data-suffix signature))
+      client-data-prefix client-data-suffix signature
+    ))
   )
 )
