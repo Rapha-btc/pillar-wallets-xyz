@@ -43,7 +43,6 @@
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-CONFIG-COOLDOWN u4032)
-(define-constant INIT-ADMIN-COOLDOWN u432) ;; ~3d burn blocks between propose and confirm
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
 (define-constant FAKFUN-DEPLOYER 'SP1G655MB1JVQ5FBE2JJ3E01HEA6KBM4H39F5EW63)
@@ -92,7 +91,7 @@
 ;; Three-step first-init flow (replaces one-shot add-admin-with-signature):
 ;;   1. propose-admin-with-signature -- webauthn sig 1 from initial-pubkey
 ;;   2. accept-admin-proposal       -- tx-sender = new-admin (Leather/Xverse proof of control)
-;;   3. confirm-admin-with-signature -- webauthn sig 2 from initial-pubkey, after INIT-ADMIN-COOLDOWN
+;;   3. confirm-admin-with-signature -- webauthn sig 2 from initial-pubkey, after pubkey-cooldown-period
 ;; Both `accepted` and a fresh second signature must fire. The 3-day cooldown
 ;; is the user-awareness window: if a compromised frontend slips a malicious
 ;; propose past step 1, the user has ~3 days to see the pending state and either
@@ -1441,7 +1440,7 @@
 )
 
 ;; Step 3: finalize the init. Webauthn sig 2 from initial-pubkey, requires
-;; the proposal was accepted by the new-admin AND INIT-ADMIN-COOLDOWN burn
+;; the proposal was accepted by the new-admin AND pubkey-cooldown-period burn
 ;; blocks elapsed since propose. The cooldown is what catches a compromised
 ;; frontend that slipped a malicious propose past step 1.
 (define-public (confirm-admin-with-signature
@@ -1460,7 +1459,7 @@
     (asserts! (not (var-get is-initialized)) err-already-initialized)
     (asserts! (not (is-eq (get proposed-at pending) u0)) err-no-pending-init)
     (asserts! (get accepted pending) err-init-not-accepted)
-    (asserts! (>= burn-block-height (+ (get proposed-at pending) INIT-ADMIN-COOLDOWN)) err-in-cooldown)
+    (asserts! (>= burn-block-height (+ (get proposed-at pending) (var-get pubkey-cooldown-period))) err-in-cooldown)
     (try! (is-authorized (some {
       message-hash: (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
