@@ -4,6 +4,7 @@
 ;; flow is unchanged: deposit -> wager -> resolve/cancel -> withdraw.
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
+(use-trait pillar-wallet-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
 (define-constant DEPLOYER tx-sender)
 (define-constant GAME_TIMEOUT u144)
@@ -244,7 +245,7 @@
 )
 
 (define-public (register-wallet
-    (wallet principal)
+    (wallet <pillar-wallet-trait>)
     (sig-auth {
       auth-id: uint,
       pubkey: (buff 33),
@@ -255,9 +256,10 @@
     }))
   (let (
     (pubkey (get pubkey sig-auth))
+    (wallet-principal (contract-of wallet))
     (message-hash (build-register-wallet-hash {
       auth-id: (get auth-id sig-auth),
-      wallet: wallet,
+      wallet: wallet-principal,
     }))
   )
     (try! (consume-signature
@@ -267,11 +269,12 @@
       (get authenticator-data sig-auth)
       (get client-data-prefix sig-auth)
       (get client-data-suffix sig-auth)))
-    (map-set pubkey-wallet pubkey wallet)
+    (try! (contract-call? wallet is-admin-pubkey pubkey))
+    (map-set pubkey-wallet pubkey wallet-principal)
     (print {
       event: "wallet-registered",
       pubkey: pubkey,
-      wallet: wallet
+      wallet: wallet-principal
     })
     (ok true)
   )

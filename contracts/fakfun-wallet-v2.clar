@@ -1785,10 +1785,10 @@
     (try! (is-authorized none))
   )
   (asserts! (is-eq (some current-contract)
-    (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v1 get-registered-wallet pubkey))
+    (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2 get-registered-wallet pubkey))
     err-unauthorised)
   (as-contract? ((with-ft (contract-of token) token-name amount))
-    (try! (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v1 deposit token amount pubkey)))
+    (try! (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2 deposit token amount pubkey)))
  )
 )
 
