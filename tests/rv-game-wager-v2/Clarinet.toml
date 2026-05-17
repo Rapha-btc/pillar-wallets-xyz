@@ -1,0 +1,53 @@
+# RV-only manifest for Rendezvous fuzzing of game-wager-v2.
+#
+# game-wager-v2.clar imports two mainnet contracts (pillar-wallet-trait
+# under SP28MP1H and clarity-webauthn under SPV9K21T). build.sh rewrites
+# those to local copies. The rewritten SUT lands in .build/ (gitignored).
+#
+# Run:
+#   bash tests/rv-game-wager-v2/build.sh
+#   cd tests/rv-game-wager-v2
+#   npx rv . game-wager-v2 invariant --runs=100
+
+[project]
+name = "game-wager-v2-rv"
+description = "RV-only manifest for fuzzing game-wager-v2"
+authors = []
+telemetry = false
+cache_dir = "./.cache"
+
+[repl.analysis]
+passes = []
+check_checker = { trusted_sender = false, trusted_caller = false, callee_filter = false }
+
+# Order matters: traits first, then mocks, then production deps, then SUT.
+
+[contracts.sip-010-trait]
+path = "sip-010-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.pillar-wallet-trait]
+path = "pillar-wallet-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-token]
+path = "mock-token.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-wallet]
+path = "mock-wallet.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.clarity-webauthn]
+path = "clarity-webauthn.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.game-wager-v2]
+path = ".build/game-wager-v2.clar"
+clarity_version = 5
+epoch = "3.4"

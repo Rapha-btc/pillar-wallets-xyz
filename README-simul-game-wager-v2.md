@@ -5,6 +5,8 @@ rewrite of `game-wager-v1` (which used Privy secp256k1 sigs).
 
 **Coverage summary:** all 13 public functions + every reachable err code, replay protection, rp.id whitelist, and the deployer/oracle privilege gates are simmed end-to-end. Combined: **76/76 step assertions pass.**
 
+Property-based fuzz coverage (stateful, ~870 calls / 100 runs, 11 invariants, 0 failures) lives in `tests/rv-game-wager-v2/` — see the [RV README](tests/rv-game-wager-v2/README.md) for invariants + run instructions.
+
 Four sim scripts, sharing the same SIP-018 challenge builder and webauthn signer:
 
 | Script | Covers | Latest stxer URL |
