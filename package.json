@@ -7,7 +7,13 @@
   "scripts": {
     "test": "vitest run",
     "test:report": "vitest run -- --coverage --costs",
-    "test:watch": "chokidar \"tests/**/*.ts\" \"contracts/**/*.clar\" -c \"npm run test:report\""
+    "test:watch": "chokidar \"tests/**/*.ts\" \"contracts/**/*.clar\" -c \"npm run test:report\"",
+    "simul:wallet:challenges": "node simul-fakfun-v2-wallet.js --print-challenges",
+    "simul:wallet": "node simul-fakfun-v2-wallet.js",
+    "simul:nft:challenges": "node simul-fakfun-v2-nft.js --print-challenges",
+    "simul:nft": "node simul-fakfun-v2-nft.js",
+    "simul:token-lock:challenges": "node simul-fakfun-v2-token-lock.js --print-challenges",
+    "simul:token-lock": "node simul-fakfun-v2-token-lock.js"
   },
   "author": "",
   "license": "ISC",
@@ -16,6 +22,7 @@
     "@stacks/transactions": "^7.2.0",
     "@types/node": "^24.4.0",
     "chokidar-cli": "^3.0.0",
+    "stxer": "^0.8.0",
     "vitest": "^4.0.7",
     "vitest-environment-clarinet": "^3.0.0"
   }

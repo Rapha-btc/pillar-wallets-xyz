@@ -222,13 +222,14 @@
     )))
 )
 
-(define-read-only (build-revoke-fast-pool-hash (details {
+;; Revokes the wallet's pox-4 delegation entirely (not just fast-pool).
+(define-read-only (build-revoke-stacking-hash (details {
   auth-id: uint,
 }))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
-        topic: "revoke-fast-pool",
+        topic: "revoke-stacking",
         auth-id: (get auth-id details),
       })))
     )))

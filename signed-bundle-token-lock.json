@@ -1,0 +1,34 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "pubkeyHex": "02eca875ad4e06371c75a1fb889f69b52c4900d7f4f4d17e2a059152213ba2d785",
+  "operations": [
+    {
+      "authId": 0,
+      "label": "add-admin (USER)",
+      "challengeHex": "0xade02c1b4ae5310d09175a25b5b274280688309328830246e557134c34faf4ba",
+      "signatureHex": "0xcfe44e3b9681a185f8c316c5a44dd65a88aa273e3237e341b17f14fca9f74521d4d779c1c4cc62519e0fdcf82f1ef3bfe289014c0da894dd8dba92b7fc8f090d",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 1,
+      "label": "toggle-token-lock enabled=true",
+      "challengeHex": "0x79862b130013ebfd0158d48e90a4f5d9249b1a0153c472af230dd611caab444c",
+      "signatureHex": "0xa9119991fbde646d99ce47a85d8fa8b6bdcd0d4af8274e73d50a4baef11903b0410fd1cc1e740fd2489afae841b8bfa57f6fcb6be017c6050e5da118973837ce",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 2,
+      "label": "sip010-transfer 50000 sBTC → USER (memo=none)",
+      "challengeHex": "0x6ad151e70ee6a6155e259d9863cdf76192316c2250f77201bf321353085c5a65",
+      "signatureHex": "0x5d175b77bf1bb02c09733f76b04db4a479ae4a2ca62beca32df3d2bd4dcb3d0a093eacf088a238e751aca6445315e81d2f835b65347ad53b2e9635cf988eab75",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    }
+  ]
+}

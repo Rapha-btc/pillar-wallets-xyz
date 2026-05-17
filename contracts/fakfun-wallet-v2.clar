@@ -1499,7 +1499,10 @@
   )
 )
 
-(define-public (revoke-fast-pool
+;; revoke-stacking -- revokes the wallet's pox-4 delegation entirely. The
+;; on-chain log-revoke-fast-pool event name is preserved for indexer
+;; compatibility with the existing fakfun-wallet-core deployment.
+(define-public (revoke-stacking
     (sig-auth (optional { auth-id: uint, pubkey: (buff 33), signature: (buff 64), authenticator-data: (buff 256), client-data-prefix: (buff 128), client-data-suffix: (buff 512) }))
     (gas (optional <gas-trait>))
   )
@@ -1510,7 +1513,7 @@
         (try! (is-authorized (some {
           message-hash: (contract-call?
             'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
-            build-revoke-fast-pool-hash {
+            build-revoke-stacking-hash {
             auth-id: (get auth-id sig-auth-details),
           }),
           pubkey: (get pubkey sig-auth-details),
