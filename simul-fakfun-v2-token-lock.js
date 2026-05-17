@@ -258,6 +258,14 @@ async function runSimulation(signedPath) {
     `${here}contracts/smart-wallet-standard-auth-helpers-v7.clar`,
     "utf8",
   );
+  const pillarTraitSource = fs.readFileSync(
+    `${here}contracts/deployed/deploying/pillar-wallet-trait.clar`,
+    "utf8",
+  );
+  const gameWagerV2Source = fs.readFileSync(
+    `${here}contracts/game-wager-v2.clar`,
+    "utf8",
+  );
 
   const v2Hash = crypto.createHash("sha512-256").update(walletSource).digest();
   console.error("fakfun-wallet-v2 hash:", v2Hash.toString("hex"));
@@ -276,6 +284,23 @@ async function runSimulation(signedPath) {
       source_code: authHelpersSource,
       clarity_version: ClarityVersion.Clarity5,
     })
+    // pillar-wallet-trait + game-wager-v2 must exist before the wallet deploys
+    // because the wallet (impl-trait ...) and (contract-call? '...game-wager-v2 ...)
+    // are both statically checked. Both contracts live at SP28MP1H on
+    // mainnet; the sim deploys them under that same principal so the
+    // hardcoded references resolve.
+    .withSender("SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK")
+    .addContractDeploy({
+      contract_name: "pillar-wallet-trait",
+      source_code: pillarTraitSource,
+      clarity_version: ClarityVersion.Clarity5,
+    })
+    .addContractDeploy({
+      contract_name: "game-wager-v2",
+      source_code: gameWagerV2Source,
+      clarity_version: ClarityVersion.Clarity5,
+    })
+    .withSender("SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22")
     .addContractCall({
       contract_id: WALLET_CORE,
       function_name: "set-verified-contract",
