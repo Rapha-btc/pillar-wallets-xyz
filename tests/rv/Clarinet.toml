@@ -1,0 +1,190 @@
+# RV-only manifest for Rendezvous fuzzing of fakfun-wallet-v2.
+#
+# The wallet hardcodes ~10 external principals (sbtc-token, fakfun-
+# wallet-core, fakfun-core-v2, pox-4, fast-pool-v3, auth-v7, game-
+# wager-v1, burn-bob-faktory, BOB token, plus auth-helpers-v7 and
+# clarity-webauthn which we own). The mainnet contracts can't be loaded
+# in simnet, so tests/rv/build.sh rewrites the wallet source to use
+# local mocks. Output goes to tests/rv/.build/fakfun-wallet-v2.clar
+# (gitignored).
+#
+# Run:
+#   bash tests/rv/build.sh
+#   npx rv . fakfun-wallet-v2 invariant --runs=100 \
+#     --config=Clarinet-fakfun-wallet-v2-rv.toml
+[project]
+name = "fakfun-wallet-v2-rv"
+description = "RV-only manifest for fuzzing fakfun-wallet-v2"
+authors = []
+telemetry = false
+cache_dir = "./.cache"
+
+[repl.analysis]
+passes = []
+check_checker = { trusted_sender = false, trusted_caller = false, callee_filter = false }
+
+# Order matters: traits first, then mocks, then production helpers, then SUT.
+
+[contracts.sip-010-trait]
+path = "sip-010-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.nft-trait]
+path = "nft-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.extension-trait]
+path = "extension-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.gas-station-trait]
+path = "gas-station-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.enroll-trait]
+path = "enroll-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.liquidity-pool-trait]
+path = "liquidity-pool-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.faktory-trait-v1]
+path = "faktory-trait-v1.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.faktory-dex-trait-v2]
+path = "faktory-dex-trait-v2.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.prelaunch-faktory-trait-v1]
+path = "prelaunch-faktory-trait-v1.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.fakfun-nftmarket-trait]
+path = "fakfun-nftmarket-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+
+# Mocks for external principals the wallet calls directly.
+[contracts.mock-sbtc-token]
+path = "mock-sbtc-token.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-bob-token]
+path = "mock-bob-token.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-fakfun-wallet-core]
+path = "mock-fakfun-wallet-core.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-fakfun-core-v2]
+path = "mock-fakfun-core-v2.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-pox-4]
+path = "mock-pox-4.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-pox4-fast-pool-v3]
+path = "mock-pox4-fast-pool-v3.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-auth-v7]
+path = "mock-auth-v7.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-game-wager-v1]
+path = "mock-game-wager-v1.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-burn-bob-faktory]
+path = "mock-burn-bob-faktory.clar"
+clarity_version = 5
+epoch = "3.4"
+
+# Mock impls of each trait so RV can pick a candidate to pass as arg.
+[contracts.mock-gas]
+path = "mock-gas.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-extension]
+path = "mock-extension.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-enroll]
+path = "mock-enroll.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-pool]
+path = "mock-pool.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-dex]
+path = "mock-dex.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-pre]
+path = "mock-pre.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-token]
+path = "mock-token.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-nftmarket]
+path = "mock-nftmarket.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-fakfun-nfts-core]
+path = "mock-fakfun-nfts-core.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.mock-nft]
+path = "mock-nft.clar"
+clarity_version = 5
+epoch = "3.4"
+
+# Production sources for the contracts we own (auth-helpers + webauthn).
+[contracts.smart-wallet-standard-auth-helpers-v7]
+path = "../../contracts/smart-wallet-standard-auth-helpers-v7.clar"
+clarity_version = 5
+epoch = "3.4"
+
+[contracts.clarity-webauthn]
+path = "../../contracts/clarity-webauthn.clar"
+clarity_version = 5
+epoch = "3.4"
+
+# SUT: rewritten wallet source from .build/.
+[contracts.fakfun-wallet-v2]
+path = ".build/fakfun-wallet-v2.clar"
+clarity_version = 5
+epoch = "3.4"
