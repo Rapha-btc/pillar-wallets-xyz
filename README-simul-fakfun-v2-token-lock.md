@@ -17,10 +17,63 @@ asymmetric auth flow with WebAuthn passkeys (secp256r1). Mirrors
 * `toggle-token-lock` **requires admin** when `enabled=false` (locking off
   is a strictly higher-trust action than locking on).
 * When the lock is on, `stx-transfer` / `sip010-transfer` / `sip009-transfer`
-  all `(err u4023)` in the **signed** branch, but **admin-tx-sender**
-  transfers still succeed (admins must always retain a kill-switch).
+  / `extension-call` / `faktory-execute-limit` all `(err u4023)` in the
+  **signed** branch, but **admin-tx-sender** transfers still succeed
+  (admins always retain the kill-switch).
 * The locked-branch assert fires **before** signature verification, so the
   auth-id is **not consumed** — sig fixtures can be reused later.
+
+## Asymmetric auth — source-line breakdown
+
+The asymmetry lives in `toggle-token-lock` at lines **192–232** of
+`contracts/fakfun-wallet-v2.clar`. The `(if enabled …)` branch at line 205
+selects which auth model applies:
+
+```clarity
+(if enabled
+  ;; LOCK ON (enabled=true) -- sig OR admin path
+  (match sig-auth
+    sig-auth-details (begin                       ;; line 207  signed branch
+      (try! (is-authorized (some { ... }))))      ;;           consumes the sig
+      ...)
+    (try! (is-authorized none))                    ;; line 223  admin fallback (sig=none)
+  )
+  ;; LOCK OFF (enabled=false) -- admin only
+  (try! (is-admin-calling tx-sender))             ;; line 225  no sig path accepted
+)
+```
+
+| Action | Line | Auth accepted |
+|---|---|---|
+| **Lock ON** `(toggle-token-lock true …)` | 206–224 | webauthn sig **OR** admin tx-sender |
+| **Lock OFF** `(toggle-token-lock false …)` | 225 | admin tx-sender **only** |
+
+Rationale:
+* Locking should be **easy to trigger** so a backend, a relayer, or any
+  party holding a pre-signed payload can flip the kill-switch the moment
+  a compromise is detected.
+* Unlocking should be **hard** — only the actual admin tx-sender (i.e.
+  the cold/recovery key) can clear the lock, so a stolen passkey alone
+  can't reverse it.
+
+## Verification of the asymmetry in this sim
+
+* Phase 2 (step 8): `toggle-token-lock(true, sig)` from DEPLOYER as
+  tx-sender, signed by USER's passkey → `(ok true)`. Sig path works.
+* Phase 7 (step 18): `toggle-token-lock(true, none)` from USER (admin)
+  → `(ok true)`. Admin path works on ON too.
+* Phase 5 / 9 (steps 14, 22): `toggle-token-lock(false, none)` from USER
+  (admin) → `(ok true)`. Admin-only OFF path works.
+* Phase 8 (step 20): `toggle-token-lock(false, none)` from DEPLOYER
+  (non-admin, ownership has transferred to USER) → `(err u4001)`
+  err-unauthorised. **Proves the line-225 `is-admin-calling` check
+  rejects a non-admin tx-sender even when the wallet would have
+  accepted a sig on lock-ON.**
+
+Phase 3 (steps 10/11/12) confirms the early `(asserts! (not (var-get
+token-lock-enabled)) err-token-locked)` lines (494/570/618/696/828)
+block signed transfers + extension-calls + limit-orders before sig
+verification, so a stolen passkey can't unlock by burning sigs.
 
 ## Auth-IDs
 
