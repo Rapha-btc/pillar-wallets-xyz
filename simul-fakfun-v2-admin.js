@@ -56,8 +56,15 @@ const TEST_EXT = `${DEPLOYER}.${TEST_EXT_NAME}`;
 // Real on-mainnet extension principal, but never actually invoked.
 const VETO_EXT = `${DEPLOYER}.faktory-swap-extension`;
 
-// Dual-stacking trait impl (on mainnet).
-const DUAL_STACKING_CONTRACT = `SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.xbtc-sbtc-swap-v2`;
+// Test enroll-trait implementation deployed inline -- the on-mainnet
+// `xbtc-sbtc-swap-v2` defines the trait but does NOT implement it (its
+// `enroll` takes two args, not one), so a wallet-side call against that
+// contract fails with BadTraitImplementation. We deploy a minimal no-op
+// impl so the sig-verification + call path can be exercised end-to-end.
+const TEST_ENROLL_NAME = "test-enroll-impl";
+const TEST_ENROLL_CONTRACT = `${DEPLOYER}.${TEST_ENROLL_NAME}`;
+const TEST_ENROLL_SOURCE = `(impl-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.xbtc-sbtc-swap-v2.enroll-trait)
+(define-public (enroll (receiver (optional principal))) (ok true))`;
 
 const SBTC_TOKEN = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 
@@ -360,6 +367,11 @@ async function runSimulation(signedPath) {
       source_code: TEST_EXT_SOURCE,
       clarity_version: ClarityVersion.Clarity5,
     })
+    .addContractDeploy({
+      contract_name: TEST_ENROLL_NAME,
+      source_code: TEST_ENROLL_SOURCE,
+      clarity_version: ClarityVersion.Clarity5,
+    })
 
     // onboard pubkey (from FAKFUN_DEPLOYER as required by the wallet)
     .withSender(FAKFUN_DEPLOYER)
@@ -497,7 +509,7 @@ async function runSimulation(signedPath) {
       contract_id: WALLET,
       function_name: "enroll-dual-stacking",
       function_args: [
-        principalCV(DUAL_STACKING_CONTRACT),
+        principalCV(TEST_ENROLL_CONTRACT),
         sigAuthOptional(signed.sig(7)),
         noneCV(),
       ],

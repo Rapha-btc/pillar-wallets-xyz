@@ -5,8 +5,9 @@ Stxer mainnet-fork simulation covering the **10 remaining**
 by the wallet / nft / token-lock sims. Every helper is hit through its
 corresponding wallet public function with a real WebAuthn-signed sig-auth.
 
-**Latest run:** https://stxer.xyz/simulations/mainnet/fc5737fb815ae34a5a580bee318d1de5
-**Status:** ✅ **25/25 steps pass** — every webauthn signature verifies and every wallet operation executes end-to-end
+**Latest run:** https://stxer.xyz/simulations/mainnet/35b27b9c8c3885d3a380429a65428a56
+**Status:** ✅ **all steps pass cleanly** — every webauthn signature verifies and every wallet operation executes end-to-end
+**Previous run** [fc5737fb](https://stxer.xyz/simulations/mainnet/fc5737fb815ae34a5a580bee318d1de5) had a `BadTraitImplementation` at step 18 because it pointed `enroll-dual-stacking` at `xbtc-sbtc-swap-v2` (which *defines* `enroll-trait` but doesn't *implement* it — its `enroll` takes 2 args, the trait expects 1). Fixed by deploying a minimal `test-enroll-impl` inline (same pattern as `test-extension`).
 **Block:** 7978629 · **Epoch:** 3.4 (Clarity 5)
 **Signing pubkey:** `02eca875ad4e06371c75a1fb889f69b52c4900d7f4f4d17e2a059152213ba2d785` (P-256)
 **Origin / rp.id:** `fak.fun`
@@ -48,7 +49,7 @@ corresponding wallet public function with a real WebAuthn-signed sig-auth.
 | 15 | E | `veto-operation(op-id 1)` auth-id 5 | USER | `(ok true)` | ✅ |
 | 16 | F | `remove-extension-whitelist(test-extension)` auth-id 4 | USER | `(ok true)` | ✅ |
 | 17 | G | `propose-recovery(FAKFUN_DEPLOYER)` auth-id 6 | USER | `(ok true)` | ✅ |
-| 18 | H | `enroll-dual-stacking(xbtc-sbtc-swap-v2)` auth-id 7 | USER | `(ok (some none))` | ✅ |
+| 18 | H | `enroll-dual-stacking(test-enroll-impl)` auth-id 7 | USER | `(ok true)` | ✅ |
 | 19 | I | `stack-stx-fast-pool(1 STX)` auth-id 8 | USER | `(ok true)` | ✅ |
 | 20 | I | eval `(pox-4.get-delegation-info wallet)` | – | `(some {amount-ustx: u1_000_000, delegated-to: fast-pool-v3, …})` | ✅ |
 | 21 | J | `propose-transfer-wallet(FAKFUN_DEPLOYER)` admin | USER | `(ok true)` | ✅ |
