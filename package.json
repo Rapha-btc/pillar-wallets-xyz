@@ -13,7 +13,9 @@
     "simul:nft:challenges": "node simul-fakfun-v2-nft.js --print-challenges",
     "simul:nft": "node simul-fakfun-v2-nft.js",
     "simul:token-lock:challenges": "node simul-fakfun-v2-token-lock.js --print-challenges",
-    "simul:token-lock": "node simul-fakfun-v2-token-lock.js"
+    "simul:token-lock": "node simul-fakfun-v2-token-lock.js",
+    "simul:admin:challenges": "node simul-fakfun-v2-admin.js --print-challenges",
+    "simul:admin": "node simul-fakfun-v2-admin.js"
   },
   "author": "",
   "license": "ISC",

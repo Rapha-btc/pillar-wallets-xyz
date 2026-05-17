@@ -17,6 +17,8 @@ WebAuthn / secp256r1 (`secp256r1-verify`) over a reconstructed digest
 | `simul-fakfun-v2-wallet.js` | 0–5, 7–13 | [62ce078c…](https://stxer.xyz/simulations/mainnet/62ce078cc225101d055578fdf9fce7dd) | Full lifecycle + stacking — `stack-stx-juice` and `revoke-stacking` (formerly `revoke-fast-pool`) now covered |
 | `simul-fakfun-v2-nft.js` | 0, 1, 2, 3, 4, 5 | [193cc8d5…](https://stxer.xyz/simulations/mainnet/193cc8d5ff49ff6b8c7ab42ab81390ce) | ✅ NFT marketplace: BUY → LIST → UPDATE-PRICE → UPDATE-FT → UNLIST → SIP009-TRANSFER (all 6 ops green) |
 | `simul-fakfun-v2-token-lock.js` | 0, 1, 2 (+ 3 dummy) | [29cbbb44…](https://stxer.xyz/simulations/mainnet/29cbbb44b7b4cf3332bbefca3c63086f) | ✅ toggle-token-lock asymmetric auth — all 9 phases pass |
+| `simul-fakfun-v2-admin.js` | 0–9 | [fc5737fb…](https://stxer.xyz/simulations/mainnet/fc5737fb815ae34a5a580bee318d1de5) | ✅ all 25 steps pass — covers the 10 remaining helpers (stx-transfer, extension flows, veto, recovery, dual-stacking, fast-pool, confirm-transfer-wallet) |
+| `simul-fakfun-v2-governance.js` | reuses 0 + 6 from admin bundle | [f56c6525…](https://stxer.xyz/simulations/mainnet/f56c6525110605ddf73944a960fd66d4) | ✅ all 39 steps pass — covers the 12 untested admin/config/recovery functions: set-max-gas-amount, signal-config-change, set-wallet-config, signal-pubkey-cooldown-change, confirm-pubkey-cooldown-change, propose/confirm/remove-admin-pubkey, execute-pending-stx-transfer, execute-pending-sbtc-transfer, confirm-recovery, recover-inactive-wallet (after `addAdvanceBlocks(52_700)`) |
 
 Each sim is two-phase: print the SIP-018 challenges, sign them in a browser
 with your passkey, paste the bundle back, then run.
@@ -24,8 +26,8 @@ with your passkey, paste the bundle back, then run.
 ## auth-helpers-v7 coverage
 
 `smart-wallet-standard-auth-helpers-v7` defines 22 SIP-018 hash builders.
-Through the three sims above, **12 of 22** are exercised via real signed
-wallet calls:
+Across all four sims, **22 of 22** are exercised via real signed wallet
+calls — full coverage:
 
 | Tested helper | Sim · auth-id |
 |---|---|
@@ -42,13 +44,15 @@ wallet calls:
 | `build-faktory-nft-execute-hash` | nft auth-ids 0–4 |
 | `build-stack-stx-juice-hash` | wallet auth-id 12 |
 | `build-revoke-stacking-hash` | wallet auth-id 13 |
-
-Not yet covered (planned for `simul-fakfun-v2-admin.js`, follow-up sim):
-`build-stx-transfer-hash`, `build-extension-call-hash`,
-`build-whitelist-extension-hash`, `build-remove-extension-whitelist-hash`,
-`build-veto-operation-hash`, `build-confirm-transfer-hash`,
-`build-propose-recovery-hash`, `build-enroll-dual-stacking-hash`,
-`build-stack-stx-fast-pool-hash`.
+| `build-stx-transfer-hash` | admin auth-id 1 |
+| `build-whitelist-extension-hash` | admin auth-id 2 |
+| `build-extension-call-hash` | admin auth-id 3 |
+| `build-remove-extension-whitelist-hash` | admin auth-id 4 |
+| `build-veto-operation-hash` | admin auth-id 5 |
+| `build-propose-recovery-hash` | admin auth-id 6 |
+| `build-enroll-dual-stacking-hash` | admin auth-id 7 |
+| `build-stack-stx-fast-pool-hash` | admin auth-id 8 |
+| `build-confirm-transfer-hash` | admin auth-id 9 |
 
 ## Renames in this iteration
 

@@ -271,6 +271,32 @@
     )))
 )
 
+;; Signed limit order: user pre-signs an intent that a third party (e.g. the
+;; faktory-dao backend) can submit when the pool quote crosses limit-out at or
+;; before expiry-burn-block. limit-out is the minimum acceptable `dy` from the
+;; pool's quote (i.e. minimum output of the swap, regardless of opcode).
+(define-read-only (build-faktory-execute-limit-hash (details {
+  auth-id: uint,
+  pool: principal,
+  amount: uint,
+  opcode: (optional (buff 16)),
+  limit-out: uint,
+  expiry-burn-block: uint,
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "faktory-execute-limit",
+        auth-id: (get auth-id details),
+        pool: (get pool details),
+        amount: (get amount details),
+        opcode: (get opcode details),
+        limit-out: (get limit-out details),
+        expiry-burn-block: (get expiry-burn-block details),
+      })))
+    )))
+)
+
 (define-read-only (build-faktory-place-order-hash (details {
   auth-id: uint,
   dex: principal,

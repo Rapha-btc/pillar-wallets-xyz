@@ -1,0 +1,97 @@
+{
+  "walletPrincipal": "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2",
+  "rpId": "fak.fun",
+  "pubkeyHex": "02eca875ad4e06371c75a1fb889f69b52c4900d7f4f4d17e2a059152213ba2d785",
+  "operations": [
+    {
+      "authId": 0,
+      "label": "add-admin (USER)",
+      "challengeHex": "0xade02c1b4ae5310d09175a25b5b274280688309328830246e557134c34faf4ba",
+      "signatureHex": "0xb91940e65e57ad15e0a1c84896f08feb758502aa45050f6d23c21b154bc6ace2167c017978a3e0f808db8f20a45a881ee2d578af7828c4dd2be2bd61cc5d2f7a",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 1,
+      "label": "stx-transfer 0.5 STX -> USER (memo=none)",
+      "challengeHex": "0x9ef1bcfa0131d2354e9cfb348f52e7669dadebffb9a1a21a1886c5550b1f8de8",
+      "signatureHex": "0xfc1f68ff7f8d8cec71cbcccd38b12ca5b67a0cb0a792e53882fa4185579cee4d68f7e86e39b667a7cd71e55528c496a48af82173f684ec2aa287fd90060c73fd",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 2,
+      "label": "execute-pending-whitelist (op-id 0, ext=test-extension)",
+      "challengeHex": "0x368b877ffaf2047ec741d0ea51e7b95a8fdb8f4aa4ceb17c50fc1d2b33a71df9",
+      "signatureHex": "0xfd3a8ed64aa9fe648c40974250f5c1604f1acb6d780855a58dbeac2898f05066162897b304a963d99f70e51e0d8b481a77547a641fe742ba7d6afcad572b637d",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 3,
+      "label": "extension-call (test-extension, payload=0xdeadbeefcafe)",
+      "challengeHex": "0xdc7d8944f5b837c9e6d65717dc36b5bb577b3268990dbf45cd2e177dc5981831",
+      "signatureHex": "0x40392bb6b1ae664a23d58539cbcb230a48c87a7dbe74403225317f44946d4454eaff1d9b69611c5c3c660e0788c47a4a4d0224bac90caec562d7cc798a138205",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 4,
+      "label": "remove-extension-whitelist (test-extension)",
+      "challengeHex": "0xaa356924b5499c20de609ee3827f1b77102685b4c21d3c9872732fe408025519",
+      "signatureHex": "0x2b05cf8067ca1c2d2935fb18d71b282df9d94d5f1758b520709625be1d6acfb83098bf388463c93c1c507881ec1cef04c7c04bd981bd1f24b264d9adeaa8a4e4",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 5,
+      "label": "veto-operation (op-id 1)",
+      "challengeHex": "0x3a2fe9092e58ecb9f4a5ffe4d1cafaf113fa8df562446be2c1eb2822f305c717",
+      "signatureHex": "0x4f178a984875440911c76b1913d46a6c6e78ae350eef68c4e864c4c1a1000d79aa8e39d28e860802865ed02b46773aaa6ba322f0e1c26568c11f80028dfee489",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 6,
+      "label": "propose-recovery (recovery=FAKFUN_DEPLOYER)",
+      "challengeHex": "0xe4bd338d77094312f3615267a3ae2527de1d4eb33e8b96a0e759aecae35d9bd2",
+      "signatureHex": "0x7322478ccdcf67431b801ad4c12b94cc79173b9a73e225e4775eeb0ac3d8b1e7f2ba7921294abee5f8d88578310d665cfb94711c4b2e1a0a5d1a8ffa143a5ae5",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 7,
+      "label": "enroll-dual-stacking (xbtc-sbtc-swap-v2)",
+      "challengeHex": "0x39aa5d96e4e578f25a5d6c249e42a2b7407d2f28640e6bb61b2c700d92d8a23a",
+      "signatureHex": "0x10c0e94efcd9a30f91cbeb0d3f55bbec9a7bbc5e2b03c829c1be9ac3f85ffd8482a00becb3611c92c6e4b4b062bcc930ad0380eab0e328bee2f9611743a5142c",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 8,
+      "label": "stack-stx-fast-pool (1 STX -> fast-pool-v3)",
+      "challengeHex": "0x30c15de784b7c8374c2e8ef4e05e1e478ae6a4509f5bb182d0ff94770726485a",
+      "signatureHex": "0x2018f2bf3e4dfa918399e0d474a3cf4bea895a47eb4956e143da3594d5c679acd35f8173a912169cffb0bca2367335bc53c08e0a0bc5dd7aee227c08681f19c4",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    },
+    {
+      "authId": 9,
+      "label": "confirm-transfer-wallet (new-admin=FAKFUN_DEPLOYER)",
+      "challengeHex": "0x21c8d9f5c2ff25b1ae1c8a359f0559c3dbf03feb7fc2947e0632c1ed089b426e",
+      "signatureHex": "0x6dcf30886184216850a5b0051522acbd183669ff4b881973202a06381c61806616790fc9fad5cf937a64bd73b35b728682b9643695837495bc43ddb8e49c1a7a",
+      "authenticatorDataHex": "0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f22490500000000",
+      "clientDataPrefixHex": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22",
+      "clientDataSuffixHex": "0x222c226f726967696e223a2268747470733a2f2f66616b2e66756e222c2263726f73734f726967696e223a66616c73657d"
+    }
+  ]
+}

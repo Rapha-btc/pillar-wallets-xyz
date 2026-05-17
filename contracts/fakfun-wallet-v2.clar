@@ -33,6 +33,9 @@
 (define-constant err-no-pending-pubkey (err u4021))
 (define-constant err-already-initialized (err u4022))
 (define-constant err-token-locked (err u4023))
+(define-constant err-limit-expired (err u4024))
+(define-constant err-limit-not-hit (err u4025))
+(define-constant err-not-keeper (err u4026))
 (define-constant err-fatal-owner-not-admin (err u9999))
 
 (define-constant INACTIVITY-PERIOD u52560) 
@@ -122,6 +125,13 @@
 
 (define-data-var token-lock-enabled bool false)
 
+;; Designated keeper allowed to broadcast user-signed limit-order txs.
+;; Default = faktory-dao backend (SPV9K21...). Admin can change this; set to
+;; cant-be-evil.stx (SP000000000000000000002Q6VF78) to permanently disable
+;; third-party broadcasts of pre-signed limit orders for this wallet, even
+;; if a pubkey is compromised, since no one controls that principal.
+(define-data-var keeper principal 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22)
+
 (define-data-var spent-this-period {
   stx: uint,
   sbtc: uint,
@@ -188,6 +198,19 @@
   (begin
     (try! (is-admin-calling tx-sender))
     (var-set max-gas-amount amount)
+    (ok true)
+  )
+)
+
+(define-read-only (get-keeper) (var-get keeper))
+
+;; Admin-only setter for the limit-order keeper. Set to
+;; SP000000000000000000002Q6VF78 (cant-be-evil.stx) to disable third-party
+;; broadcast of pre-signed limit orders entirely.
+(define-public (set-keeper (new-keeper principal))
+  (begin
+    (try! (is-admin-calling tx-sender))
+    (var-set keeper new-keeper)
     (ok true)
   )
 )
@@ -582,6 +605,7 @@
     (asserts! (is-extension-whitelisted (contract-of extension)) err-not-whitelisted)
     (match sig-auth
       sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
           message-hash: (contract-call?
             'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
@@ -820,6 +844,85 @@
     (opcode (buff 16))
     (position uint))
     (default-to 0x00 (element-at? opcode position)))
+
+;; faktory-execute-limit -- user pre-signs an intent that a third-party
+;; submitter (e.g. faktory-dao backend) executes when the on-chain swap
+;; result meets the min-out at or before expiry-burn-block. Sig is
+;; REQUIRED (no admin shortcut: only the user's passkey can authorize a
+;; limit order; the BE just acts as a relayer carrying the signed payload).
+;;
+;; Min-out enforcement is done on the swap's actual result tuple
+;; ({dx, dy, dk} returned by fakfun-core-v2.execute), not on a separate
+;; pre-quote. If (get dy result) < limit-out, asserts! fails -> the entire
+;; tx reverts, including is-authorized's consume-signature, so the
+;; message-hash is NOT marked consumed and the BE can retry the same
+;; signed payload later when price recovers. This is the Uniswap-style
+;; "min-out" pattern for replay-safe limit orders.
+;;
+;; Replay protection on the happy path: each unique (auth-id, pool,
+;; amount, opcode, limit-out, expiry-burn-block) tuple produces one
+;; message-hash which is consumed on successful execution. Re-submitting
+;; after fill returns err-signature-replay; after expiry returns
+;; err-limit-expired.
+;;
+;; To cancel: pick a short expiry, or revoke the admin-pubkey to
+;; invalidate every pending sig from that key.
+;;
+;; Only BUY (0x00) and SELL (0x01) opcodes are supported; ADD-LIQ /
+;; REMOVE-LIQ are out of scope for limit orders.
+(define-public (faktory-execute-limit
+    (pool <pool-trait>)
+    (amount uint)
+    (opcode (optional (buff 16)))
+    (sip010 <sip-010-trait>)
+    (sip010-name (string-ascii 128))
+    (limit-out uint)
+    (expiry-burn-block uint)
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    ;; Keeper gate -- checked BEFORE is-authorized so a wrong-keeper attempt
+    ;; does not consume the sig. The pre-signed payload stays valid for the
+    ;; designated keeper to retry.
+    (asserts! (is-eq tx-sender (var-get keeper)) err-not-keeper)
+    (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+    (asserts! (<= burn-block-height expiry-burn-block) err-limit-expired)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+        build-faktory-execute-limit-hash {
+        auth-id: (get auth-id sig-auth),
+        pool: (contract-of pool),
+        amount: amount,
+        opcode: opcode,
+        limit-out: limit-out,
+        expiry-burn-block: expiry-burn-block,
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas g (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount))) (try! (contract-call? g pay-gas)))) true)
+    (let ((op (get-byte (default-to 0x00 opcode) u0)))
+      (if (or (is-eq op EXECUTE-OP-BUY) (is-eq op EXECUTE-OP-SELL))
+        (let ((result (as-contract? ((with-ft (contract-of sip010) sip010-name amount))
+                        (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 execute pool amount opcode)))))
+          (asserts! (>= (get dy result) limit-out) err-limit-not-hit)
+          (ok result))
+        err-invalid-operation))
+  )
+)
 
 (define-public (faktory-place-order
     (dex <dex-trait>)
