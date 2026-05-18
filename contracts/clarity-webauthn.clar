@@ -114,6 +114,17 @@
   )
 )
 
+;; User Verification (UV, flags bit 2) is a stronger signal than User Presence:
+;; it means the authenticator actually verified the user (biometric or PIN),
+;; not merely that someone interacted with it. Check this when a passkey touch
+;; alone is not enough to authorize an action.
+(define-read-only (is-user-verified (authenticator-data (buff 256)))
+  (match (get-flags-byte authenticator-data)
+    flags (is-eq (bit-and (buff-to-uint-be flags) u4) u4)
+    false
+  )
+)
+
 ;; -----------------------------------------------------------------------------
 ;; WebAuthn signature reconstruction + verification
 ;; -----------------------------------------------------------------------------
