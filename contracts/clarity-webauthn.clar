@@ -171,6 +171,7 @@
 )
 
 ;; Full single-rp.id assertion check:
+;;   - authenticatorData is at least 37 bytes (rpIdHash + flags + signCount)
 ;;   - authenticatorData[0..32] equals the expected rp.id hash
 ;;   - user-presence flag is set
 ;;   - the passkey signed the reconstructed digest
@@ -191,6 +192,10 @@
       (auth-rp-id (unwrap! (get-rp-id-hash authenticator-data) ERR_BAD_AUTH_DATA))
       (flags (unwrap! (get-flags-byte authenticator-data) ERR_BAD_AUTH_DATA))
     )
+    ;; authenticatorData is rpIdHash[32] + flags[1] + signCount[4], so a real
+    ;; assertion is at least 37 bytes. A shorter buffer is malformed - fail
+    ;; fast here rather than letting it through to secp256r1-verify.
+    (asserts! (>= (len authenticator-data) u37) ERR_BAD_AUTH_DATA)
     (asserts! (is-eq auth-rp-id rp-id-hash) ERR_BAD_RP_ID)
     (asserts! (is-eq (bit-and (buff-to-uint-be flags) u1) u1) ERR_USER_NOT_PRESENT)
     (ok (verify-webauthn-signature public-key challenge authenticator-data
