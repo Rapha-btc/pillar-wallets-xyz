@@ -1560,7 +1560,7 @@
     )
     (asserts!
       (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
-        is-user-present authenticator-data
+        is-user-verified authenticator-data
       )
       err-invalid-signature
     )
