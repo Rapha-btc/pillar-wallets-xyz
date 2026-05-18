@@ -10,6 +10,8 @@
 (use-trait token-trait 'SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2.faktory-trait-v1.sip-010-trait)
 (use-trait nftmarket-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nftmarket-trait.nftmarket-trait)
 
+(impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
+
 (define-constant err-unauthorised (err u4001))
 (define-constant err-invalid-signature (err u4002))
 (define-constant err-forbidden (err u4003))
@@ -2074,7 +2076,8 @@
     (match sig-auth
       sig-auth-details (begin
         (try! (is-authorized (some {
-          message-hash: (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.auth-v7
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
             build-wager-deposit-hash {
             auth-id: (get auth-id sig-auth-details),
             amount: amount,
