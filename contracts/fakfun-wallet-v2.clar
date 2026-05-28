@@ -884,12 +884,17 @@
         ;; log-sbtc-withdrawal, and log-sip010-transfer can't represent the BTC
         ;; tuple recipient (its recipient is a Stacks principal). A dedicated
         ;; log-sbtc-withdrawal would be added to fakfun-wallet-core for production.
-        (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (+ amount max-fee)))
+        ;; Drop the bridge's (response uint uint) return so both `if` arms unify
+        ;; on (response bool ...). Without the surrounding `try!` + `(ok true)`,
+        ;; the if-arms mismatch ((response bool none) vs (response uint uint))
+        ;; aborts the static checker and the contract can't deploy.
+        (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (+ amount max-fee)))
           (try! (contract-call?
             'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
             initiate-withdrawal-request amount recipient max-fee
           ))
-        )
+        ))
+        (ok true)
       )
     )
   )
