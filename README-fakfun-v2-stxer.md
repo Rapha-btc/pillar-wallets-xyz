@@ -28,6 +28,7 @@ resolved at deploy time.
 | `simul-fakfun-v2-limit.js` | 10–12 + reuses 0/99 | [98124c6c…](https://stxer.xyz/simulations/mainnet/98124c6c3c46495ed6ed72bba8a915b3) | ✅ faktory-execute-limit happy + replay + min-out (retryable) + expired (after advance) + extension-call under token-lock. |
 | `simul-fakfun-v2-wager.js` | 200, 201 + reuses 0/99 | [27582a2b…](https://stxer.xyz/simulations/mainnet/27582a2bea9132cbd7489a3b1055839b) | ✅ wallet → game-wager-v2 webauthn end-to-end (no secp256k1 bridge). `wager-deposit` hash now built via the wallet's local `smart-wallet-standard-auth-helpers-v7.build-wager-deposit-hash` (wallet-bound domain) — the prior `auth-v7` dep that referenced game-wager-v1 in its SIP-018 domain bytes is gone. |
 | `simul-fakfun-v2-negative.js` (NEW) | reuses 0–3 (init bundle) | [64eff4ea…](https://stxer.xyz/simulations/mainnet/64eff4ea1ff6b4728b2116ae6e709fe4) | ✅ every guard / err code on the new 3-step admin + veto + toggle-token-lock burn-owner surface: `u4001 / u4012 / u4022 / u4026 / u4027 / u4028 / u4029`. All 19 expected results hit. |
+| `simul-fakfun-v2-sbtc-withdrawal.js` (NEW) | ephemeral keypair, inline sigs 0/1/100/101 | [4bd1b6e2…](https://stxer.xyz/simulations/mainnet/4bd1b6e2a116a68f8e67671e3c048940) | ✅ sBTC -> BTC peg-out via `sbtc-withdrawal`. Phases A/B (under-threshold signed + admin) burn (amount+max-fee) from `sbtc-token` and mint to `sbtc-token-locked`, bump `spent-this-period.sbtc`, emit the bridge's `withdrawal-create` print w/ recipient `{version: 0x04, hashbytes: 0xaa…(20 bytes)}`. Phase C parks an over-threshold op (op-type `"sbtc-withdraw"`, amount=200 000 not +max-fee, recipient=wallet placeholder, payload=`to-consensus-buff?` of `{recipient, max-fee}`). Phase D executes after 150-block advance (bridge returns request-id `u1938`). Negative paths: E `u4015` vetoed, F `u4017` cooldown-not-passed, G `u4013` wrong op-type (sbtc-transfer pending), H `u500` `ERR_INVALID_ADDR_VERSION` propagated from the bridge (version 0x07). |
 
 The shared `signed-bundle-followup.json` (auth-id 99 = confirm-admin) is one sig reused across all bootstrap-affected sims because the hash depends only on the wallet principal + topic + auth-id + new-admin (all identical across sims). One signing round → six sims initialize.
 
@@ -73,6 +74,47 @@ calls across the sim suite:
 | `build-enroll-dual-stacking-hash` | admin auth-id 7 |
 | `build-stack-stx-fast-pool-hash` | admin auth-id 8 |
 | `build-confirm-transfer-hash` | admin auth-id 9 |
+
+## Notes on `simul-fakfun-v2-sbtc-withdrawal.js`
+
+Two intentional departures from the pattern of the other sims in this suite:
+
+1. **Inline ephemeral signing instead of `signed-bundle-*.json`.** The new
+   `build-sbtc-withdrawal-hash` lives in `smart-wallet-standard-auth-helpers-v8`
+   (additive over v7, deployed alongside it in the sim) and produces new
+   SIP-018 challenges that no committed signed bundle covers. To keep the
+   sim runnable without a browser round-trip, the file uses
+   `lib-webauthn-test-signer.mjs` (already used by the `simul-game-wager-v2*`
+   sims) to mint an ephemeral P-256 keypair, onboard the wallet with that
+   pubkey, and sign all four required challenges (`add-admin` propose +
+   `confirm-admin` for the 3-step init, plus over-threshold and
+   under-threshold `sbtc-withdrawal`) inline. The wallet's
+   `is-authorized → consume-signature → verify-signature → secp256r1-verify`
+   path is identical regardless of pubkey provenance.
+
+2. **`addSetContractCode` instead of `addContractDeploy` for already-deployed
+   contracts.** `clarity-webauthn`, `smart-wallet-standard-auth-helpers-v7`,
+   `pillar-wallet-trait`, `game-wager-v2`, and the older `fakfun-wallet-v2`
+   are all already on mainnet — `addContractDeploy` returns
+   `"Duplicate contract"`. `addSetContractCode` overwrites code at an
+   existing contract_id, which lets the sim install the new committed
+   `fakfun-wallet-v2` source (with `sbtc-initiate-withdrawal` +
+   `execute-pending-sbtc-withdrawal`) at the same principal `onboard()`
+   hardcodes. The genuinely-new `smart-wallet-standard-auth-helpers-v8`
+   is the only contract that still uses `addContractDeploy`. The existing
+   sims in this suite predate the mainnet deploy and will need the same
+   migration before their next run.
+
+### Contract fix applied during this iteration
+
+The committed `sbtc-initiate-withdrawal` failed static checking with
+`IfArmsMustMatch ((response bool none), (response uint uint))`. The
+pending branch returns `(ok true)` (bool) while the immediate-execute
+branch returned the bridge's `(response uint uint)` directly. Wrapped
+the immediate branch in `(try! ...) (ok true)` so both arms unify on
+`(response bool ...)`. This is a 2-line change in
+`contracts/fakfun-wallet-v2.clar`; the contract would otherwise not
+deploy at all.
 
 ## Renames in this iteration
 
