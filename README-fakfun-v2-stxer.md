@@ -85,6 +85,30 @@ calls across the sim suite:
   upgraded, the event can be renamed to `log-revoke-stacking` for full
   consistency.
 
+## Logs missing from deployed `fakfun-wallet-core`
+
+New wallet ops were added without corresponding log functions in the
+already-deployed `fakfun-wallet-core`, so they currently omit the log call.
+Each is annotated with a `;; NOTE:` at the call site; a future
+`fakfun-wallet-core` upgrade can add the matching log fn and the wallet can
+be amended to call it. Not blocking — indexers can still observe these ops
+via the underlying `sbtc-withdrawal` contract events.
+
+* **`sbtc-initiate-withdrawal` (immediate execute branch, under threshold)
+  and `execute-pending-sbtc-withdrawal`** — would emit a
+  `log-sbtc-withdrawal (amount uint) (recipient {version,hashbytes}) (max-fee uint)`.
+  Reusing `log-sip010-transfer` was rejected: its `recipient` is a Stacks
+  principal and can't represent the BTC `{version, hashbytes}` payout
+  target.
+* **`sbtc-initiate-withdrawal` (over-threshold pending branch)** — does
+  call `create-pending-operation`, which emits the generic
+  `log-pending-operation`. That event records `recipient = current-contract`
+  (placeholder), with the real BTC destination decodable from the `payload`
+  buff via `from-consensus-buff?`. A dedicated
+  `log-sbtc-withdrawal-pending (op-id uint) (amount uint) (recipient {version,hashbytes}) (max-fee uint) (execute-after uint)`
+  would surface the BTC destination directly to indexers — cleaner, not
+  required.
+
 ## May 2026 amendments
 
 Major contract-side changes landed during this iteration; the sim suite was

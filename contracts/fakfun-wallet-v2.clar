@@ -799,6 +799,141 @@
   )
 )
 
+;; sBTC -> BTC withdrawal (peg-out) via the official sBTC bridge.
+;; Calls sbtc-withdrawal.initiate-withdrawal-request, which locks
+;; (amount + max-fee) of sBTC from tx-sender. Inside the as-contract? frame the
+;; wallet IS tx-sender, so the bridge pulls the locked sBTC from the wallet's
+;; own balance. Signers later send `amount` sats to `recipient` (the BTC
+;; address as a {version, hashbytes} tuple) and pay <= max-fee to BTC miners;
+;; any unused fee is refunded on-chain. amount must be >= the bridge DUST_LIMIT
+;; (u546) -- we don't re-check it here, the bridge asserts it.
+(define-public (sbtc-initiate-withdrawal
+    (amount uint)
+    (recipient {
+      version: (buff 1),
+      hashbytes: (buff 32),
+    })
+    (max-fee uint)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    ;; sBTC outflow, so honour the token lock exactly like sip010-transfer does
+    ;; on the signed path.
+    (match sig-auth
+      sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+        (try! (is-authorized (some {
+          ;; NOTE: v8 (not the deployed-immutable v7) -- v8 = v7 + this new
+          ;; build-sbtc-withdrawal-hash. Must be deployed alongside the new
+          ;; wallet template. Existing ops still reference v7.
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v8
+            build-sbtc-withdrawal-hash {
+            auth-id: (get auth-id sig-auth-details),
+            amount: amount,
+            recipient: recipient,
+            max-fee: max-fee,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+            (try! (contract-call? g pay-gas))
+          ))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    ;; The bridge locks (amount + max-fee), so that is the full sBTC outflow we
+    ;; meter against the spending threshold and post-condition.
+    (if (would-exceed-sbtc-threshold (+ amount max-fee))
+      ;; over threshold -> park as a pending operation; cooldown ~24h, vetoable
+      ;; via veto-operation. Reuses the existing pending-operations map: the BTC
+      ;; recipient + max-fee go in `payload` (serialized with to-consensus-buff?)
+      ;; since the map's `recipient` field is a principal and can't hold the
+      ;; {version, hashbytes} tuple.
+      (begin
+        (unwrap-panic (create-pending-operation "sbtc-withdraw" amount
+          current-contract (some SBTC-CONTRACT) none
+          (some (unwrap-panic (to-consensus-buff? {
+            recipient: recipient,
+            max-fee: max-fee,
+          })))
+        ))
+        (ok true)
+      )
+      ;; under threshold -> meter + execute immediately
+      (begin
+        (add-spent-sbtc (+ amount max-fee))
+        ;; NOTE: no log call here. The deployed fakfun-wallet-core has no
+        ;; log-sbtc-withdrawal, and log-sip010-transfer can't represent the BTC
+        ;; tuple recipient (its recipient is a Stacks principal). A dedicated
+        ;; log-sbtc-withdrawal would be added to fakfun-wallet-core for production.
+        (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (+ amount max-fee)))
+          (try! (contract-call?
+            'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
+            initiate-withdrawal-request amount recipient max-fee
+          ))
+        )
+      )
+    )
+  )
+)
+
+(define-public (execute-pending-sbtc-withdrawal (op-id uint))
+  (let ((op (unwrap! (map-get? pending-operations op-id) err-invalid-operation)))
+    (asserts! (is-eq (get op-type op) "sbtc-withdraw") err-invalid-operation)
+    (asserts! (not (get executed op)) err-already-executed)
+    (asserts! (not (get vetoed op)) err-vetoed)
+    (asserts! (>= burn-block-height (get execute-after op))
+      err-cooldown-not-passed
+    )
+    (try! (is-authorized none))
+    (let (
+        (raw (unwrap! (get payload op) err-invalid-operation))
+        (parsed (unwrap!
+          (from-consensus-buff?
+            {
+              recipient: { version: (buff 1), hashbytes: (buff 32) },
+              max-fee: uint,
+            }
+            raw
+          )
+          err-invalid-operation
+        ))
+        (the-recipient (get recipient parsed))
+        (the-max-fee (get max-fee parsed))
+        (the-amount (get amount op))
+        (lock-total (+ the-amount the-max-fee))
+      )
+      (map-set pending-operations op-id (merge op { executed: true }))
+      ;; NOTE: no fakfun-wallet-core log call -- the deployed core has no
+      ;; log-sbtc-withdrawal yet. Added in a future core version.
+      (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" lock-total))
+        (try! (contract-call?
+          'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
+          initiate-withdrawal-request the-amount the-recipient the-max-fee
+        ))
+      )
+    )
+  )
+)
+
 (define-public (sip009-transfer
     (nft-id uint)
     (recipient principal)
