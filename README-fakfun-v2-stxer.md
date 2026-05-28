@@ -116,6 +116,52 @@ the immediate branch in `(try! ...) (ok true)` so both arms unify on
 `contracts/fakfun-wallet-v2.clar`; the contract would otherwise not
 deploy at all.
 
+### Independent SDK-based verification of every path
+
+The stxer SPA viewer is JavaScript-rendered and can't be machine-read
+(static fetches return only the shell). Instead, every path of the two
+new functions was verified by querying the simulation's post-state
+directly via the stxer SDK v0.8.0 (`readDataVar`, `simulationBatchReads`
+with `maps`). Sim:
+**https://stxer.xyz/simulations/mainnet/4bd1b6e2a116a68f8e67671e3c048940**
+
+Global state (via `readDataVar`):
+
+| Var | Actual | Expected | Confirms |
+|---|---|---|---|
+| `operation-nonce` | `u4` | `u4` | exactly 4 pending ops created (phases C, E, F, G); phase H did NOT create one |
+| `spent-this-period.sbtc` | `u62000` | `u62000` | only under-threshold executes (A + B, 31_000 each) bumped the spend counter; over-threshold pending ops correctly didn't |
+| `is-initialized` | `true` | `true` | wallet bootstrap completed before any sbtc-initiate-withdrawal call |
+
+Per-op state (via `simulationBatchReads({ maps: [[wallet, "pending-operations", uintHex(id)], …] })`):
+
+| op-id | Phase | `op-type` | `executed` | `vetoed` | `amount` | What this proves |
+|---|---|---|---|---|---|---|
+| `u0` | C → D | `sbtc-withdraw` | `true` | `false` | `u200000` | over-threshold path created the pending op; `execute-pending-sbtc-withdrawal` flipped `executed` (only possible if the bridge `contract-call?` returned `(ok …)`) |
+| `u1` | E | `sbtc-withdraw` | `false` | `true` | `u200000` | `veto-operation` toggled `vetoed`; execute correctly returned `err-vetoed (u4015)` afterward |
+| `u2` | F | `sbtc-withdraw` | `false` | `false` | `u200000` | execute before cooldown returned `err-cooldown-not-passed (u4017)` *without* state change |
+| `u3` | G | **`sbtc-transfer`** | `false` | `false` | — | `execute-pending-sbtc-withdrawal` rejected it via the `op-type` assert ⇒ `err-invalid-operation (u4013)` |
+
+Payload round-trip: every `sbtc-withdraw` op carries `payload` as a
+`(buff 94)` containing `to-consensus-buff?` of
+`{ recipient: { version: 0x04, hashbytes: 0xaa…(20 bytes) }, max-fee: u1000 }`.
+We decoded the raw payload bytes back with `hexToCV` and got the same
+tuple — proving the serialize/deserialize path that
+`execute-pending-sbtc-withdrawal` relies on actually works.
+
+Recipient field on all sbtc-withdraw pending ops is the wallet's own
+principal (`current-contract` placeholder) and `token` is
+`(some sbtc-token)` — matching the design choice that the BTC
+destination lives in `payload`, not in the map's `recipient` slot.
+
+References:
+* Sim: https://stxer.xyz/simulations/mainnet/4bd1b6e2a116a68f8e67671e3c048940
+* stxer SDK release used: https://github.com/stxer/stxer-sdk/releases/tag/v0.8.0
+* Static cross-check of err codes against the contract source:
+  `err-invalid-operation u4013`, `err-vetoed u4015`,
+  `err-cooldown-not-passed u4017` (in `fakfun-wallet-v2.clar`),
+  `ERR_INVALID_ADDR_VERSION u500` (in upstream `sbtc-withdrawal.clar`).
+
 ## Renames in this iteration
 
 * **`revoke-fast-pool` → `revoke-stacking`** (wallet public function and
