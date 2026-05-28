@@ -162,6 +162,59 @@ References:
   `err-cooldown-not-passed u4017` (in `fakfun-wallet-v2.clar`),
   `ERR_INVALID_ADDR_VERSION u500` (in upstream `sbtc-withdrawal.clar`).
 
+### Security review — gating mirrors the rest of the wallet
+
+`sbtc-initiate-withdrawal` is a clean composition of the patterns already
+exercised by `sip010-transfer`; `execute-pending-sbtc-withdrawal` mirrors
+`execute-pending-sbtc-transfer`. No new attack surface introduced.
+
+**`sbtc-initiate-withdrawal`:**
+
+| Gate | Implementation | Mirrors |
+|---|---|---|
+| `(update-activity)` first | resets inactivity timer | every public fn |
+| Signed-path token-lock guard | `(asserts! (not (var-get token-lock-enabled)) err-token-locked)` | `sip010-transfer` signed path (only sBTC outflows do this) |
+| Hash binds all 4 signed args | `build-sbtc-withdrawal-hash {auth-id, amount, recipient, max-fee}` | every other `build-*-hash` — tamper → diff hash → sig fails |
+| Replay protection | `consume-signature` in `used-pubkey-authorizations` (via `is-authorized`) | every signed op |
+| Admin fallback | `(try! (is-authorized none))` ⇒ `is-admin-calling tx-sender` | every signed-or-admin op |
+| Spending-threshold check | `would-exceed-sbtc-threshold (+ amount max-fee)` — meters the FULL lock | matches sip010-transfer (which meters `amount`; here we lock `amount + max-fee`) |
+| Pending-op machinery | reuses the existing `create-pending-operation` private fn | no new map / no new helper |
+| `as-contract?` post-condition | `(with-ft SBTC-CONTRACT "sbtc-token" (+ amount max-fee))` caps outflow | identical to every sBTC-touching op |
+
+**`execute-pending-sbtc-withdrawal`:**
+
+| Gate | Implementation | Mirrors |
+|---|---|---|
+| Op lookup | `(unwrap! (map-get? pending-operations op-id) err-invalid-operation)` | `execute-pending-sbtc-transfer` |
+| Op-type bound | `(asserts! (is-eq (get op-type op) "sbtc-withdraw") err-invalid-operation)` | every `execute-pending-*` (can't be tricked into running a different op type — verified in sim phase G) |
+| No double-execute | `(asserts! (not (get executed op)) err-already-executed)` | identical |
+| Veto check | `(asserts! (not (get vetoed op)) err-vetoed)` | identical (verified phase E) |
+| Cooldown | `(asserts! (>= burn-block-height (get execute-after op)) err-cooldown-not-passed)` | identical (verified phase F) |
+| Auth | `(try! (is-authorized none))` — admin-only | every `execute-pending-*` (originator already signed at create time; cooldown gives the user a veto window) |
+| Payload integrity | `from-consensus-buff?` with explicit typed shape; payload is set at create and never updated | admin can't tamper recipient/max-fee between create and execute |
+| State flip before bridge call | `executed: true` set BEFORE `(contract-call? .sbtc-withdrawal …)` — re-entry would hit `err-already-executed`; failed bridge call reverts the whole tx | atomic, same as the suite |
+| `as-contract?` post-condition | `(with-ft SBTC "sbtc-token" lock-total)` where `lock-total = stored amount + deserialized max-fee` | outflow capped at the lock |
+
+**Trust boundaries worth knowing (not bugs):**
+
+* **Admin path doesn't honor `token-lock-enabled`.** Intentional and identical
+  to `sip010-transfer`'s admin path — token-lock defends against a compromised
+  *passkey*; the L/X admin owner is trusted to override. No regression.
+* **`recipient` field in pending-op = wallet itself** (placeholder). The real
+  BTC destination lives in `payload`, bound to the signature via the
+  build-hash. On-chain there's no consumer that misuses the placeholder.
+  Off-chain indexers need to decode `payload` to surface the BTC dest
+  (see "Logs missing from deployed `fakfun-wallet-core`" above).
+* **Signed-path trust boundary identical to every other signed op:** the user
+  trusts the wallet UI to show the real args being signed. The hash binds
+  amount + recipient + max-fee, so tamper-after-sign is impossible.
+  Tamper-at-sign-time is a frontend concern — mitigated on our FE by the
+  destination-locked-to-connected-wallet rule + the verify checkbox.
+* **`from-consensus-buff?` typing** uses `(buff 32)` for hashbytes (max), but
+  the bridge's `validate-recipient` enforces the exact length per version
+  (20 for `0x00`–`0x04`, 32 for `0x05`–`0x06`). Two-layer guard: even a
+  malformed-but-deserializable payload is caught downstream.
+
 ## Renames in this iteration
 
 * **`revoke-fast-pool` → `revoke-stacking`** (wallet public function and
