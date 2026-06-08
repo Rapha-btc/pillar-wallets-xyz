@@ -47,12 +47,10 @@
 (define-constant MAX-CONFIG-COOLDOWN u4032)
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
-(define-constant FAKFUN-DEPLOYER 'SP1G655MB1JVQ5FBE2JJ3E01HEA6KBM4H39F5EW63)
+(define-constant FAKFUN-DEPLOYER 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK)
 (define-constant PUBK 0x000000000000000000000000000000000000000000000000000000000000000000)
 
-;; rp.id = "fakfun.com" (apex; covers www.fakfun.com via webauthn rp.id rule)
 (define-constant RP-ID-HASH-FAKFUN-COM 0x5e8ba70d734d2bd57e0225bfd9a25f2c4d70db36fa1128e5eeb00cdab7a1ccdb)
-;; rp.id = "fak.fun"
 (define-constant RP-ID-HASH-FAK-FUN 0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f2249)
 
 (define-constant JUICE-SIGNER 'SP1JAG6TV2XRYFGJN7CAAN6Z3CEW2YMZWMHJAJV91)
@@ -90,14 +88,6 @@
   proposed-at: u0,
 })
 
-;; Three-step first-init flow (replaces one-shot add-admin-with-signature):
-;;   1. propose-admin-with-signature -- webauthn sig 1 from initial-pubkey
-;;   2. accept-admin-proposal       -- tx-sender = new-admin (Leather/Xverse proof of control)
-;;   3. confirm-admin-with-signature -- webauthn sig 2 from initial-pubkey, after pubkey-cooldown-period
-;; Both `accepted` and a fresh second signature must fire. The 3-day cooldown
-;; is the user-awareness window: if a compromised frontend slips a malicious
-;; propose past step 1, the user has ~3 days to see the pending state and either
-;; refuse to sign step 3 or veto via veto-pending-init.
 (define-data-var pending-init-admin {
   new-admin: principal,
   proposed-at: uint,
@@ -314,9 +304,6 @@
       cooldown-period: new-cooldown-period,
       config-signaled-at: none,
     })
-    ;; u0 is a placeholder for the now-deprecated zsbtc-threshold slot in
-    ;; the existing mainnet fakfun-wallet-core log signature; wallet no
-    ;; longer tracks zsbtc internally.
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-wallet-config-set new-stx-threshold new-sbtc-threshold u0
       new-cooldown-period
@@ -799,14 +786,6 @@
   )
 )
 
-;; sBTC -> BTC withdrawal (peg-out) via the official sBTC bridge.
-;; Calls sbtc-withdrawal.initiate-withdrawal-request, which locks
-;; (amount + max-fee) of sBTC from tx-sender. Inside the as-contract? frame the
-;; wallet IS tx-sender, so the bridge pulls the locked sBTC from the wallet's
-;; own balance. Signers later send `amount` sats to `recipient` (the BTC
-;; address as a {version, hashbytes} tuple) and pay <= max-fee to BTC miners;
-;; any unused fee is refunded on-chain. amount must be >= the bridge DUST_LIMIT
-;; (u546) -- we don't re-check it here, the bridge asserts it.
 (define-public (sbtc-initiate-withdrawal
     (amount uint)
     (recipient {
@@ -826,15 +805,10 @@
   )
   (begin
     (update-activity)
-    ;; sBTC outflow, so honour the token lock exactly like sip010-transfer does
-    ;; on the signed path.
     (match sig-auth
       sig-auth-details (begin
         (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
-          ;; NOTE: v8 (not the deployed-immutable v7) -- v8 = v7 + this new
-          ;; build-sbtc-withdrawal-hash. Must be deployed alongside the new
-          ;; wallet template. Existing ops still reference v7.
           message-hash: (contract-call?
             'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v8
             build-sbtc-withdrawal-hash {
@@ -859,14 +833,7 @@
       )
       (try! (is-authorized none))
     )
-    ;; The bridge locks (amount + max-fee), so that is the full sBTC outflow we
-    ;; meter against the spending threshold and post-condition.
     (if (would-exceed-sbtc-threshold (+ amount max-fee))
-      ;; over threshold -> park as a pending operation; cooldown ~24h, vetoable
-      ;; via veto-operation. Reuses the existing pending-operations map: the BTC
-      ;; recipient + max-fee go in `payload` (serialized with to-consensus-buff?)
-      ;; since the map's `recipient` field is a principal and can't hold the
-      ;; {version, hashbytes} tuple.
       (begin
         (unwrap-panic (create-pending-operation "sbtc-withdraw" amount
           current-contract (some SBTC-CONTRACT) none
@@ -877,17 +844,8 @@
         ))
         (ok true)
       )
-      ;; under threshold -> meter + execute immediately
       (begin
         (add-spent-sbtc (+ amount max-fee))
-        ;; NOTE: no log call here. The deployed fakfun-wallet-core has no
-        ;; log-sbtc-withdrawal, and log-sip010-transfer can't represent the BTC
-        ;; tuple recipient (its recipient is a Stacks principal). A dedicated
-        ;; log-sbtc-withdrawal would be added to fakfun-wallet-core for production.
-        ;; Drop the bridge's (response uint uint) return so both `if` arms unify
-        ;; on (response bool ...). Without the surrounding `try!` + `(ok true)`,
-        ;; the if-arms mismatch ((response bool none) vs (response uint uint))
-        ;; aborts the static checker and the contract can't deploy.
         (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (+ amount max-fee)))
           (try! (contract-call?
             'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
@@ -927,8 +885,6 @@
         (lock-total (+ the-amount the-max-fee))
       )
       (map-set pending-operations op-id (merge op { executed: true }))
-      ;; NOTE: no fakfun-wallet-core log call -- the deployed core has no
-      ;; log-sbtc-withdrawal yet. Added in a future core version.
       (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" lock-total))
         (try! (contract-call?
           'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
@@ -1079,31 +1035,6 @@
   (default-to 0x00 (element-at? opcode position))
 )
 
-;; faktory-execute-limit -- user pre-signs an intent that a third-party
-;; submitter (e.g. faktory-dao backend) executes when the on-chain swap
-;; result meets the min-out at or before expiry-burn-block. Sig is
-;; REQUIRED (no admin shortcut: only the user's passkey can authorize a
-;; limit order; the BE just acts as a relayer carrying the signed payload).
-;;
-;; Min-out enforcement is done on the swap's actual result tuple
-;; ({dx, dy, dk} returned by fakfun-core-v2.execute), not on a separate
-;; pre-quote. If (get dy result) < limit-out, asserts! fails -> the entire
-;; tx reverts, including is-authorized's consume-signature, so the
-;; message-hash is NOT marked consumed and the BE can retry the same
-;; signed payload later when price recovers. This is the Uniswap-style
-;; "min-out" pattern for replay-safe limit orders.
-;;
-;; Replay protection on the happy path: each unique (auth-id, pool,
-;; amount, opcode, limit-out, expiry-burn-block) tuple produces one
-;; message-hash which is consumed on successful execution. Re-submitting
-;; after fill returns err-signature-replay; after expiry returns
-;; err-limit-expired.
-;;
-;; To cancel: pick a short expiry, or revoke the admin-pubkey to
-;; invalidate every pending sig from that key.
-;;
-;; Only BUY (0x00) and SELL (0x01) opcodes are supported; ADD-LIQ /
-;; REMOVE-LIQ are out of scope for limit orders.
 (define-public (faktory-execute-limit
     (pool <pool-trait>)
     (amount uint)
@@ -1152,12 +1083,6 @@
     )
     (let ((op (get-byte (default-to 0x00 opcode) u0)))
       (if (or (is-eq op EXECUTE-OP-BUY) (is-eq op EXECUTE-OP-SELL))
-        ;; as-contract? wraps its body in (response ... uint), so the outer
-        ;; try! is needed to unwrap into the swap-result tuple before we can
-        ;; read dy. If either the inner contract-call OR the outer unwrap
-        ;; errs, the whole tx reverts and consume-signature's write to
-        ;; used-pubkey-authorizations is rolled back, so the sig stays valid
-        ;; for retry.
         (let ((result (try! (as-contract? ((with-ft (contract-of sip010) sip010-name amount))
             (try! (contract-call?
               'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 execute
@@ -1726,7 +1651,7 @@
     (client-data-suffix (buff 512))
   )
   (let ((auth-rp-id (unwrap!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
         get-rp-id-hash authenticator-data
       )
       err-invalid-signature
@@ -1740,13 +1665,13 @@
       err-invalid-signature
     )
     (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
         is-user-verified authenticator-data
       )
       err-invalid-signature
     )
     (ok (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-webauthn
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
         verify-webauthn-signature pubkey message-hash authenticator-data
         client-data-prefix client-data-suffix signature
       )
@@ -1787,8 +1712,6 @@
   (var-set last-activity-block burn-block-height)
 )
 
-;; Step 1: propose a new admin. Webauthn sig 1 from initial-pubkey binds
-;; the proposed principal. Records propose timestamp; does NOT initialize.
 (define-public (propose-admin-with-signature
     (new-admin principal)
     (sig-auth {
@@ -1835,9 +1758,6 @@
   )
 )
 
-;; Step 2: proposed admin proves control of the Leather/Xverse principal by
-;; sending the tx themselves. No signature needed -- tx-sender check is the
-;; proof. Idempotent if called twice.
 (define-public (accept-admin-proposal)
   (let ((pending (var-get pending-init-admin)))
     (asserts! (not (var-get is-initialized)) err-already-initialized)
@@ -1850,10 +1770,6 @@
   )
 )
 
-;; Step 3: finalize the init. Webauthn sig 2 from initial-pubkey, requires
-;; the proposal was accepted by the new-admin AND pubkey-cooldown-period burn
-;; blocks elapsed since propose. The cooldown is what catches a compromised
-;; frontend that slipped a malicious propose past step 1.
 (define-public (confirm-admin-with-signature
     (sig-auth {
       auth-id: uint,
@@ -1916,10 +1832,6 @@
   )
 )
 
-;; Veto an outstanding propose-admin-with-signature. Webauthn sig from
-;; initial-pubkey clears the pending state so onboarding can retry. Lets the
-;; user kill a malicious propose driven by a compromised frontend instead of
-;; being locked into a bricked uninitialized wallet.
 (define-public (veto-pending-init
     (sig-auth {
       auth-id: uint,
@@ -2146,9 +2058,6 @@
   )
 )
 
-;; revoke-stacking -- revokes the wallet's pox-4 delegation entirely. The
-;; on-chain log-revoke-fast-pool event name is preserved for indexer
-;; compatibility with the existing fakfun-wallet-core deployment.
 (define-public (revoke-stacking
     (sig-auth (optional {
       auth-id: uint,
@@ -2299,13 +2208,13 @@
     )
     (asserts!
       (is-eq (some current-contract)
-        (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2
+        (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2-4
           get-registered-wallet pubkey
         ))
       err-unauthorised
     )
     (as-contract? ((with-ft (contract-of token) token-name amount))
-      (try! (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2
+      (try! (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2-4
         deposit token amount pubkey
       ))
     )
@@ -2325,7 +2234,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v2
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v6
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
