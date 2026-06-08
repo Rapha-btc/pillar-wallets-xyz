@@ -337,3 +337,72 @@ running sponsored-tx infrastructure. **No code change**; flagged as
 operational risk. Closing it properly would require including
 `(contract-of gas)` in every `build-*-hash`, which means re-signing
 every existing sim bundle.
+
+## June 2026 amendments — sBTC withdrawal (peg-out)
+
+Two new public functions let a user peg sBTC back out to a Bitcoin
+address straight from the wallet, via the canonical
+`SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal` bridge:
+
+* **`sbtc-initiate-withdrawal`** (line ~789) — `amount`, BTC `recipient`
+  `{version, hashbytes}`, `max-fee`, optional `sig-auth`, optional `gas`.
+  Under threshold → calls the bridge inline. Over threshold → parks a
+  `"sbtc-withdraw"` pending op.
+* **`execute-pending-sbtc-withdrawal`** (line ~861) — admin-only; replays
+  a parked op after its cooldown.
+
+These were reviewed against the existing v3 transfer/pending pattern.
+**No exploitable finding.** Properties confirmed:
+
+* **Auth binding is full SIP-018.** The signed hash comes from
+  `smart-wallet-standard-auth-helpers-v8.build-sbtc-withdrawal-hash` and
+  binds `amount`, `recipient`, **and `max-fee`** under
+  `topic: "sbtc-withdrawal"`, with the domain hash binding
+  `wallet: contract-caller` and `chain-id`. So: no cross-wallet replay
+  (wallet-bound domain), no cross-chain replay (chain-id), no
+  cross-function collision (distinct topic + the `-v8` builder vs the
+  `-v7` builders used by transfers).
+* **One-shot signatures.** `consume-signature` records the message-hash
+  in `used-pubkey-authorizations`; `auth-id` is the per-withdrawal
+  nonce. The signature is consumed on **both** branches (verification
+  runs before the threshold split), so parking an over-threshold op also
+  burns the sig.
+* **Threshold → cooldown → veto intact.** `execute-pending-sbtc-withdrawal`
+  asserts `not executed`, `not vetoed`, `burn-block-height >= execute-after`,
+  **and** `op-type == "sbtc-withdraw"` — a `sbtc-transfer` op cannot be
+  drained through it (sim Phase G → `u4013`).
+* **CEI ordering.** Immediate path `add-spent-sbtc` before the bridge
+  call; execute sets `executed: true` before the bridge call →
+  reentrancy-safe.
+* **Bounded asset movement.** Both bridge calls run inside
+  `as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (+ amount max-fee)))`,
+  capping the pull at exactly `amount + max-fee`. Gas is separately
+  capped at `max-gas-amount`.
+* **Stored-op integrity.** The parked payload
+  (`to-consensus-buff?` of `{recipient, max-fee}`) and `op.amount` are
+  immutable between create and execute, and both came from the signed
+  hash — the admin executing later can't redirect or inflate it.
+
+**By-design notes (not bugs):**
+
+* The no-signature path (`is-authorized none`) gives the `admins`
+  principal full withdrawal power to any BTC address. That principal is
+  set at init by a passkey-signed `confirm-admin` (it's the owner's own
+  designated admin, not an operator backdoor) — identical trust to
+  `sip010-transfer`.
+* `execute-pending-sbtc-withdrawal` does **not** call `add-spent-sbtc`:
+  correct and consistent — large ops are rate-limited by the
+  cooldown/veto track, not the spend counter (matches
+  `execute-pending-sbtc-transfer`).
+* `max-fee` is not bounded on-chain (the bridge refunds the unused
+  remainder). A malicious frontend could get a user to sign a large
+  `max-fee`; mitigate in the signing UI, not the contract.
+
+**Stxer coverage:** `simul-fakfun-v2-sbtc-withdrawal.js`
+([`4bd1b6e2…`](https://stxer.xyz/simulations/mainnet/4bd1b6e2a116a68f8e67671e3c048940)),
+8 phases on a mainnet fork against the real bridge:
+A under-threshold signed · B under-threshold admin · C over-threshold →
+pending · D execute after advance (bridge request-id) · E veto blocks
+execute (`u4015`) · F cooldown-not-passed (`u4017`) · G wrong op-type
+(`u4013`) · H bad address version (`u500`). Both happy paths and every
+negative guard pass.

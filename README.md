@@ -98,6 +98,13 @@ Two production contracts, both fuzzed and stxer-simulated end-to-end.
 
 ### `fakfun-wallet-v2` — the smart wallet itself
 
+> **Deployment name: `fakfun-wallet-v6`.** The source file is
+> `fakfun-wallet-v2.clar` (v2 = the WebAuthn / secp256r1 auth generation),
+> but on mainnet it deploys and self-registers with `fakfun-wallet-core`
+> under the canonical name **`fakfun-wallet-v6`** (the template iteration —
+> see the `register-wallet` call near the end of the contract). "v6" and
+> "the v2 file" are the same contract.
+
 A self-custodial wallet contract that the **fak.fun** app deploys
 per-user when they sign up with FaceID. From the user's perspective:
 
@@ -108,6 +115,10 @@ per-user when they sign up with FaceID. From the user's perspective:
   prompt — no browser extension, no signing pop-up wall.
 * Gas is paid in sBTC sats by a fee-relay, so the user never has to
   acquire STX.
+* They can **peg sBTC back out to a Bitcoin address** (`sbtc-initiate-withdrawal`)
+  straight from the wallet — small amounts settle on one FaceID prompt,
+  large amounts park as a vetoable pending op that an admin executes
+  after a cooldown (`execute-pending-sbtc-withdrawal`).
 * If they ever lose all their passkeys, a designated backup wallet
   (their Leather/Xverse address) or a recovery address can rescue
   the funds.
@@ -115,11 +126,14 @@ per-user when they sign up with FaceID. From the user's perspective:
   wallet, with veto windows so a compromised frontend can't silently
   push a malicious config past the user.
 
-Under the hood: 39 public functions, 1,812 lines of Clarity, every
+Under the hood: 44 public functions, 2,244 lines of Clarity, every
 signed op goes `passkey → secp256r1 sig → clarity-webauthn → SIP-018
 hash domain` before any state changes. 12 RV invariants over ~4,400
-calls confirm the structural protections hold under random fuzz; 7
-stxer mainnet-fork sims cover every public function end-to-end.
+calls confirm the structural protections hold under random fuzz; 10
+stxer mainnet-fork sims cover every public function end-to-end —
+including the sBTC peg-out path (`simul-fakfun-v2-sbtc-withdrawal.js`,
+8 phases: signed + admin, under + over threshold, veto, cooldown,
+wrong-op-type, and bad-address-version guards).
 
 Docs: [`README-fakfun-v2-stxer.md`](README-fakfun-v2-stxer.md) +
 seven [`README-simul-fakfun-v2-*.md`](.) per-flow walkthroughs.
@@ -159,7 +173,7 @@ Docs: [`README-simul-game-wager-v2.md`](README-simul-game-wager-v2.md)
 
 | Contract | Public fns | Stxer sims | Sim step assertions | RV invariants | RV calls |
 |---|---|---|---|---|---|
-| `fakfun-wallet-v2` | 39 | 7 | (per-sim) | 12 / 12 pass | ~4,400 |
+| `fakfun-wallet-v2` (deploys as `fakfun-wallet-v6`) | 44 | 10 | (per-sim) | 12 / 12 pass | ~4,400 |
 | `game-wager-v2` | 13 | 4 | 76 / 76 pass | 11 / 11 pass | ~870 |
 
 Plus `clarinet check` clean on both.
