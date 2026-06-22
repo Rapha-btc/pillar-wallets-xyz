@@ -1,7 +1,8 @@
-;; tweet-inscription
+;; xtrata-inscribe
 ;; A fakfun-wallet extension that ANY fakfun-wallet-v2 can whitelist and drive
-;; through its generic `extension-call`. Inscribes a tweet-length article
-;; on-chain via Xtrata's one-shot `mint-single-tx`.
+;; through its generic `extension-call`. Inscribes content (a tweet, a short
+;; article -- anything that fits the 2 KB payload) on-chain via Xtrata's one-shot
+;; `mint-single-tx`. Content-agnostic; the wallet, not this contract, owns auth.
 ;;
 ;; HOW THE WALLET DRIVES THIS (no changes to the wallet are needed):
 ;;   1. owner calls `whitelist-extension` then `execute-pending-whitelist`
@@ -23,8 +24,9 @@
 ;; wallet invokes us through its passkey-gated `extension-call`.
 ;;
 ;; PAYLOAD: the (buff 2048) the wallet forwards is a consensus-serialized tuple
-;; of Xtrata `mint-single-tx` args. The 2048-byte cap is what makes this
-;; "tweet" sized -- it cannot carry Xtrata's full 512 KiB one-shot payload.
+;; of Xtrata `mint-single-tx` args. The 2048-byte cap is what bounds this to
+;; tweet/short-post size -- it cannot carry Xtrata's full 512 KiB one-shot
+;; payload (that needs a dedicated wallet method, not the generic extension door).
 
 (impl-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.extension-trait.extension-trait)
 

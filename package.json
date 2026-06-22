@@ -15,7 +15,10 @@
     "simul:token-lock:challenges": "node simul-fakfun-v2-token-lock.js --print-challenges",
     "simul:token-lock": "node simul-fakfun-v2-token-lock.js",
     "simul:admin:challenges": "node simul-fakfun-v2-admin.js --print-challenges",
-    "simul:admin": "node simul-fakfun-v2-admin.js"
+    "simul:admin": "node simul-fakfun-v2-admin.js",
+    "simul:tweet:dry": "node simul-fakfun-v2-tweet.js --dry",
+    "simul:tweet": "node simul-fakfun-v2-tweet.js",
+    "simul:tweet-real": "node simul-fakfun-v2-tweet-real.js"
   },
   "author": "",
   "license": "ISC",

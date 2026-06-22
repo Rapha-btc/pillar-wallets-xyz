@@ -32,3 +32,8 @@ epoch = "latest"
 path = "contracts/game-wager-v2.clar"
 clarity_version = 4
 epoch = "latest"
+
+[contracts.xtrata-inscribe]
+path = "contracts/fakfun-extensions/xtrata-inscribe.clar"
+clarity_version = 4
+epoch = "latest"
