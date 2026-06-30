@@ -37,3 +37,13 @@ epoch = "latest"
 path = "contracts/fakfun-extensions/xtrata-inscribe.clar"
 clarity_version = 4
 epoch = "latest"
+
+[contracts.dataing-market-receipts]
+path = "contracts/fakfun-extensions/dataing-market-receipts.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.dataing-pay-extension]
+path = "contracts/fakfun-extensions/dataing-pay-extension.clar"
+clarity_version = 4
+epoch = "latest"
