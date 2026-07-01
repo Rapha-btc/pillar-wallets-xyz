@@ -1,10 +1,12 @@
 # Pillar Smart Wallet — integration guide (x402-style)
 
 **For:** builders integrating Pillar smart wallets, x402-style. **TL;DR:** you already have the x402 machinery (client signs → facilitator
-broadcasts → watch anchoring → return proof). To use Pillar, change *what the client signs*: instead
-of a **normal Stacks-wallet signature** over a bare `stx-transfer` / `sbtc-transfer` /
-`usdcx-transfer`, the client produces a **WebAuthn passkey signature** over an **`extension-call`**
-into a Pillar smart wallet (verified on-chain). Your relay / broadcast / anchor plumbing stays.
+broadcasts → watch anchoring → return proof). To use Pillar, change *what the client signs and
+hands over*: instead of a **normal Stacks-wallet signature** over a bare `stx-transfer` /
+`sbtc-transfer` / `usdcx-transfer`, the frontend produces a **WebAuthn passkey signature** (Face ID)
+over an **`extension-call`** and hands that **sig-auth** to your facilitator, which makes the on-chain
+call (params + sig-auth + a gas contract to pay itself). The wallet verifies the signature on-chain.
+Your relay / broadcast / anchor plumbing stays.
 
 Repo: https://github.com/Rapha-btc/pillar-wallets-xyz
 Wallet: `contracts/fakfun-wallet-v2.clar` · Extensions: `contracts/fakfun-extensions/`
@@ -186,6 +188,43 @@ and your `onboard` binds the passkey + checks against *your* template hash.
 
 ---
 
+## How the signature is produced & handed off — fakfun frontend reference
+
+The passkey signature is made **on the frontend**; the wallet contract only *verifies* it. The client
+**never broadcasts** and **never holds STX** — it hands a sig-auth tuple to the facilitator.
+Reference: `faktory-dao/frontend/src/utils/smart-wallet-auth-webauthn.ts`.
+
+1. **Build the challenge** = the exact 32-byte message-hash the contract will rebuild — for an
+   extension-call that's `build-extension-call-hash { auth-id, extension, payload }` (via `buildXHash`
+   in `smart-wallet-auth.ts`). The passkey must sign *this* or on-chain verify fails.
+2. **`signWithPasskey({ credentialId, challenge, rpId })`** →
+   `navigator.credentials.get({ publicKey: { challenge, rpId, allowCredentials: [{ id: credentialId }],
+   userVerification } })` → **Face ID / Touch ID prompt**. The authenticator signs
+   `sha256(authenticatorData ‖ sha256(clientDataJSON))` with the P-256 key that never leaves the enclave.
+3. **Post-process the assertion** into contract-ready pieces:
+   - DER signature → **raw 64-byte r‖s** (`derToRawSignature`).
+   - Split `clientDataJSON` around the base64url(challenge) into **`clientDataPrefix` + `clientDataSuffix`**
+     (`splitClientDataJSON`) — the contract splices its *own* base64url(challenge) back in, so the
+     client can't lie about what was signed.
+   - keep `authenticatorData`, and the 33-byte compressed P-256 `pubkey` (from registration).
+4. **`buildWebAuthnSigAuth(...)`** returns the tuple mirroring the contract's `(some { … })`:
+   `{ authId, pubkey, signature, authenticatorData, clientDataPrefix, clientDataSuffix }`.
+5. **Hand it to the facilitator** (a POST). The client's job ends here.
+
+**Facilitator (backend) then makes the call** — ref
+`faktory-dao/backend/server/routes/api/smart-wallet/v2/execute.post.ts`:
+- **Pre-check:** recompute the message-hash and call the wallet's **read-only `verify-signature`**
+  off-chain; reject a bad passkey (422) *before* broadcasting, so a bad sig never burns the
+  gas-station fee.
+- Build `functionArgs = [ …params, <sig-auth tuple>, (some gas-station) ]` — note the **gas contract**
+  passed so the facilitator pays itself — then `makeContractCall` + `broadcastTransaction`
+  (facilitator-sponsored). Return the txid.
+
+**In one line:** frontend signs (Face ID) → hands over the sig-auth → facilitator calls
+`extension-call` with *params + sig-auth + gas* → wallet verifies on-chain and runs your extension.
+
+---
+
 ## Gasless model (the user needs no STX — BTC-only wallet)
 
 **vs x402 today:** in your current flow the user pays a small **STX network fee first**, *then* signs
@@ -202,8 +241,9 @@ reimbursed in sBTC from the wallet, capped by `max-gas-amount`:
   `as-contract → (contract-call? g pay-gas)` pulling up to `max-gas-amount` sBTC.
 - Example gas contract: **`SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station`** — pays the
   facilitator ~**20 sats** to cover ~**0.003 STX**.
-- We **verify the tx will succeed before broadcasting** (dry-run), so the facilitator never eats a
-  failed fee. This is the piece that lets the user transact with zero STX.
+- The facilitator **pre-checks the passkey off-chain** (recompute the hash → call the wallet's
+  read-only `verify-signature`) and rejects a bad sig *before* broadcasting, so it never eats a failed
+  fee on `err-invalid-signature`. This is the piece that lets the user transact with zero STX.
 
 ---
 
