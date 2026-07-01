@@ -227,6 +227,17 @@ The cleanest example of "replace a bare transfer with pay + verifiable receipt":
 other wallet's funds are reachable. The passkey signature covers the entire payload, authorizing
 exactly that one payment.
 
+**Where the real power (and risk) is — whitelisting, not `call`.** `extension-call` runs a whitelisted
+extension `as-contract ((with-all-assets-unsafe))` — i.e. with access to the wallet's *entire*
+balance, so an **unvetted** extension could drain it. That's exactly why the sensitive action is
+**adding an extension**, and it's deliberately the hardest thing to do: it requires **2FA (a passkey
+signature) *and* a cooldown/timelock with a veto window** — the window to catch anything not properly
+vetted before it can ever run.
+`whitelist-extension` only *proposes* it (creates a pending op with an `execute-after` burn height);
+`execute-pending-whitelist` then needs the **passkey signature** *and* the **cooldown to elapse**, and
+can be **vetoed** in between. A user can never be tricked into instantly whitelisting a malicious
+extension — the open `call` is harmless on its own; granting all-assets access is 2FA + time-locked.
+
 For Toony: write your own extension in place of `dataing-pay-extension` (your payload, your
 `call` body), deploy it, whitelist it. Your x402 SDK handles the rest.
 
