@@ -17,7 +17,7 @@ Wallet: `contracts/fakfun-wallet-v2.clar` · Extensions: `contracts/fakfun-exten
 
 | x402 today | Pillar |
 |---|---|
-| client signs a bare token-transfer authorization — a **normal Stacks wallet signature (secp256k1**, Leather/Xverse) | client signs an **`extension-call`** (auth-id + extension + payload) — a **WebAuthn passkey signature (secp256r1**, Face ID/Touch ID), verified on-chain |
+| client signs a bare token-transfer authorization — a **normal Stacks wallet signature (secp256k1**, Leather/Xverse) | client's passkey signs the **`extension-call` hash** (auth-id + extension + payload) — a **WebAuthn signature (secp256r1**, Face ID); that signature is an **input** to the `extension-call` the facilitator invokes, verified on-chain |
 | facilitator broadcasts the transfer | **your facilitator** broadcasts the signed `extension-call` (gasless) — same role, Pillar not in the loop |
 | returned txid = payment proof; you index anchoring | returned txid = payment proof; **you index anchoring the same way** |
 | money moves, chain has no record of *what* was bought | the extension does **pay + record** atomically |
@@ -56,7 +56,8 @@ Two paths:
    post-deploy whitelist step for your main extension. (The passkey-signed
    `whitelist-extension → execute-pending-whitelist` flow still exists for adding *further* extensions
    to a live wallet.)
-2. **Client signs the extension-call.** The signed message is
+2. **Client's passkey signs the extension-call *hash*** (it does not call anything). The signed
+   message is
    `build-extension-call-hash { auth-id, extension, payload }`
    (from `…smart-wallet-standard-auth-helpers-v7`). `auth-id` is the nonce; `payload` is your
    `to-consensus-buff?` tuple (amount, recipient, ids, memo…). **This hash replaces x402's
