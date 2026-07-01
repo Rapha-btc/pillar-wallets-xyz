@@ -225,6 +225,61 @@ Reference: `faktory-dao/frontend/src/utils/smart-wallet-auth-webauthn.ts`.
 
 ---
 
+## Worked example — a real gasless buy on mainnet
+
+A live tx: a passkey-authorized **sBTC → PEPE buy** from a smart wallet, gasless. Same sig-auth + gas
+pattern as `extension-call` — here the wallet function is `faktory-execute` (a first-class buy) instead
+of a custom extension; the auth mechanics are identical.
+
+**Tx:** [`0x94be9a82…acfc2c7`](https://explorer.hiro.so/txid/0x94be9a82e2091d5e1d8cf4ceb5e9d06cd23c417090de345124697c604acfc2c7?chain=mainnet)
+· wallet `SP28MP1…rafshitoshi-wallet` · fn `faktory-execute` · **fee 0.003 STX** (paid by the
+facilitator, **not** the user).
+
+**What the frontend built and handed to the backend** — the action params + the sig-auth tuple:
+
+```clarity
+;; action params (what to do)
+pool        = SPV9K21….pepe-faktory-pool-v2-2
+amount      = u690            ;; 690 sats sBTC
+opcode      = (some 0x00)     ;; 0x00 = buy
+sip010      = …sbtc-token
+sip010-name = "sbtc-token"
+
+;; sig-auth (the passkey proof, produced by buildWebAuthnSigAuth)
+(some (tuple
+  (auth-id            u1779206009706)   ;; nonce (one-time; replay-guarded on-chain)
+  (pubkey             0x0280d7fd…5bb56f) ;; 33-byte compressed P-256 (the wallet's admin passkey)
+  (signature          0x262b8c51…38dd272);; 64-byte raw r‖s (DER→raw on the frontend)
+  (authenticator-data 0xb877fea5…f2249 1d 00000000)
+  (client-data-prefix 0x7b2274797065…)
+  (client-data-suffix 0x222c226f726967696e…)))
+gas = (some SPV9K21….gas-station)       ;; the facilitator's reimbursement contract
+```
+
+**Decoding the passkey pieces (this is what `verify-signature` checks on-chain):**
+
+- `authenticator-data` = `rpIdHash(32) ‖ flags(1) ‖ counter(4)`:
+  - `rpIdHash = b877fea5…f2249` → **exactly the `RP-ID-HASH-FAK-FUN` constant** in the wallet. Domain-bound: a signature from any other origin fails.
+  - `flags = 0x1d` → user-present + **user-verified** (biometric happened).
+- `client-data-prefix` decodes to `{"type":"webauthn.get","challenge":"`
+  `client-data-suffix` decodes to `","origin":"https://fak.fun","crossOrigin":false}`
+  The contract rebuilds the full `clientDataJSON` by splicing **its own** `base64url(message-hash)`
+  between them — so the client can't lie about *what* was signed. `message-hash` here =
+  the faktory-execute hash (for you it'd be `build-extension-call-hash`).
+- On-chain, `clarity-5-webauthn-v3` checks: `sha256(authenticatorData ‖ sha256(rebuilt clientDataJSON))`
+  was signed by `pubkey` → the P-256 verification.
+
+**What the facilitator did:** took that tuple, built
+`faktory-execute(pool, amount, opcode, sip010, sip010-name, sig-auth, (some gas-station))`, and
+**broadcast it** (facilitator is the tx-sender, pays the 0.003 STX fee). The wallet verified the
+passkey, then `gas-station` moved **~20 sats sBTC** from the wallet to the platform to cover the fee —
+so the **user spent only sBTC, never STX**, and never signed a Stacks tx or touched a seed phrase.
+
+For **your** integration: identical, but the facilitator calls `extension-call(<your-ext>, payload,
+sig-auth, (some gas-station))` and the signed `message-hash` is your `build-extension-call-hash`.
+
+---
+
 ## Gasless model (the user needs no STX — BTC-only wallet)
 
 **vs x402 today:** in your current flow the user pays a small **STX network fee first**, *then* signs
