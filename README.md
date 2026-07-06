@@ -167,6 +167,33 @@ every negative-path err code, and every admin setter + sweep-fees.
 Docs: [`README-simul-game-wager-v2.md`](README-simul-game-wager-v2.md)
 + [`tests/rv-game-wager-v2/README.md`](tests/rv-game-wager-v2/README.md).
 
+### `pillar-safe` — the SAFE wallet
+
+`fakfun-wallet-v2` trimmed to a hardened smart wallet: **drops** all
+faktory/wager/extension code, the 3-step init flow, and
+`remove-admin-pubkey` (an admin key must never unilaterally de-authorize a
+passkey — it would destroy the passkey-confirmed transfer escape). `onboard`
+sets owner + optional recovery + STX/sBTC thresholds in one call, and signs
+from three whitelisted rp-ids: **pillarwallets.xyz / jingswap.com /
+juiceofbtc.com**. Ownership rotates only via `propose-transfer-wallet` +
+`confirm-transfer-wallet` (L/X + passkey 2FA, no cooldown).
+
+Verified end-to-end on a mainnet fork with a **self-signed** synthetic P-256
+test key under `pillarwallets.xyz` (no manual passkey tap):
+
+- `npm run simul:pillar-safe` — **22/22** ([`simul-pillar-safe.js`](simul-pillar-safe.js)):
+  new onboard state, threshold → pending-op → execute, passkey-signed STX /
+  sBTC / withdrawal, admin-pubkey rotate, cooldown-change, the
+  transfer-wallet escape (owner flips via passkey), a wrong-rp-id rejection
+  (`u4002`), and confirmation that `remove-admin-pubkey` is gone (`err none`).
+- `node simul-pillar-safe-relay.js` — the relay deploy flow: canonical
+  `SPV9K21.pillar-safe` → `set-verified-contract` → per-user wallet under
+  SP28MP1H registers against it and onboards with owner/recovery/thresholds
+  (onboard `ok`), proving the wallet-as-a-service deploy path.
+
+Deployed via the faktory-dao bot at Clarity 5; the per-user deploy+onboard
+runs through `/api/smart-wallet/v2/deploy` (builder `jing`).
+
 ---
 
 ## Test coverage at a glance

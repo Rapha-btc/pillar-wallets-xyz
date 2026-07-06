@@ -18,7 +18,8 @@
     "simul:admin": "node simul-fakfun-v2-admin.js",
     "simul:tweet:dry": "node simul-fakfun-v2-tweet.js --dry",
     "simul:tweet": "node simul-fakfun-v2-tweet.js",
-    "simul:tweet-real": "node simul-fakfun-v2-tweet-real.js"
+    "simul:tweet-real": "node simul-fakfun-v2-tweet-real.js",
+    "simul:pillar-safe": "node simul-pillar-safe.js"
   },
   "author": "",
   "license": "ISC",
