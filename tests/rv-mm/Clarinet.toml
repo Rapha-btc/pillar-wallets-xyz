@@ -1,0 +1,87 @@
+# RV-only manifest for Rendezvous fuzzing of jing-mm-safe.
+# Build first: bash tests/rv-mm/build.sh   (writes .build/jing-mm-safe.clar)
+# Run from tests/rv-mm/: npx rv . jing-mm-safe invariant --runs=200
+[project]
+name = "rv-mm"
+[project.requirements]
+
+[contracts.pillar-wallet-trait]
+path = "pillar-wallet-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.gas-station-trait]
+path = "gas-station-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.enroll-trait]
+path = "enroll-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.sip-010-trait]
+path = "sip-010-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.nft-trait]
+path = "nft-trait.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.pyth-traits-v2]
+path = "pyth-traits-v2.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.wormhole-traits-v2]
+path = "wormhole-traits-v2.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.smart-wallet-standard-auth-helpers-v7]
+path = "smart-wallet-standard-auth-helpers-v7.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.smart-wallet-standard-auth-helpers-v8]
+path = "smart-wallet-standard-auth-helpers-v8.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mm-safe-auth-helpers-v1]
+path = "mm-safe-auth-helpers-v1.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-clarity-5-webauthn-v3]
+path = "mock-clarity-5-webauthn-v3.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-sbtc-token]
+path = "mock-sbtc-token.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-sbtc-withdrawal]
+path = "mock-sbtc-withdrawal.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-fakfun-wallet-core]
+path = "mock-fakfun-wallet-core.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-pox-4]
+path = "mock-pox-4.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-pox4-fast-pool-v3]
+path = "mock-pox4-fast-pool-v3.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-gas]
+path = "mock-gas.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-enroll]
+path = "mock-enroll.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.mock-rfq-sbtc-stx-jing]
+path = "mock-rfq-sbtc-stx-jing.clar"
+clarity_version = 5
+epoch = "3.4"
+[contracts.jing-mm-safe]
+path = ".build/jing-mm-safe.clar"
+clarity_version = 5
+epoch = "3.4"
