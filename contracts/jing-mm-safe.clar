@@ -1,8 +1,21 @@
+;; jing-mm-safe: pillar-safe-v2 + the RFQ desk surface for whitelisted market
+;; makers (deploy gated at the relay; e.g. chavita.btc). Two additions:
+;;   1. fix-rfq / fulfill-rfq -- proxy the desk ops on rfq-sbtc-stx-jing so
+;;      THIS safe is the on-chain MM (clients sign the safe's principal as the
+;;      SIP-018 winner). A dedicated rfq-operator hot key can ONLY run these
+;;      two ops; it cannot move funds otherwise.
+;;   2. execute-pending-*-now -- passkey 2FA lifts the withdrawal cooldown:
+;;      over-threshold STX / sBTC pending ops still exist (alerts still fire),
+;;      but a WebAuthn signature executes them immediately.
 (use-trait gas-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait.gas-station-trait)
 (use-trait dual-stacking-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.xbtc-sbtc-swap-v2.enroll-trait)
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
+
+(use-trait pyth-storage-trait 'SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y.pyth-traits-v2.storage-trait)
+(use-trait pyth-decoder-trait 'SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y.pyth-traits-v2.decoder-trait)
+(use-trait wormhole-core-trait 'SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y.wormhole-traits-v2.core-trait)
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -29,7 +42,13 @@
 (define-constant err-token-locked (err u4023))
 (define-constant err-limit-expired (err u4024))
 (define-constant err-limit-not-hit (err u4025))
+(define-constant err-rfq-not-found (err u4026))
+(define-constant err-rfq-not-fixed (err u4027))
 (define-constant err-fatal-owner-not-admin (err u9999))
+
+;; uSTX the safe may spend during fix-rfq (the in-tx Pyth refresh fee; the
+;; backend's own post-condition uses the same 10_000 bound).
+(define-constant PYTH-FEE-ALLOWANCE u10000)
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-CONFIG-COOLDOWN u4032)
@@ -464,6 +483,61 @@
   )
 )
 
+;; Passkey 2FA lifts the cooldown: same checks as execute-pending-stx-transfer
+;; EXCEPT execute-after. The pending op (with its alert) still happened -- the
+;; WebAuthn signature is the second factor that buys immediacy. A stolen admin
+;; key alone still has to wait out the cooldown under veto watch.
+(define-public (execute-pending-stx-transfer-now
+    (op-id uint)
+    (memo (optional (buff 34)))
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (let ((op (unwrap! (map-get? pending-operations op-id) err-invalid-operation)))
+    (asserts! (is-eq (get op-type op) "stx-transfer") err-invalid-operation)
+    (asserts! (not (get executed op)) err-already-executed)
+    (asserts! (not (get vetoed op)) err-vetoed)
+    (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1
+        build-execute-now-hash {
+        auth-id: (get auth-id sig-auth),
+        op-id: op-id,
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas
+      g (try! (as-contract?
+        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+        (try! (contract-call? g pay-gas))
+      ))
+      true
+    )
+    (map-set pending-operations op-id (merge op { executed: true }))
+    (update-activity)
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+      log-stx-transfer (get amount op) (get recipient op) memo
+    ))
+    (as-contract? ((with-stx (get amount op)))
+      (match memo
+        to-print (try! (stx-transfer-memo? (get amount op) tx-sender (get recipient op) to-print))
+        (try! (stx-transfer? (get amount op) tx-sender (get recipient op)))
+      ))
+  )
+)
+
 (define-public (sip010-transfer
     (amount uint)
     (recipient principal)
@@ -548,6 +622,59 @@
     )
     (try! (is-authorized none))
     (map-set pending-operations op-id (merge op { executed: true }))
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+      log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op)
+      memo
+    ))
+    (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (get amount op)))
+      (try! (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token
+        transfer (get amount op) current-contract (get recipient op) memo
+      ))
+    )
+  )
+)
+
+;; Passkey 2FA fast-path twin of execute-pending-sbtc-transfer (no cooldown).
+(define-public (execute-pending-sbtc-transfer-now
+    (op-id uint)
+    (memo (optional (buff 34)))
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (let ((op (unwrap! (map-get? pending-operations op-id) err-invalid-operation)))
+    (asserts! (is-eq (get op-type op) "sbtc-transfer") err-invalid-operation)
+    (asserts! (not (get executed op)) err-already-executed)
+    (asserts! (not (get vetoed op)) err-vetoed)
+    (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1
+        build-execute-now-hash {
+        auth-id: (get auth-id sig-auth),
+        op-id: op-id,
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas
+      g (try! (as-contract?
+        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+        (try! (contract-call? g pay-gas))
+      ))
+      true
+    )
+    (map-set pending-operations op-id (merge op { executed: true }))
+    (update-activity)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op)
       memo
@@ -659,6 +786,73 @@
         (lock-total (+ the-amount the-max-fee))
       )
       (map-set pending-operations op-id (merge op { executed: true }))
+      (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" lock-total))
+        (try! (contract-call?
+          'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
+          initiate-withdrawal-request the-amount the-recipient the-max-fee
+        ))
+      )
+    )
+  )
+)
+
+;; Passkey 2FA fast-path twin of execute-pending-sbtc-withdrawal (no cooldown).
+(define-public (execute-pending-sbtc-withdrawal-now
+    (op-id uint)
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (let ((op (unwrap! (map-get? pending-operations op-id) err-invalid-operation)))
+    (asserts! (is-eq (get op-type op) "sbtc-withdraw") err-invalid-operation)
+    (asserts! (not (get executed op)) err-already-executed)
+    (asserts! (not (get vetoed op)) err-vetoed)
+    (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1
+        build-execute-now-hash {
+        auth-id: (get auth-id sig-auth),
+        op-id: op-id,
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas
+      g (try! (as-contract?
+        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+        (try! (contract-call? g pay-gas))
+      ))
+      true
+    )
+    (let (
+        (raw (unwrap! (get payload op) err-invalid-operation))
+        (parsed (unwrap!
+          (from-consensus-buff?
+            {
+              recipient: { version: (buff 1), hashbytes: (buff 32) },
+              max-fee: uint,
+            }
+            raw
+          )
+          err-invalid-operation
+        ))
+        (the-recipient (get recipient parsed))
+        (the-max-fee (get max-fee parsed))
+        (the-amount (get amount op))
+        (lock-total (+ the-amount the-max-fee))
+      )
+      (map-set pending-operations op-id (merge op { executed: true }))
+      (update-activity)
       (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" lock-total))
         (try! (contract-call?
           'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal
@@ -1178,6 +1372,107 @@
   )
 )
 
+;; ---------------------------------------------------------------- RFQ desk
+;; Ported from rfq-mm-vault-jing: this safe IS the on-chain MM. Clients sign
+;; THIS contract's principal as the SIP-018 winner; fix-price records it as
+;; winner and fulfill pays STX from it, with the escrowed sBTC landing here.
+;; Custody/operation split, safe-style:
+;;   ADMIN (owner key)      -- everything the safe already allows, plus desk ops.
+;;   RFQ-OPERATOR (hot key) -- can ONLY proxy fix-rfq / fulfill-rfq. STX leaves
+;;     solely as settlement at numbers already locked on-chain. A leaked
+;;     operator key cannot drain the float -- worst case it fulfills real
+;;     fixed RFQs, which is its job.
+;; Guards use contract-caller (direct calls only) so a contract the operator
+;; is tricked into calling can never reach the desk as a confused deputy.
+;; Desk settlements deliberately do NOT count against the daily thresholds:
+;; the STX out is exchanged for escrowed sBTC in at on-chain-locked numbers.
+
+(define-data-var rfq-operator principal 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22)
+
+(define-read-only (get-rfq-operator)
+  (var-get rfq-operator)
+)
+
+(define-private (is-rfq-authorized)
+  (or
+    (is-eq contract-caller (var-get rfq-operator))
+    (is-some (map-get? admins contract-caller))
+  )
+)
+
+;; Admin rotates the desk hot key. Passkey not required: the operator can only
+;; settle already-fixed RFQs, so seating one is no more dangerous than the
+;; admin running the desk directly.
+(define-public (set-rfq-operator (new-operator principal))
+  (begin
+    (try! (is-admin-calling tx-sender))
+    (var-set rfq-operator new-operator)
+    (update-activity)
+    (print { event: "set-rfq-operator", operator: new-operator })
+    (ok true)
+  )
+)
+
+;; Proxy fix-price. Inside as-contract? tx-sender = this safe, so the RFQ
+;; contract records THIS safe as winner (the client must have signed the
+;; safe's principal as the SIP-018 winner). No STX moves except the Pyth fee.
+(define-public (fix-rfq
+    (id uint)
+    (committed-out uint)
+    (max-premium-bps uint)
+    (auth-expiry uint)
+    (sig (buff 65))
+    (vaa-x (buff 8192))
+    (vaa-y (buff 8192))
+    (pyth-storage <pyth-storage-trait>)
+    (pyth-decoder <pyth-decoder-trait>)
+    (wormhole-core <wormhole-core-trait>)
+  )
+  (begin
+    (asserts! (is-rfq-authorized) err-unauthorised)
+    (try! (as-contract? ((with-stx PYTH-FEE-ALLOWANCE))
+      (try! (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.rfq-sbtc-stx-jing fix-price
+        id committed-out max-premium-bps auth-expiry sig vaa-x vaa-y
+        pyth-storage pyth-decoder wormhole-core
+      ))
+    ))
+    (update-activity)
+    (print { event: "fix-rfq", id: id, committed-out: committed-out })
+    (ok id)
+  )
+)
+
+;; Proxy fulfill. The STX allowance is EXACTLY the fixed-stx-out already locked
+;; on-chain -- the operator has no say in the amount. The escrowed sBTC is
+;; released to tx-sender inside the RFQ call = this safe.
+(define-public (fulfill-rfq
+    (id uint)
+    (x <sip-010-trait>)
+    (x-name (string-ascii 128))
+  )
+  (let (
+      (rfq (unwrap!
+        (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.rfq-sbtc-stx-jing
+          get-rfq id
+        )
+        err-rfq-not-found
+      ))
+      (stx-out (unwrap! (get fixed-stx-out rfq) err-rfq-not-fixed))
+    )
+    (asserts! (is-rfq-authorized) err-unauthorised)
+    (try! (as-contract? ((with-stx stx-out))
+      (try! (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.rfq-sbtc-stx-jing fulfill
+        id x x-name
+      ))
+    ))
+    (update-activity)
+    (print { event: "fulfill-rfq", id: id, stx-out: stx-out })
+    (ok stx-out)
+  )
+)
+
 (map-set admins 'SP000000000000000000002Q6VF78 true)
 
 (define-public (onboard
@@ -1211,7 +1506,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.pillar-safe-v2
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.jing-mm-safe
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
