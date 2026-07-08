@@ -154,6 +154,11 @@
     execute-after: uint,
     executed: bool,
     vetoed: bool,
+    ;; Which factor CREATED the op. The execute-*-now fast path (passkey
+    ;; signature lifts the cooldown) only accepts admin-created ops: a
+    ;; passkey-created op passkey-executed-now would be ONE factor twice,
+    ;; not 2FA. Passkey-created ops must wait out the cooldown.
+    passkey-created: bool,
   }
 )
 
@@ -277,6 +282,7 @@
     (token (optional principal))
     (extension (optional principal))
     (payload (optional (buff 2048)))
+    (passkey-created bool)
   )
   (let (
       (config (var-get wallet-config))
@@ -292,6 +298,7 @@
       execute-after: (+ burn-block-height (get cooldown-period config)),
       executed: false,
       vetoed: false,
+      passkey-created: passkey-created,
     })
     (var-set operation-nonce (+ op-id u1))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
@@ -440,7 +447,9 @@
     )
     (if (would-exceed-stx-threshold amount)
       (begin
-        (unwrap-panic (create-pending-operation "stx-transfer" amount recipient none none none))
+        (unwrap-panic (create-pending-operation "stx-transfer" amount recipient none none none
+          (is-some sig-auth)
+        ))
         (ok true)
       )
       (begin
@@ -471,6 +480,7 @@
       err-cooldown-not-passed
     )
     (try! (is-authorized none))
+    (update-activity)
     (map-set pending-operations op-id (merge op { executed: true }))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-stx-transfer (get amount op) (get recipient op) memo
@@ -504,6 +514,8 @@
     (asserts! (is-eq (get op-type op) "stx-transfer") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
+    ;; 2FA means TWO factors: only admin-created ops may be passkey-fast-tracked.
+    (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (try! (is-authorized (some {
       message-hash: (contract-call?
@@ -588,7 +600,7 @@
     (if (and (is-eq (contract-of sip010) SBTC-CONTRACT) (would-exceed-sbtc-threshold amount))
       (begin
         (unwrap-panic (create-pending-operation "sbtc-transfer" amount recipient
-          (some SBTC-CONTRACT) none none
+          (some SBTC-CONTRACT) none none (is-some sig-auth)
         ))
         (ok true)
       )
@@ -621,6 +633,7 @@
       err-cooldown-not-passed
     )
     (try! (is-authorized none))
+    (update-activity)
     (map-set pending-operations op-id (merge op { executed: true }))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op)
@@ -652,6 +665,8 @@
     (asserts! (is-eq (get op-type op) "sbtc-transfer") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
+    ;; 2FA means TWO factors: only admin-created ops may be passkey-fast-tracked.
+    (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (try! (is-authorized (some {
       message-hash: (contract-call?
@@ -742,6 +757,7 @@
             recipient: recipient,
             max-fee: max-fee,
           })))
+          (is-some sig-auth)
         ))
         (ok true)
       )
@@ -768,6 +784,7 @@
       err-cooldown-not-passed
     )
     (try! (is-authorized none))
+    (update-activity)
     (let (
         (raw (unwrap! (get payload op) err-invalid-operation))
         (parsed (unwrap!
@@ -813,6 +830,8 @@
     (asserts! (is-eq (get op-type op) "sbtc-withdraw") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
+    ;; 2FA means TWO factors: only admin-created ops may be passkey-fast-tracked.
+    (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (try! (is-authorized (some {
       message-hash: (contract-call?
