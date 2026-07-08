@@ -25,7 +25,7 @@
 (define-constant err-threshold-exceeded (err u4018))
 (define-constant err-cooldown-too-long (err u4019))
 (define-constant err-no-pending-transfer (err u4020))
-(define-constant err-no-pending-pubkey (err u4021))
+;; u4021 (err-no-pending-pubkey) retired with the propose/confirm-admin-pubkey flow
 (define-constant err-token-locked (err u4023))
 (define-constant err-limit-expired (err u4024))
 (define-constant err-limit-not-hit (err u4025))
@@ -48,22 +48,6 @@
 (define-data-var recovery-address principal 'SP000000000000000000002Q6VF78)
 (define-data-var initial-pubkey (buff 33) PUBK)
 (define-data-var pubkey-initialized bool false)
-
-(define-data-var pending-pubkey {
-  pubkey: (buff 33),
-  proposed-at: uint,
-} {
-  pubkey: (var-get initial-pubkey),
-  proposed-at: u0,
-})
-
-(define-data-var pending-pubkey-cooldown {
-  new-period: uint,
-  proposed-at: uint,
-} {
-  new-period: u0,
-  proposed-at: u0,
-})
 
 (define-data-var owner principal 'SP000000000000000000002Q6VF78)
 (define-data-var pending-recovery principal 'SP000000000000000000002Q6VF78)
@@ -88,7 +72,6 @@
   config-signaled-at: none,
 })
 
-(define-data-var pubkey-cooldown-period uint u432)
 (define-data-var max-gas-amount uint u1000)
 
 (define-data-var token-lock-enabled bool false)
@@ -819,94 +802,19 @@
   )
 )
 
-(define-public (propose-admin-pubkey (pubkey (buff 33)))
-  (begin
-    (try! (is-admin-calling tx-sender))
-    (var-set pending-pubkey {
-      pubkey: pubkey,
-      proposed-at: burn-block-height,
-    })
-    (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-propose-admin-pubkey pubkey
-    ))
-    (ok true)
-  )
-)
-
-(define-public (confirm-admin-pubkey)
-  (let (
-      (pending (var-get pending-pubkey))
-      (pubk (get pubkey pending))
-    )
-    (asserts! (not (is-eq (get proposed-at pending) u0)) err-no-pending-pubkey)
-    (asserts!
-      (>= burn-block-height
-        (+ (get proposed-at pending) (var-get pubkey-cooldown-period))
-      )
-      err-in-cooldown
-    )
-    (try! (is-admin-calling tx-sender))
-    (map-set pubkey-to-admin pubk tx-sender)
-    (var-set pending-pubkey {
-      pubkey: 0x000000000000000000000000000000000000000000000000000000000000000000,
-      proposed-at: u0,
-    })
-    (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-confirm-admin-pubkey pubk tx-sender
-    ))
-    (ok true)
-  )
-)
-
-(define-public (signal-pubkey-cooldown-change (new-period uint))
-  (begin
-    (try! (is-authorized none))
-    (var-set pending-pubkey-cooldown {
-      new-period: new-period,
-      proposed-at: burn-block-height,
-    })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-signal-pubkey-cooldown-change new-period
-    ))
-    (ok true)
-  )
-)
-
-(define-public (confirm-pubkey-cooldown-change)
-  (let (
-      (pending (var-get pending-pubkey-cooldown))
-      (new-cooldown (get new-period pending))
-      (effective-cooldown (if (> new-cooldown MAX-CONFIG-COOLDOWN)
-        MAX-CONFIG-COOLDOWN
-        new-cooldown
-      ))
-      (current-period (var-get pubkey-cooldown-period))
-    )
-    (try! (is-authorized none))
-    (asserts! (not (is-eq (get proposed-at pending) u0)) err-not-signaled)
-    (asserts! (>= burn-block-height (+ (get proposed-at pending) current-period))
-      err-in-cooldown
-    )
-    (var-set pubkey-cooldown-period effective-cooldown)
-    (var-set pending-pubkey-cooldown {
-      new-period: u0,
-      proposed-at: u0,
-    })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-confirm-pubkey-cooldown-change effective-cooldown
-    ))
-    (ok true)
-  )
-)
-
-;; remove-admin-pubkey intentionally OMITTED: an admin key alone must never be
-;; able to de-authorize a passkey. Instant admin-only removal would let a
-;; compromised admin key strip the owner's passkey and destroy the
-;; passkey-confirmed transfer escape (propose-transfer-wallet +
-;; confirm-transfer-wallet, 2FA). Rotate a passkey by transferring ownership
-;; (which resets the admins map) instead.
+;; Passkey registration is FIXED AT ONBOARDING. The former
+;; propose-admin-pubkey / confirm-admin-pubkey flow (2-step, pubkey-cooldown
+;; gated) and its signal/confirm-pubkey-cooldown-change tuning pair were
+;; REMOVED: no passkey can be added, removed or rotated after `onboard`.
+;; Rationale: any post-onboard add path reachable by the admin key alone
+;; would let a compromised admin key register an attacker-generated r1 key
+;; as a "passkey" and satisfy both factors itself.
+;; CONSEQUENCE: confirm-transfer-wallet still executes (signed by the
+;; existing passkey), but the NEW owner has no registered passkey and can
+;; never add one -- after a transfer, all passkey-gated paths (a further
+;; transfer, propose-recovery, any sig-auth/gasless call) are unusable.
+;; Transfer is an exit ramp, not a rotation; a lost passkey means migrating
+;; funds to a freshly onboarded wallet.
 
 (define-read-only (verify-signature
     (message-hash (buff 32))
