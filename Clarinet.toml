@@ -28,13 +28,38 @@ path = "contracts/fakfun-wallet-v2.clar"
 clarity_version = 4
 epoch = "latest"
 
+[contracts.pillar-safe]
+path = "contracts/pillar-safe.clar"
+clarity_version = 4
+epoch = "latest"
+
 [contracts.game-wager-v2]
 path = "contracts/game-wager-v2.clar"
 clarity_version = 4
 epoch = "latest"
 
+[contracts.deorgmedia-sw-v1]
+path = "contracts/builders/deorgmedia/deorgmedia-sw-v1.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.deorgmedia-core]
+path = "contracts/builders/deorgmedia/deorgmedia-core.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.juice-pox5-stake]
+path = "contracts/fakfun-extensions/juice-pox5-stake.clar"
+clarity_version = 4
+epoch = "latest"
+
 [contracts.xtrata-inscribe]
 path = "contracts/fakfun-extensions/xtrata-inscribe.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.zero-authority-bounties]
+path = "contracts/fakfun-extensions/zero-authority-bounties.clar"
 clarity_version = 4
 epoch = "latest"
 
@@ -47,3 +72,23 @@ epoch = "latest"
 path = "contracts/fakfun-extensions/dataing-pay-extension.clar"
 clarity_version = 4
 epoch = "latest"
+
+[contracts.fakfun-wallet-v8]
+path = "contracts/fakfun-wallet-v8.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.jing-mm-safe]
+path = "contracts/jing-mm-safe.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.mm-safe-auth-helpers-v1]
+path = "contracts/mm-safe-auth-helpers-v1.clar"
+clarity_version = 4
+epoch = "latest"
+
+# The Juice pox-5 pool. Needed so the analyzer can resolve it as a
+# signer-manager-trait argument in juice-pox5-stake.
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer"
