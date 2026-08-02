@@ -1,21 +1,36 @@
-;; jing-mm-safe: pillar-safe-v2 + the RFQ desk surface for whitelisted market
-;; makers (deploy gated at the relay; e.g. chavita.btc). Two additions:
-;;   1. fix-rfq / fulfill-rfq -- proxy the desk ops on rfq-sbtc-stx-jing so
-;;      THIS safe is the on-chain MM (clients sign the safe's principal as the
-;;      SIP-018 winner). A dedicated rfq-operator hot key can ONLY run these
-;;      two ops; it cannot move funds otherwise.
+;; juice-safe-v0: pillar-safe-v2 + pox-5 staking with the Juice signer
+;; (juiceofbtc.com/stake), as a first-class wallet surface rather than a
+;; whitelisted extension. Two things distinguish it from the base safe:
+;;   1. stake-stx-juice / update-stake-stx-juice / unstake -- pox-5
+;;      `stake` / `stake-update` / `unstake` against
+;;      SPV9K21....juice-pool-stx-signer, run under as-contract so tx-sender is
+;;      THIS safe: the STX locks in the safe's own account and the pool never
+;;      custodies anything.
 ;;   2. execute-pending-*-now -- passkey 2FA lifts the withdrawal cooldown:
 ;;      over-threshold STX / sBTC pending ops still exist (alerts still fire),
 ;;      but a WebAuthn signature executes them immediately.
+;;
+;; The pox-4 paths this template used to carry (stack-stx-fast-pool, and
+;; stack-stx-juice's `delegate-stx` to the operator EOA) are GONE: pox-4's last
+;; reward cycle was 140 and the chain has forked to pox-5, so they could only
+;; ever fail. Everything staking-related below targets pox-5.
+;;
+;; The RFQ / market-maker desk from jing-mm-safe (fix-rfq, fulfill-rfq,
+;; rfq-operator and the Pyth traits they needed) is removed entirely -- this
+;; safe holds a stacker's own STX, it is not a counterparty to anyone.
 (use-trait gas-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait.gas-station-trait)
 (use-trait dual-stacking-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.xbtc-sbtc-swap-v2.enroll-trait)
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
 
-(use-trait pyth-storage-trait 'SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y.pyth-traits-v2.storage-trait)
-(use-trait pyth-decoder-trait 'SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y.pyth-traits-v2.decoder-trait)
-(use-trait wormhole-core-trait 'SP1CGXWEAMG6P6FT04W66NVGJ7PQWMDAC19R7PJ0Y.wormhole-traits-v2.core-trait)
+;; NOTE: no signer-manager trait is imported. pox-5 identifies a signer by the
+;; CONTRACT passed as `signer-manager`, and every call here names JUICE-SIGNER,
+;; a constant -- Clarity accepts a literal contract principal for a trait
+;; argument, so nothing needs to be caller-supplied. The consequence is that
+;; this safe can ONLY ever stake with Juice: moving a position in from another
+;; pox-5 pool would need that pool as a trait parameter, and there is none.
+;; A safe staked elsewhere must unstake and wait out the unlock instead.
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -42,13 +57,12 @@
 (define-constant err-token-locked (err u4023))
 (define-constant err-limit-expired (err u4024))
 (define-constant err-limit-not-hit (err u4025))
-(define-constant err-rfq-not-found (err u4026))
-(define-constant err-rfq-not-fixed (err u4027))
+;; u4026 was err-rfq-not-found on jing-mm-safe. Reused, not reserved: this
+;; contract has never been deployed, so no consumer holds a code table to
+;; protect. Codes u4001-u4025 above are left exactly as inherited -- they are
+;; shared vocabulary across the pillar wallet family and worth keeping aligned.
+(define-constant err-zero-amount (err u4026))
 (define-constant err-fatal-owner-not-admin (err u9999))
-
-;; uSTX the safe may spend during fix-rfq (the in-tx Pyth refresh fee; the
-;; backend's own post-condition uses the same 10_000 bound).
-(define-constant PYTH-FEE-ALLOWANCE u10000)
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-CONFIG-COOLDOWN u4032)
@@ -63,7 +77,19 @@
 (define-constant RP-ID-HASH-FAK-FUN 0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f2249)
 (define-constant RP-ID-HASH-FAKFUN-COM 0x5e8ba70d734d2bd57e0225bfd9a25f2c4d70db36fa1128e5eeb00cdab7a1ccdb)
 
-(define-constant JUICE-SIGNER 'SP1JAG6TV2XRYFGJN7CAAN6Z3CEW2YMZWMHJAJV91)
+(define-constant POX5 'SP000000000000000000002Q6VF78.pox-5)
+
+;; The Juice signer CONTRACT, not the pool operator EOA. pox-4 delegated to an
+;; address (SP1JAG6TV2...); pox-5 derives the signer identity as
+;; (contract-of signer-manager), so the pool is named by contract now.
+(define-constant JUICE-SIGNER
+  'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
+
+;; Maximum lock pox-5 accepts. NOT a commitment: `unstake` truncates a staker's
+;; shares to current-cycle + 1 whenever it is called, so 96 buys the longest
+;; auto-rolling position available rather than locking anyone in for 96 cycles.
+;; Matches what juiceofbtc.com/stake passes, so a safe and an EOA behave alike.
+(define-constant NUM-CYCLES u96)
 
 (define-data-var last-activity-block uint burn-block-height)
 (define-data-var recovery-address principal 'SP000000000000000000002Q6VF78)
@@ -1222,7 +1248,54 @@
   )
 )
 
-(define-public (stack-stx-fast-pool
+;; ------------------------------------------------------------ pox-5 staking
+;; The safe stacks its OWN STX with Juice. Every pox-5 call runs inside
+;; as-contract? so tx-sender is this contract: pox-5 keys the staker off
+;; tx-sender, so the lock lands on the safe's balance and Juice never custodies
+;; anything.
+;;
+;; ALLOWANCES. Epoch 4.0 made locking STX an asset event in its own right, with
+;; its own allowance form: (with-stacking uint), bounding how much uSTX the call
+;; may lock. Each call site below declares exactly the amount it is about to
+;; lock, so a bug or a future pox-5 change cannot lock more of the safe's
+;; balance than the caller asked for. with-all-assets-unsafe would have waved
+;; through any amount AND every other asset class the safe holds -- it is the
+;; escape hatch the pox-4 code needed because there was no stacking allowance to
+;; name. There is one now, so nothing here uses it.
+;;
+;; `unstake` is the exception: it declares NO allowance at all. It moves and
+;; locks nothing -- pox-5's unstake only rewrites staker-info and the per-cycle
+;; share maps, leaving amount-ustx untouched and the existing lock in place
+;; until its unlock cycle -- so an empty allowance list is the honest
+;; description of it.
+;;
+;; SIGNATURE SCOPE. Every caller-supplied argument that reaches pox-5 is bound
+;; by the signed hash. helpers-v7's build-stack-stx-juice-hash could not do that
+;; here -- it covers { auth-id, amount-ustx } because it was written for pox-4
+;; `delegate-stx`, which took an amount and nothing else -- so the pox-5 actions
+;; use juice-safe-auth-helpers-v1 instead. What stays constant in this contract
+;; (the JUICE-SIGNER destination, and NUM-CYCLES / burn-block-height on the
+;; fresh-stake path) needs no binding precisely because a caller cannot vary it.
+;; All three are challenged from juice-safe-auth-helpers-v1, including unstake
+;; -- it has no caller-supplied argument at all, so helpers-v7's auth-id-only
+;; build-revoke-stacking-hash would have worked, but keeping every pox-5 action
+;; on one helper keeps one naming scheme in front of the signing prompt.
+
+;; Stake with Juice for the first time -- pox-5 `stake`.
+;;
+;; SPLIT FROM update-stake-stx-juice deliberately. pox-5 has two entry points
+;; and neither handles both cases (`stake` returns ERR_ALREADY_STAKED when a
+;; position exists, `stake-update` returns ERR_NOT_STAKING when it does not), so
+;; something has to choose. That something is the caller: juiceofbtc.com/stake
+;; already reads pox-5 state to decide, so a read here would only be a second
+;; answer to a question the front end has already answered. Folding both into
+;; one function would also mean one signature covering two different argument
+;; meanings -- amount-as-initial-lock vs amount-as-increase.
+;;
+;; num-cycles is NUM-CYCLES and start-burn-ht is burn-block-height, both
+;; constant, so amount-ustx is the only caller-supplied argument and the signed
+;; hash covers the whole call.
+(define-public (stake-stx-juice
     (amount-ustx uint)
     (sig-auth (optional {
       auth-id: uint,
@@ -1240,8 +1313,8 @@
       sig-auth-details (begin
         (try! (is-authorized (some {
           message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
-            build-stack-stx-fast-pool-hash {
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1
+            build-stake-stx-juice-pox5-hash {
             auth-id: (get auth-id sig-auth-details),
             amount-ustx: amount-ustx,
           }),
@@ -1261,33 +1334,48 @@
       )
       (try! (is-authorized none))
     )
-
-    (try! (as-contract? ((with-all-assets-unsafe))
-      (try! (match (contract-call? 'SP000000000000000000002Q6VF78.pox-4 allow-contract-caller
-        'SP21YTSM60CAY6D011EZVEVNKXVW8FVZE198XEFFP.pox4-fast-pool-v3 none
-      )
-        success (ok success)
-        error (err (to-uint error))
-      ))
-    ))
-
+    (asserts! (> amount-ustx u0) err-zero-amount)
+    ;; log-stake-stx-stacking-dao is the deployed core's generic "STX staked"
+    ;; event; its name is historical and cannot be changed from here.
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-stack-stx-fast-pool amount-ustx
+      log-stake-stx-stacking-dao amount-ustx
     ))
-
-    (as-contract? ((with-all-assets-unsafe))
-      (try! (match (contract-call?
-        'SP21YTSM60CAY6D011EZVEVNKXVW8FVZE198XEFFP.pox4-fast-pool-v3
-        delegate-stx amount-ustx
-      )
-        success (ok true)
-        error (err error)
+    ;; start-burn-ht must fall inside the CURRENT reward cycle so pox-5 resolves
+    ;; first-reward-cycle to current + 1. burn-block-height always does, and
+    ;; unlike a caller-supplied height it cannot be wrong or forged.
+    ;;
+    ;; try!, NOT (err (to-uint ...)): pox-5's errors are already uint. The pox-4
+    ;; call sites this template used to carry coerced because pox-4 returns INT
+    ;; errors; copying that pattern here does not typecheck.
+    (try! (as-contract? ((with-stacking amount-ustx))
+      (try! (contract-call? POX5 stake
+        JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height none
       ))
-    )
+    ))
+    (print {
+      event: "stake-stx-juice",
+      amount-ustx: amount-ustx,
+      num-cycles: NUM-CYCLES,
+    })
+    (ok true)
   )
 )
 
-(define-public (revoke-stacking
+;; Top up an existing Juice position, extend it, or both -- pox-5 `stake-update`.
+;;
+;; WHY cycles-to-extend IS AN INPUT. pox-5's lock window is ROLLING, not fixed:
+;; stake-update recomputes num-cycles as (unlock-cycle - current-cycle - 1), so
+;; a position opened for the 96-cycle maximum has only 86 left ten cycles later.
+;; Pinning it to u0 would make every top-up leave the window to decay toward
+;; zero with no way to re-top it. pox-5 caps the result at MAX_NUM_CYCLES (u96)
+;; and returns ERR_INVALID_NUM_CYCLES (u20) past it, so an over-large value
+;; fails loudly rather than doing something surprising.
+;;
+;; Both signers are JUICE-SIGNER: this safe can only ever hold a Juice position,
+;; and pox-5 rejects a mismatched old-signer itself.
+(define-public (update-stake-stx-juice
+    (amount-increase uint)
+    (cycles-to-extend uint)
     (sig-auth (optional {
       auth-id: uint,
       pubkey: (buff 33),
@@ -1304,8 +1392,76 @@
       sig-auth-details (begin
         (try! (is-authorized (some {
           message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
-            build-revoke-stacking-hash { auth-id: (get auth-id sig-auth-details) }
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1
+            build-update-stake-stx-juice-hash {
+            auth-id: (get auth-id sig-auth-details),
+            amount-increase: amount-increase,
+            cycles-to-extend: cycles-to-extend,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+            (try! (contract-call? g pay-gas))
+          ))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    ;; A pure extend (amount u0) and a pure top-up (cycles u0) are both
+    ;; legitimate; a call that does neither is a no-op worth rejecting.
+    (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)) err-zero-amount)
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+      log-stake-stx-stacking-dao amount-increase
+    ))
+    ;; amount-increase is the DELTA, not the new total: pox-5 adds it to the
+    ;; existing amount-ustx and only the delta is newly locked. A pure extend
+    ;; passes u0 here and locks nothing.
+    (try! (as-contract? ((with-stacking amount-increase))
+      (try! (contract-call? POX5 stake-update
+        JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase none
+      ))
+    ))
+    (print {
+      event: "update-stake-stx-juice",
+      amount-increase: amount-increase,
+      cycles-to-extend: cycles-to-extend,
+    })
+    (ok true)
+  )
+)
+
+;; Leave Juice. pox-5 removes the safe's shares from current-cycle + 1, so the
+;; cycle in progress still pays out; the STX unlocks when its lock ends.
+;;
+;; Getting OUT must always work, so this stays reachable by every factor the
+;; safe accepts. The signed hash is auth-id only: pox-5's unstake takes just the
+;; old signer-manager, and that is the JUICE-SIGNER constant here.
+(define-public (unstake
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1
+            build-unstake-stx-juice-hash { auth-id: (get auth-id sig-auth-details) }
           ),
           pubkey: (get pubkey sig-auth-details),
           signature: (get signature sig-auth-details),
@@ -1323,172 +1479,17 @@
       )
       (try! (is-authorized none))
     )
-
+    ;; log-revoke-fast-pool is the deployed core's generic "stopped stacking"
+    ;; event; its name is historical and cannot be changed from here.
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-revoke-fast-pool
     ))
 
-    (as-contract? ((with-all-assets-unsafe))
-      (try! (match (contract-call? 'SP000000000000000000002Q6VF78.pox-4 revoke-delegate-stx)
-        success (ok true)
-        error (err (to-uint error))
-      ))
-    )
-  )
-)
-
-(define-public (stack-stx-juice
-    (amount-ustx uint)
-    (sig-auth (optional {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    }))
-    (gas (optional <gas-trait>))
-  )
-  (begin
-    (update-activity)
-    (match sig-auth
-      sig-auth-details (begin
-        (try! (is-authorized (some {
-          message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
-            build-stack-stx-juice-hash {
-            auth-id: (get auth-id sig-auth-details),
-            amount-ustx: amount-ustx,
-          }),
-          pubkey: (get pubkey sig-auth-details),
-          signature: (get signature sig-auth-details),
-          authenticator-data: (get authenticator-data sig-auth-details),
-          client-data-prefix: (get client-data-prefix sig-auth-details),
-          client-data-suffix: (get client-data-suffix sig-auth-details),
-        })))
-        (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
-          true
-        )
-      )
-      (try! (is-authorized none))
-    )
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-stake-stx-stacking-dao amount-ustx
+    (try! (as-contract? ()
+      (try! (contract-call? POX5 unstake JUICE-SIGNER))
     ))
-
-    (as-contract? ((with-all-assets-unsafe))
-      (try! (match (contract-call? 'SP000000000000000000002Q6VF78.pox-4 delegate-stx
-        amount-ustx JUICE-SIGNER none none
-      )
-        success (ok true)
-        error (err (to-uint error))
-      ))
-    )
-  )
-)
-
-;; ---------------------------------------------------------------- RFQ desk
-;; Ported from rfq-mm-vault-jing: this safe IS the on-chain MM. Clients sign
-;; THIS contract's principal as the SIP-018 winner; fix-price records it as
-;; winner and fulfill pays STX from it, with the escrowed sBTC landing here.
-;; Custody/operation split, safe-style:
-;;   ADMIN (owner key)      -- everything the safe already allows, plus desk ops.
-;;   RFQ-OPERATOR (hot key) -- can ONLY proxy fix-rfq / fulfill-rfq. STX leaves
-;;     solely as settlement at numbers already locked on-chain. A leaked
-;;     operator key cannot drain the float -- worst case it fulfills real
-;;     fixed RFQs, which is its job.
-;; Guards use contract-caller (direct calls only) so a contract the operator
-;; is tricked into calling can never reach the desk as a confused deputy.
-;; Desk settlements deliberately do NOT count against the daily thresholds:
-;; the STX out is exchanged for escrowed sBTC in at on-chain-locked numbers.
-
-(define-data-var rfq-operator principal 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22)
-
-(define-read-only (get-rfq-operator)
-  (var-get rfq-operator)
-)
-
-(define-private (is-rfq-authorized)
-  (or
-    (is-eq contract-caller (var-get rfq-operator))
-    (is-some (map-get? admins contract-caller))
-  )
-)
-
-;; Admin rotates the desk hot key. Passkey not required: the operator can only
-;; settle already-fixed RFQs, so seating one is no more dangerous than the
-;; admin running the desk directly.
-(define-public (set-rfq-operator (new-operator principal))
-  (begin
-    (try! (is-admin-calling tx-sender))
-    (var-set rfq-operator new-operator)
-    (update-activity)
-    (print { event: "set-rfq-operator", operator: new-operator })
+    (print { event: "unstake" })
     (ok true)
-  )
-)
-
-;; Proxy fix-price. Inside as-contract? tx-sender = this safe, so the RFQ
-;; contract records THIS safe as winner (the client must have signed the
-;; safe's principal as the SIP-018 winner). No STX moves except the Pyth fee.
-(define-public (fix-rfq
-    (id uint)
-    (committed-out uint)
-    (max-premium-bps uint)
-    (auth-expiry uint)
-    (sig (buff 65))
-    (vaa-x (buff 8192))
-    (vaa-y (buff 8192))
-    (pyth-storage <pyth-storage-trait>)
-    (pyth-decoder <pyth-decoder-trait>)
-    (wormhole-core <wormhole-core-trait>)
-  )
-  (begin
-    (asserts! (is-rfq-authorized) err-unauthorised)
-    (try! (as-contract? ((with-stx PYTH-FEE-ALLOWANCE))
-      (try! (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.rfq-sbtc-stx-jing fix-price
-        id committed-out max-premium-bps auth-expiry sig vaa-x vaa-y
-        pyth-storage pyth-decoder wormhole-core
-      ))
-    ))
-    (update-activity)
-    (print { event: "fix-rfq", id: id, committed-out: committed-out })
-    (ok id)
-  )
-)
-
-;; Proxy fulfill. The STX allowance is EXACTLY the fixed-stx-out already locked
-;; on-chain -- the operator has no say in the amount. The escrowed sBTC is
-;; released to tx-sender inside the RFQ call = this safe.
-(define-public (fulfill-rfq
-    (id uint)
-    (x <sip-010-trait>)
-    (x-name (string-ascii 128))
-  )
-  (let (
-      (rfq (unwrap!
-        (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.rfq-sbtc-stx-jing
-          get-rfq id
-        )
-        err-rfq-not-found
-      ))
-      (stx-out (unwrap! (get fixed-stx-out rfq) err-rfq-not-fixed))
-    )
-    (asserts! (is-rfq-authorized) err-unauthorised)
-    (try! (as-contract? ((with-stx stx-out))
-      (try! (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.rfq-sbtc-stx-jing fulfill
-        id x x-name
-      ))
-    ))
-    (update-activity)
-    (print { event: "fulfill-rfq", id: id, stx-out: stx-out })
-    (ok stx-out)
   )
 )
 
@@ -1525,7 +1526,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.jing-mm-safe
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v0
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
