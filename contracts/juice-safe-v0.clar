@@ -1255,19 +1255,32 @@
 ;; anything.
 ;;
 ;; ALLOWANCES. Epoch 4.0 made locking STX an asset event in its own right, with
-;; its own allowance form: (with-stacking uint), bounding how much uSTX the call
-;; may lock. Each call site below declares exactly the amount it is about to
-;; lock, so a bug or a future pox-5 change cannot lock more of the safe's
-;; balance than the caller asked for. with-all-assets-unsafe would have waved
-;; through any amount AND every other asset class the safe holds -- it is the
-;; escape hatch the pox-4 code needed because there was no stacking allowance to
-;; name. There is one now, so nothing here uses it.
+;; its own allowance form: (with-stacking uint). with-all-assets-unsafe would
+;; have waved through any amount AND every other asset class the safe holds --
+;; the escape hatch the pox-4 code needed because there was no stacking
+;; allowance to name. There is one now, so nothing here uses it.
 ;;
-;; `unstake` is the exception: it declares NO allowance at all. It moves and
-;; locks nothing -- pox-5's unstake only rewrites staker-info and the per-cycle
-;; share maps, leaving amount-ustx untouched and the existing lock in place
-;; until its unlock cycle -- so an empty allowance list is the honest
-;; description of it.
+;; THE AMOUNT IS A BALANCE, NOT A DELTA. This is the one genuinely
+;; counter-intuitive thing on this surface. Post-conditions normally bound what
+;; MOVES in a transaction; the stacking entry instead reports what the account
+;; now HAS stacked. The node computes it as amount_locked() after the lock and
+;; INSERTS (not adds) it into the asset map, and the allowance check is
+;; `stacked > allowance -> violation`. So on a top-up the number to declare is
+;; the RESULTING TOTAL: declaring amount-increase aborts every top-up, because
+;; existing+increase always exceeds increase. A first-time stake only looks
+;; fine because there the increase IS the total.
+;;
+;; Hence (locked-ustx) on the update path: the pre-call locked balance, straight
+;; from the native stx-account, which is the same quantity the node reports.
+;; Adding the increase gives the post-call total the allowance is checked
+;; against. stake-stx-juice needs no such term -- nothing can be staked when it
+;; succeeds, so its amount already IS the total.
+;;
+;; unstake declares (locked-ustx) unchanged rather than an empty list. pox-5's
+;; unstake leaves amount-ustx alone and only shortens num-cycles, so IF the node
+;; writes a stacking entry it can only be that same total; and if it writes none,
+;; the check is skipped and an unused allowance costs nothing. Declaring it is
+;; correct either way, where an empty list is correct only in the second.
 ;;
 ;; SIGNATURE SCOPE. Every caller-supplied argument that reaches pox-5 is bound
 ;; by the signed hash. helpers-v7's build-stack-stx-juice-hash could not do that
@@ -1280,6 +1293,15 @@
 ;; -- it has no caller-supplied argument at all, so helpers-v7's auth-id-only
 ;; build-revoke-stacking-hash would have worked, but keeping every pox-5 action
 ;; on one helper keeps one naming scheme in front of the signing prompt.
+
+;; The safe's own locked uSTX. This is the quantity the node puts in the asset
+;; map's stacking entry (it logs amount_locked() after applying the lock), so it
+;; is what every (with-stacking ...) below is denominated in. Read natively via
+;; stx-account -- no pox-5 call, so no cross-contract read and none of the
+;; get-staker-info read-only typing trouble.
+(define-read-only (locked-ustx)
+  (get locked (stx-account current-contract))
+)
 
 ;; Stake with Juice for the first time -- pox-5 `stake`.
 ;;
@@ -1347,6 +1369,12 @@
     ;; try!, NOT (err (to-uint ...)): pox-5's errors are already uint. The pox-4
     ;; call sites this template used to carry coerced because pox-4 returns INT
     ;; errors; copying that pattern here does not typecheck.
+    ;; amount-ustx IS the resulting total here, so no (locked-ustx) term: pox-5
+    ;; rejects `stake` with ERR_ALREADY_STAKED unless staker-info is absent, and
+    ;; this contract is post-fork so it can never be carrying a stray pox-4
+    ;; lock either -- nothing is staked when this call succeeds. Adding a
+    ;; balance that must be u0 would only widen the allowance if it ever were
+    ;; not. The update path is where the total differs from the delta.
     (try! (as-contract? ((with-stacking amount-ustx))
       (try! (contract-call? POX5 stake
         JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height none
@@ -1423,7 +1451,9 @@
     ;; amount-increase is the DELTA, not the new total: pox-5 adds it to the
     ;; existing amount-ustx and only the delta is newly locked. A pure extend
     ;; passes u0 here and locks nothing.
-    (try! (as-contract? ((with-stacking amount-increase))
+    ;; (locked-ustx) + amount-increase = the total pox-5 will report. Declaring
+    ;; amount-increase alone aborts every top-up -- see ALLOWANCES above.
+    (try! (as-contract? ((with-stacking (+ (locked-ustx) amount-increase)))
       (try! (contract-call? POX5 stake-update
         JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase none
       ))
@@ -1485,7 +1515,7 @@
       log-revoke-fast-pool
     ))
 
-    (try! (as-contract? ()
+    (try! (as-contract? ((with-stacking (locked-ustx)))
       (try! (contract-call? POX5 unstake JUICE-SIGNER))
     ))
     (print { event: "unstake" })
