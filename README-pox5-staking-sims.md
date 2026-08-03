@@ -82,7 +82,7 @@ fork. Nothing is redeployed; each call hits the on-chain bytes.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v0-lifecycle.js` | [`12bc1378`](https://stxer.xyz/simulations/mainnet/12bc137820d8110284b7b38d33c05f4c) | **27/27** — full lifecycle, gas station, reward payout |
+| `simul-juice-safe-v0-lifecycle.js` | [`cdbfedc1`](https://stxer.xyz/simulations/mainnet/cdbfedc159e881a9a96c5afa6eae962f) | **40/40** — full lifecycle, gas station, payout, unstake+unlock, withdrawals |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
 | `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | **32/32** — independent second harness |
 | `simul-fakfun-wallet-v9.js` (Part A) | [`6ae99c6e`](https://stxer.xyz/simulations/mainnet/6ae99c6ed0bc6934fed4cf4584bdebed) | deployed v9 `onboard` -> **`(err u6002)`** |
@@ -131,6 +131,47 @@ called from an unrelated relayer, not the admin. Only `set-admin`, `set-paused`
 and fee changes are gated, so the operator cannot withhold distribution.
 
 The empty `bond-periods` list is accepted only because no sBTC bonds are active.
+
+### The lock lifecycle, per pox-5
+
+`stx-account` is the NODE's view and stxer never populates it (see "NOT covered"
+below). pox-5's own `get-staker-info` is the contract's record and tracks
+correctly end to end:
+
+```
+after stake         1,000,000,000 uSTX   locked
+after top-ups       1,450,000,000 uSTX   locked
+after unstake       1,450,000,000 uSTX   STILL locked, num-cycles truncated
+shares next cycle   u0                   removed from cycle 142 onward
+after unlock cycle  none                 RELEASED
+```
+
+The exit is two-part: `unstake` leaves `amount-ustx` alone and only truncates
+`num-cycles`, while next-cycle shares drop to `u0`. You stop earning at once but
+stay locked until the unlock cycle, after which the position is gone. Nothing is
+stranded and nobody earns after leaving.
+
+### Withdrawals and the threshold guard
+
+```
+STX   50 STX  (under the 100 STX threshold)   -> moves immediately
+STX  400 STX  (OVER threshold)                -> pending op, funds DO NOT move
+sBTC 1000 sats (under the 100k sat threshold) -> moves immediately
+```
+
+The over-threshold case is the safe working as designed: it returns `(ok true)`
+and queues a pending operation rather than transferring, so a compromised admin
+key cannot drain in a single transaction.
+
+### Paying the same tranche twice
+
+```
+pay tranche 0        (ok u65)   sBTC 4980 -> 5045
+pay tranche 0 AGAIN  (ok u0)    sBTC 5045 -> 5045
+```
+
+The `stx-paid {reward-cycle, tranche, staker}` guard makes `pay-stx-stakers`
+idempotent per tranche, so an operator script is safe to re-run.
 
 ### `pox-settle-stakers` is NOT on the payment path
 

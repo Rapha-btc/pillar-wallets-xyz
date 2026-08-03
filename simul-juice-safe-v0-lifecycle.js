@@ -72,6 +72,10 @@ const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
 const OWNER = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";
 const RECOVERY = "SP3HXJJMJQ06GNAZ8XWDN1QM48JEDC6PP6W3YZPZJ";
 const RANDOM = "SP1MGH8BH1KRY49Z7EE5TY0JVKT6C3NT9RTVM8FND";
+const RECIPIENT = "SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B";   // withdrawal target
+const WD_STX_UNDER = 50_000_000;    // 50 STX, under the 100 STX threshold
+const WD_STX_OVER = 400_000_000;    // 400 STX, OVER -> must become a pending op
+const WD_SBTC = 1_000;              // sats, under the 100k threshold
 const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
 
@@ -308,6 +312,55 @@ async function main() {
   evalc("R safe sBTC AFTER payout",
     `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sb1", WALLET);
 
+  // ---- PAY TWICE: the stx-paid guard --------------------------------------
+  call("R2 pay-stx-stakers AGAIN, same tranche -> must pay NOTHING",
+    RELAYER, SIGNER, "pay-stx-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(REWARD_CYCLE), uintCV(0)], okre);
+  evalc("safe sBTC after the SECOND pay",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sbDouble", WALLET);
+
+  // ---- UNSTAKE, then advance past the unlock cycle -------------------------
+  call("U1 unstake (PASSKEY)", RELAYER, WALLET, "unstake",
+    [someCV(sigAuthTuple(3, key.pubKeyHex, sigUnstake)), noneCV()], okre);
+  evalc("LOCKED per pox-5, after unstake (position truncated, still locked)",
+    `(contract-call? '${POX5} get-staker-info '${WALLET})`, "uInfo", WALLET);
+  evalc("shares after unstake (next cycle)",
+    `(contract-call? '${POX5} get-staker-shares-staked-for-cycle '${WALLET} u142 none '${SIGNER})`,
+    "sharesNext", WALLET);
+  evalc("U1 stx-account after unstake", `(stx-account '${WALLET})`, "uAcct", WALLET);
+
+  // Roll well past the unlock cycle so a real chain would have released the STX.
+  b.addAdvanceBlocks({ bitcoin_blocks: 2200, stacks_blocks_per_bitcoin: 1 });
+  plan.push({ kind: "advance", label: "advance 2200 (past the unlock cycle)" });
+  evalc("LOCKED per pox-5, AFTER unlock cycle (expect none = released)",
+    `(contract-call? '${POX5} get-staker-info '${WALLET})`, "uInfo2", WALLET);
+  evalc("U2 stx-account AFTER unlock (STX spendable again)",
+    `(stx-account '${WALLET})`, "uAcct2", WALLET);
+
+  // ---- WITHDRAW STX and sBTC out of the safe -------------------------------
+  evalc("W recipient STX before", `(stx-get-balance '${RECIPIENT})`, "rStx0", WALLET);
+  call(`W1 withdraw ${WD_STX_UNDER / 1e6} STX (UNDER threshold -> immediate)`,
+    OWNER, WALLET, "stx-transfer",
+    [uintCV(WD_STX_UNDER), standardPrincipalCV(RECIPIENT), noneCV(), noneCV(), noneCV()], okre);
+  evalc("W1 recipient STX after", `(stx-get-balance '${RECIPIENT})`, "rStx1", WALLET);
+
+  // Over the threshold the safe must NOT move funds -- it queues a pending op.
+  call(`W2 withdraw ${WD_STX_OVER / 1e6} STX (OVER threshold -> pending op, no move)`,
+    OWNER, WALLET, "stx-transfer",
+    [uintCV(WD_STX_OVER), standardPrincipalCV(RECIPIENT), noneCV(), noneCV(), noneCV()], okre);
+  evalc("W2 recipient STX after over-threshold attempt",
+    `(stx-get-balance '${RECIPIENT})`, "rStx2", WALLET);
+
+  evalc("W3 recipient sBTC before",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "rSb0", WALLET);
+  call(`W3 withdraw ${WD_SBTC} sats sBTC (UNDER threshold -> immediate)`,
+    OWNER, WALLET, "sip010-transfer",
+    [uintCV(WD_SBTC), standardPrincipalCV(RECIPIENT), noneCV(),
+     contractPrincipalCV("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token"),
+     stringAsciiCV("sbtc-token"), noneCV(), noneCV()], okre);
+  evalc("W3 recipient sBTC after",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "rSb1", WALLET);
+
   // -- run + verify ------------------------------------------------------------
   console.log("=== juice-safe-v0 (DEPLOYED) + juice-safe-auth-helpers-v1 - stxer harness ===\n");
   const sessionId = await b.run();
@@ -378,6 +431,31 @@ async function main() {
   chk("pox-5 saw the reward drop", u(cap.newrew) > 0n);
   chk("Juice pot funded for the cycle", u(cap.pot) > 0n);
   chk("JUICE PAID THE SAFE (sBTC balance rose)", u(cap.sb1) > u(cap.sb0));
+  chk("paying the SAME tranche twice pays nothing", u(cap.sbDouble) === u(cap.sb1));
+  const amtOf = (x) => BigInt((String(x).match(/amount-ustx u(\d+)/) || [])[1] ?? "-1");
+  chk("LOCK LIFECYCLE 1/4 - pox-5 records the stake as locked",
+    amtOf(cap.info1) === BigInt(STAKE_USTX));
+  chk("LOCK LIFECYCLE 2/4 - top-ups raise the locked amount",
+    amtOf(cap.infoE) > amtOf(cap.info1));
+  chk("LOCK LIFECYCLE 3/4 - unstake truncates but STILL locked",
+    /num-cycles u[01]\)/.test(String(cap.uInfo)) && amtOf(cap.uInfo) > 0n);
+  chk("LOCK LIFECYCLE 4/4 - past the unlock cycle the position is RELEASED",
+    String(cap.uInfo2).trim() === "none");
+  console.log("\n   --- locked amount, per pox-5 (the authoritative record) ---");
+  console.log(`   after stake        ${amtOf(cap.info1)} uSTX`);
+  console.log(`   after top-ups      ${amtOf(cap.infoE)} uSTX`);
+  console.log(`   after unstake      ${amtOf(cap.uInfo)} uSTX  (num-cycles truncated)`);
+  console.log(`   shares next cycle  ${cap.sharesNext}`);
+  console.log(`   after unlock cycle ${cap.uInfo2}  <- released`);
+  chk("STX withdrawal UNDER threshold moved funds",
+    u(cap.rStx1) - u(cap.rStx0) === BigInt(WD_STX_UNDER));
+  chk("STX withdrawal OVER threshold moved NOTHING (pending op)",
+    u(cap.rStx2) === u(cap.rStx1));
+  chk("sBTC withdrawal moved funds",
+    u(cap.rSb1) - u(cap.rSb0) === BigInt(WD_SBTC));
+  console.log(`   after unstake : ${cap.uAcct}`);
+  console.log(`   after unlock  : ${cap.uAcct2}`);
+  console.log(`   staker-info   : ${cap.uInfo2}`);
 
   console.log(`\n=== ${pass} passed, ${fail} failed ===\nView: ${url}`);
   if (fail > 0) process.exit(1);
