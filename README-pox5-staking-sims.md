@@ -108,7 +108,7 @@ All against the **deployed** contracts. Nothing redeployed.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v1-lifecycle.js` | [`77080151`](https://stxer.xyz/simulations/mainnet/770801519c5a96309c29f54349c9d126) | **49/49** — full surface |
+| `simul-juice-safe-v1-lifecycle.js` | [`767531ff`](https://stxer.xyz/simulations/mainnet/767531ff808902263766f6259534117c) | **58/58** — full surface |
 | `simul-fakfun-wallet-v10.js` | [`cdd04e32`](https://stxer.xyz/simulations/mainnet/cdd04e324d2070fe2d9cded06c8a3009) | **27/27** — v8→v10 delta |
 | `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
 | `simul-juice-safe-v1.js` | [`10b46fa6`](https://stxer.xyz/simulations/mainnet/10b46fa699d4ef86485bb52eb0a08930) | **10/10** — stake→unstake→STX returns |
@@ -190,10 +190,25 @@ stranded and nobody earns after leaving.
 ### Withdrawals and the threshold guard
 
 ```
-STX   50 STX  (under the 100 STX threshold)   -> moves immediately
-STX  400 STX  (OVER threshold)                -> pending op, funds DO NOT move
-sBTC 1000 sats (under the 100k sat threshold) -> moves immediately
+STX     50 STX   (under the 100 STX threshold)  -> moves immediately
+STX    400 STX   (OVER threshold)               -> pending op, funds DO NOT move
+sBTC  1,000 sats (under the 100k sat threshold) -> moves immediately
+sBTC 150,000 sats (OVER threshold)              -> pending op, funds DO NOT move
 ```
+
+Both asset types, both release paths, all verified:
+
+```
+plain execute BEFORE cooldown            (err u4017)   the delay is real
+execute-pending-*-transfer-NOW (PASSKEY) (ok true)     relayer broadcasts,
+                                                       admin key never touches it
+...advance 150 blocks (past u144)...
+execute-pending-*-transfer by OWNER      (ok true)     owner alone, after the wait
+```
+
+The two paths are deliberately asymmetric: the fast path needs the passkey (so
+a stolen admin key cannot use it), and the slow path needs only the admin but
+costs 144 blocks under veto watch.
 
 The over-threshold case is the safe working as designed: it returns `(ok true)`
 and queues a pending operation rather than transferring, so a compromised admin

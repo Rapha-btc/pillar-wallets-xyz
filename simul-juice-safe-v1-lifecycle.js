@@ -76,6 +76,8 @@ const RECIPIENT = "SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B";   // withdrawal t
 const WD_STX_UNDER = 50_000_000;    // 50 STX, under the 100 STX threshold
 const WD_STX_OVER = 400_000_000;    // 400 STX, OVER -> must become a pending op
 const WD_SBTC = 1_000;              // sats, under the 100k threshold
+const SBTC_BIG_FUND = 500_000;      // sats, so we can exceed the 100k threshold
+const WD_SBTC_OVER = 150_000;       // sats, OVER -> pending op
 const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
 
@@ -191,6 +193,7 @@ async function main() {
   const sigUnstake = sign(buildChallenge(tUnstake(3)));
   const sigGasTopup = sign(buildChallenge(tUpdateStake(7, GAS_TOPUP_USTX, 0)));
   const sigNow0 = sign(buildChallenge(tExecuteNow(8, 0)));
+  const sigNowSbtc = sign(buildChallenge(tExecuteNow(9, 2)));   // op 2 = first sBTC op
 
   const plan = [];
   const b = SimulationBuilder.new({ stacksNodeAPI: STACKS_NODE_API });
@@ -406,6 +409,42 @@ async function main() {
   evalc("W7 recipient STX after the cooldown path",
     `(stx-get-balance '${RECIPIENT})`, "rStx4", WALLET);
 
+  // ---- sBTC OVER the threshold: both release paths -------------------------
+  call(`fund ${SBTC_BIG_FUND} sats sBTC (to exceed the 100k threshold)`,
+    SBTC_WHALE, SBTC_TOKEN, "transfer",
+    [uintCV(SBTC_BIG_FUND), standardPrincipalCV(SBTC_WHALE), principalCV(WALLET), noneCV()], okre);
+  evalc("S recipient sBTC before the over-threshold legs",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR0", WALLET);
+
+  call(`S1 send ${WD_SBTC_OVER} sats (OVER threshold -> pending op 2, no move)`,
+    OWNER, WALLET, "sip010-transfer",
+    [uintCV(WD_SBTC_OVER), standardPrincipalCV(RECIPIENT), noneCV(),
+     contractPrincipalCV("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token"),
+     stringAsciiCV("sbtc-token"), noneCV(), noneCV()], okre);
+  evalc("S1 recipient sBTC after (must be unchanged)",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR1", WALLET);
+  evalc("S1 the pending sBTC op", "(get-pending-operation u2)", "sOp", WALLET);
+
+  call("S2 plain execute BEFORE cooldown -> u4017", OWNER, WALLET,
+    "execute-pending-sbtc-transfer", [uintCV(2), noneCV()], "(err u4017)");
+  call("S3 execute-pending-sbtc-transfer-NOW (PASSKEY 2FA) -> ok",
+    RELAYER, WALLET, "execute-pending-sbtc-transfer-now",
+    [uintCV(2), noneCV(), sigAuthTuple(9, key.pubKeyHex, sigNowSbtc), noneCV()], okre);
+  evalc("S3 recipient sBTC after the 2FA fast-path",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR2", WALLET);
+
+  call(`S4 send ${WD_SBTC_OVER} sats again (OVER threshold -> pending op 3)`,
+    OWNER, WALLET, "sip010-transfer",
+    [uintCV(WD_SBTC_OVER), standardPrincipalCV(RECIPIENT), noneCV(),
+     contractPrincipalCV("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token"),
+     stringAsciiCV("sbtc-token"), noneCV(), noneCV()], okre);
+  b.addAdvanceBlocks({ bitcoin_blocks: 150, stacks_blocks_per_bitcoin: 1 });
+  plan.push({ kind: "advance", label: "advance 150 (past the u144 cooldown)" });
+  call("S5 plain execute by OWNER AFTER cooldown -> ok", OWNER, WALLET,
+    "execute-pending-sbtc-transfer", [uintCV(3), noneCV()], okre);
+  evalc("S5 recipient sBTC after the cooldown path",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR3", WALLET);
+
   evalc("W3 recipient sBTC before",
     `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "rSb0", WALLET);
   call(`W3 withdraw ${WD_SBTC} sats sBTC (UNDER threshold -> immediate)`,
@@ -523,6 +562,11 @@ async function main() {
     u(cap.rStx3) - u(cap.rStx2) === BigInt(WD_STX_OVER));
   chk("cooldown path released the second op after 144 blocks",
     u(cap.rStx4) - u(cap.rStx3) === BigInt(WD_STX_OVER));
+  chk("sBTC OVER threshold moved NOTHING (pending op)", u(cap.sR1) === u(cap.sR0));
+  chk("sBTC 2FA fast-path released it immediately",
+    u(cap.sR2) - u(cap.sR1) === BigInt(WD_SBTC_OVER));
+  chk("sBTC cooldown path released the second op",
+    u(cap.sR3) - u(cap.sR2) === BigInt(WD_SBTC_OVER));
   chk("sBTC withdrawal moved funds",
     u(cap.rSb1) - u(cap.rSb0) === BigInt(WD_SBTC));
   console.log(`   after unstake : ${cap.uAcct}`);
