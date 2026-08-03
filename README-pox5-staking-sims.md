@@ -64,6 +64,37 @@ before -- an omission when porting from the pox-4 functions), and **v2 narrows
 the rp.id whitelist to `juiceofbtc.com` alone**, dropping the four unrelated
 origins inherited from `jing-mm-safe`.
 
+### Audit of the deployed v2 / v11 — accepted, not bugs
+
+On-chain sources fetched and confirmed byte-identical to the shipped templates
+(46,542 B / 73,610 B). Two behaviours worth knowing about; both reviewed and
+accepted rather than fixed.
+
+**`cooldown-period` has no floor.** `set-wallet-config` accepts any value
+including `u0`, and it is `is-authorized none` -- admin key alone, no passkey.
+Set to zero, every cooldown in the wallet collapses: pending withdrawal ops
+release immediately and `confirm-max-gas-amount` becomes instant, undoing the
+gas mitigation.
+
+Accepted because the FIRST change cannot skip its own delay: the path is
+`signal-config-change` -> wait the CURRENT cooldown -> `set-wallet-config`, so a
+compromised admin needs a full 144 blocks to remove all future ones, and both
+steps emit `fakfun-wallet-core` events. The owner has that window to react. This
+is inherited from `pillar-safe-v2`, so `jing-mm-safe`, `yguazu-stx-safe` and the
+deployed fak.fun wallets carry it too.
+
+**A pending max-gas raise has no explicit veto.** There is no
+`veto-max-gas-amount`. The cancel mechanism is implicit: `propose-max-gas-amount`
+has no "already proposed" guard, so **re-proposing a lower value overwrites the
+pending one and restarts the clock**. That is the documented way to neutralise a
+malicious raise -- propose `u1000` (or whatever the current value is) and the
+attacker's pending raise is gone.
+
+Everything else in the delta checked clean: the ceiling is asserted at propose
+(`u20000` -> `u4018`), both halves are admin-gated (`u4001`), `confirm` before
+the cooldown is `u4012`, `confirm` with nothing pending is `u4016`, and the
+pending struct clears to `{amount u0, proposed-at u0}`.
+
 ### Not fixed, by design
 
 Pending ops still do not count toward the daily period. They are gated by the
