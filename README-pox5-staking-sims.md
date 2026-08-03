@@ -108,8 +108,8 @@ All against the **deployed** contracts. Nothing redeployed.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v1-lifecycle.js` | [`767531ff`](https://stxer.xyz/simulations/mainnet/767531ff808902263766f6259534117c) | **58/58** — full surface |
-| `simul-fakfun-wallet-v10.js` | [`336cb4c3`](https://stxer.xyz/simulations/mainnet/336cb4c3f3ebf0ba67dda900cde59257) | **49/49** — v8→v10 delta, withdrawals, reward payout |
+| `simul-juice-safe-v1-lifecycle.js` | [`225f6970`](https://stxer.xyz/simulations/mainnet/225f6970dee8bfc1d92bf14777ce7d7f) | **62/62** — full surface |
+| `simul-fakfun-wallet-v10.js` | [`e8ecd262`](https://stxer.xyz/simulations/mainnet/e8ecd2625f9f5eeb5638160e7e834a06) | **50/50** — v8→v10 delta, withdrawals, reward payout |
 | `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
 | `simul-juice-safe-v1.js` | [`10b46fa6`](https://stxer.xyz/simulations/mainnet/10b46fa699d4ef86485bb52eb0a08930) | **10/10** — stake→unstake→STX returns |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
@@ -210,11 +210,23 @@ The two paths are deliberately asymmetric: the fast path needs the passkey (so
 a stolen admin key cannot use it), and the slow path needs only the admin but
 costs 144 blocks under veto watch.
 
+**Both unstake paths work on both wallets.** `unstake` is reachable by the admin
+key directly AND by a passkey signature relayed by a third party, and rejects
+anyone else:
+
+```
+unstake by a random principal   (err u4001)
+unstake by the ADMIN KEY        (ok true)   no signature
+unstake by PASSKEY via relayer  (ok true)
+```
+
 **Juice pays BOTH wallets.** The reward chain was verified on v10 as well as v1
 ([`336cb4c3`](https://stxer.xyz/simulations/mainnet/336cb4c3f3ebf0ba67dda900cde59257)):
 sBTC to pox-5 -> advance a distribution cycle -> `calculate-rewards` ->
 `pox-claim-rewards` -> `pay-stx-stakers`, wallet sBTC `u4980 -> u5034`, and a
-replay of the same tranche pays nothing.
+replay of the same tranche pays nothing. Both wallets are paid in the SAME fold
+as **8 real mainnet Juice stakers**, so the list handles a mixed set of contract
+and standard principals.
 
 **`fakfun-wallet-v10` has NO fast path.** `execute-pending-*-now` appears twice
 in `juice-safe-v1` and zero times in v10 -- the passkey 2FA release is a

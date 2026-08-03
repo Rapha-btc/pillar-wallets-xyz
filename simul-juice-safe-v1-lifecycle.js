@@ -353,7 +353,17 @@ async function main() {
     `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sbDouble", WALLET);
 
   // ---- UNSTAKE, then advance past the unlock cycle -------------------------
-  call("U1 unstake (PASSKEY)", RELAYER, WALLET, "unstake",
+  // Two ways out, both must work. Re-stake between them so the second attempt
+  // has a live position.
+  call("U0a unstake by random -> u4001", RANDOM, WALLET, "unstake",
+    [noneCV(), noneCV()], "(err u4001)");
+  call("U0b unstake by the ADMIN KEY (no signature) -> ok", OWNER, WALLET,
+    "unstake", [noneCV(), noneCV()], okre);
+  evalc("staker-info after the ADMIN unstake",
+    `(contract-call? '${POX5} get-staker-info '${WALLET})`, "iAdmin", WALLET);
+  call("U0c re-stake so there is a position to exit again", OWNER, WALLET,
+    "update-stake-stx-juice", [uintCV(50_000_000), uintCV(1), noneCV(), noneCV()], okre);
+  call("U1 unstake (PASSKEY via relayer) -> ok", RELAYER, WALLET, "unstake",
     [someCV(sigAuthTuple(3, key.pubKeyHex, sigUnstake)), noneCV()], okre);
   evalc("LOCKED per pox-5, after unstake (position truncated, still locked)",
     `(contract-call? '${POX5} get-staker-info '${WALLET})`, "uInfo", WALLET);
@@ -542,6 +552,7 @@ async function main() {
     amtOf(cap.info1) === BigInt(STAKE_USTX));
   chk("LOCK LIFECYCLE 2/4 - top-ups raise the locked amount",
     amtOf(cap.infoE) > amtOf(cap.info1));
+  chk("unstake by ADMIN KEY worked", String(cap.iAdmin).startsWith("(some"));
   chk("LOCK LIFECYCLE 3/4 - unstake truncates but STILL locked",
     /num-cycles u[01]\)/.test(String(cap.uInfo)) && amtOf(cap.uInfo) > 0n);
   chk("LOCK LIFECYCLE 3b - STX returned after the unlock height",

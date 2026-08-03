@@ -1,37 +1,26 @@
 // simul-fakfun-wallet-v10.js
-// Stxer mainnet-fork harness for SPV9K21....fakfun-wallet-v9 (DEPLOYED).
+// Stxer mainnet-fork harness for the DEPLOYED SPV9K21....fakfun-wallet-v10.
 //
-// SCOPE: exactly what changed from v8. The public-surface diff is:
-//   REMOVED (all pox-4, all dead since cycle 140):
+// SCOPE: what changed from v8. Public-surface diff:
+//   REMOVED (all pox-4, dead since cycle 140):
 //     stack-stx-fast-pool, stack-stx-juice, revoke-stacking
 //   ADDED (pox-5):
 //     stake-stx-juice, update-stake-stx-juice, unstake, locked-ustx
-//   plus: JUICE-SIGNER is now the signer CONTRACT (was the operator EOA),
+//   plus: JUICE-SIGNER is the signer CONTRACT (was the operator EOA), the
 //         POX5 / NUM-CYCLES constants, err-zero-amount, and the three
-//         challenges moved to juice-safe-auth-helpers-v1.
-// Everything else in v9 is v8 byte-for-byte and is NOT retested here.
+//         challenges served from juice-safe-auth-helpers-v1.
+// Everything else is v8 byte-for-byte and is NOT retested here.
 //
-// PART A -- the deployed contract, as it actually is.
-//   v9's onboard calls register-wallet against '.fakfun-wallet-v8'. On mainnet
-//   v8 IS verified (hash 0xe0c7d14e...), so fakfun-wallet-core's first assert
-//   passes and the SECOND one compares v9's own hash to v8's and fails.
-//   Expect onboard -> (err u6002) err-invalid-contract-hash. If that is what
-//   comes back, the deployed v9 cannot be initialised at all and needs a v10.
+// Flow: onboard -> propose-admin-with-signature -> accept-admin-proposal
+//       -> advance 432 (pubkey cooldown) -> confirm-admin-with-signature
+//       -> stake -> top-up -> gas-paid top-up -> extend -> reward payout
+//       -> unstake -> advance past the unlock -> withdrawals + threshold guard
 //
-// PART B -- a corrected copy (register-wallet -> itself), so the pox-5 surface
-//   still gets exercised end to end despite Part A:
-//     init: onboard -> propose-admin-with-signature -> accept-admin-proposal
-//           -> advance 432 (pubkey cooldown) -> confirm-admin-with-signature
-//     then: stake -> top-up -> advance past the cycle boundary -> extend
-//           -> rewards -> unstake
+// NOTE: v10 has NO execute-pending-*-now. The passkey 2FA release is a
+// jing-mm-safe lineage feature juice-safe-v1 inherited; the fakfun-wallet line
+// never had it. Every over-threshold op here serves the full u144 cooldown.
 //
-// NOTE ON LOCKS: stxer does not run the node-side PoX lock handler, so
-// stx-account stays locked u0 throughout and (with-stacking ...) is never
-// enforced here -- proven in simul-allowance-probe.js and again by advancing a
-// full cycle in simul-juice-safe-v0-lifecycle.js. pox-5 CONTRACT state is
-// authoritative in this harness; account locks are not.
-//
-// Run: node simul-fakfun-wallet-v9.js
+// Run: node simul-fakfun-wallet-v10.js
 import crypto from "node:crypto";
 import {
   tupleCV, uintCV, bufferCV, noneCV, someCV, principalCV,
@@ -53,19 +42,31 @@ const WD_SBTC_OVER = 150_000;        // OVER -> pending op
 const SBTC_BIG_FUND = 500_000;
 const REWARD_SATS = 2_000_000;   // sBTC dropped on pox-5 = the cycle's rewards
 const RC = 141;
+// REAL Juice stakers with live cycle-141 shares, paid in the SAME fold as the
+// v10 wallet -- exercises pay-stx-stakers across a real mixed list (contract
+// principal + standard principals) rather than a single synthetic entry.
+const REAL_STAKERS = [
+  "SP3TA7SMY7APYR9SFKDT0527NC0GWR84S3AHEM0NE",
+  "SP3A4CP63QJB1R0EJR3TJ1PN16FC5HVJSPT77C8C0",
+  "SP3TS3T9GSGFEDW7ZBJNFXMH6RY0AP7HNCQEE77DH",
+  "SP3WAAYXPC6WZNEC7SHGR36D32RJPZVXRR1BG0QSY",
+  "SP1JAG6TV2XRYFGJN7CAAN6Z3CEW2YMZWMHJAJV91",
+  "SP389APB4DHZ836P4AE9RJW7EKEZAPV5NPDNG7N46",
+  "SP18QG8A8943KY9S15M08AMAWWF58W9X1M90BRCSJ",
+  "SP218F71JZ4R2ERQDKEBGA1FKVAQNZBM3HK7W8EA7",
+];
 const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
 const SBTC_WHALE = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";  // == OWNER, holds sBTC
 const SBTC_TOKEN = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 const GAS_STATION = `${DEPLOYER}.gas-station`;  // pay-gas: 20 sats -> sponsor
 
-const V9 = `${DEPLOYER}.fakfun-wallet-v9`;      // deployed, buggy register-wallet
 const FIXED_NAME = "fakfun-wallet-v10";
 const FIXED = `${DEPLOYER}.${FIXED_NAME}`;      // the real v10, deployed in-sim
 const WALLET_CORE = `${DEPLOYER}.fakfun-wallet-core`;
 const POX5 = "SP000000000000000000002Q6VF78.pox-5";
 const STACKS_NODE_API = "http://77.42.3.101/stacks-api";
-const RP_ID = "fak.fun";                         // v9 whitelists fak.fun / fakfun.com only
+const RP_ID = "fak.fun";   // v10 whitelists fak.fun / fakfun.com only
 
 const FUND_USTX = 2_800_000_000;   // locks are real now
 const STAKE_USTX = 800_000_000;
@@ -138,15 +139,8 @@ async function main() {
   };
   const okre = /^\(ok/;
 
-  // ---- PART A: the DEPLOYED v9, as-is -------------------------------------
-  call("A1 set-verified-contract(fakfun-wallet-v9)", DEPLOYER, WALLET_CORE,
-    "set-verified-contract", [principalCV(V9), noneCV()], okre);
-  call("A2 onboard on DEPLOYED v9 -> expect u6002 (registers against v8)",
-    FAKFUN_DEPLOYER, V9, "onboard", [pubkeyCV], "(err u6002)");
-
-  // ---- PART B: corrected copy, full lifecycle ------------------------------
   // fakfun-wallet-v10 is DEPLOYED on mainnet -- run against the real bytes.
-  call("B1 set-verified-contract(fakfun-wallet-v10)", DEPLOYER, WALLET_CORE,
+  call("set-verified-contract(fakfun-wallet-v10)", DEPLOYER, WALLET_CORE,
     "set-verified-contract", [principalCV(FIXED), noneCV()], okre);
   call("B2 onboard(pubkey) -> ok  [the fix]", FAKFUN_DEPLOYER, FIXED,
     "onboard", [pubkeyCV], okre);
@@ -234,19 +228,35 @@ async function main() {
     [listCV([]), uintCV(RC)], okre);
   evalc("R3 Juice pot for tranche 0",
     `(contract-call? '${DEPLOYER}.juice-pool-stx-signer get-stx-pot u${RC} u0)`, "pot", FIXED);
-  call("R4 signer.pay-stx-stakers([v10 wallet]) -> JUICE PAYS V10", RELAYER,
-    `${DEPLOYER}.juice-pool-stx-signer`, "pay-stx-stakers",
-    [listCV([principalCV(FIXED)]), uintCV(RC), uintCV(0)], okre);
+  REAL_STAKERS.forEach((p, i) =>
+    evalc(`  real staker ${i + 1} sBTC before`,
+      `(contract-call? '${SBTC_TOKEN} get-balance '${p})`, `rs${i}a`, FIXED));
+  call(`R4 pay-stx-stakers([v10 wallet + ${REAL_STAKERS.length} REAL stakers])`,
+    RELAYER, `${DEPLOYER}.juice-pool-stx-signer`, "pay-stx-stakers",
+    [listCV([principalCV(FIXED), ...REAL_STAKERS.map((p) => standardPrincipalCV(p))]),
+     uintCV(RC), uintCV(0)], okre);
+  REAL_STAKERS.forEach((p, i) =>
+    evalc(`  real staker ${i + 1} sBTC after`,
+      `(contract-call? '${SBTC_TOKEN} get-balance '${p})`, `rs${i}b`, FIXED));
   evalc("R4 wallet sBTC AFTER payout",
     `(contract-call? '${SBTC_TOKEN} get-balance '${FIXED})`, "rb1", FIXED);
-  call("R5 pay the SAME tranche again -> must pay nothing", RELAYER,
+  call("R5 pay the SAME tranche + SAME LIST again -> must pay nothing", RELAYER,
     `${DEPLOYER}.juice-pool-stx-signer`, "pay-stx-stakers",
-    [listCV([principalCV(FIXED)]), uintCV(RC), uintCV(0)], okre);
+    [listCV([principalCV(FIXED), ...REAL_STAKERS.map((p) => standardPrincipalCV(p))]),
+     uintCV(RC), uintCV(0)], okre);
   evalc("R5 wallet sBTC after replay",
     `(contract-call? '${SBTC_TOKEN} get-balance '${FIXED})`, "rb2", FIXED);
 
   call("C6 unstake by random -> u4001", RANDOM, FIXED, "unstake", [noneCV(), noneCV()], "(err u4001)");
-  call("C7 unstake (PASSKEY) -> ok", RELAYER, FIXED,
+  // Two ways out, both must work: admin key directly, and passkey via relayer.
+  // Re-stake in between so there is a live position for the second attempt.
+  call("C7a unstake by the ADMIN KEY (no signature) -> ok", OWNER, FIXED,
+    "unstake", [noneCV(), noneCV()], okre);
+  evalc("staker-info after the ADMIN unstake",
+    `(contract-call? '${POX5} get-staker-info '${FIXED})`, "iAdmin", FIXED);
+  call("C7b re-stake so there is a position to exit again", OWNER, FIXED,
+    "update-stake-stx-juice", [uintCV(50_000_000), uintCV(1), noneCV(), noneCV()], okre);
+  call("C7c unstake (PASSKEY via relayer) -> ok", RELAYER, FIXED,
     "unstake", [someCV(sigAuth(5, key.pubKeyHex, sUnstake)), noneCV()], okre);
   evalc("staker-info after unstake", `(contract-call? '${POX5} get-staker-info '${FIXED})`, "i4", FIXED);
   evalc("locked after unstake", `(stx-account '${FIXED})`, "lk2", FIXED);
@@ -376,6 +386,14 @@ async function main() {
   chk("Juice pot funded for the cycle", uu(cap.pot) > 0n);
   chk("JUICE PAID THE V10 WALLET (sBTC rose)", uu(cap.rb1) > uu(cap.rb0));
   chk("paying the same tranche twice pays nothing", uu(cap.rb2) === uu(cap.rb1));
+  let paid = 0;
+  console.log("   --- real stakers paid in the same fold as v10 ---");
+  REAL_STAKERS.forEach((p, i) => {
+    const d = uu(cap[`rs${i}b`]) - uu(cap[`rs${i}a`]);
+    if (d > 0n) paid++;
+    console.log(`   ${p}  +${d} sats`);
+  });
+  chk(`all ${REAL_STAKERS.length} real stakers paid alongside v10`, paid === REAL_STAKERS.length);
   console.log(`   sBTC before reward ${cap.rb0} -> after payout ${cap.rb1} -> after replay ${cap.rb2}`);
   chk("gas-paid top-up also moved the stake",
     amt(cap.iG) === BigInt(STAKE_USTX) + BigInt(TOPUP_USTX) + BigInt(GAS_TOPUP_USTX));
