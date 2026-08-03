@@ -1515,7 +1515,19 @@
       log-revoke-fast-pool
     ))
 
-    (try! (as-contract? ((with-stacking (locked-ustx)))
+    ;; with-all-assets-unsafe, and ONLY it, works here. Empirically:
+    ;;   (with-stacking (locked-ustx))            -> (err u128)
+    ;;   ()                                        -> (err u128)
+    ;;   (with-stacking ...) + (with-stx ...)      -> (err u128)
+    ;;   (with-all-assets-unsafe)                  -> (ok true)
+    ;; u128 is MAX_ALLOWANCES, the Clarity sentinel for "an asset class moved
+    ;; with no allowance covering it". pox-5's unstake rewrites the lock
+    ;; schedule and the node emits a movement no named allowance form matches.
+    ;; Getting OUT must always work, so the escape hatch is correct here --
+    ;; and it is bounded in practice: unstake moves nothing to a third party,
+    ;; it only shortens this contract's own lock.
+    ;; See simul-unstake-allowance-probe.js.
+    (try! (as-contract? ((with-all-assets-unsafe))
       (try! (contract-call? POX5 unstake JUICE-SIGNER))
     ))
     (print { event: "unstake" })

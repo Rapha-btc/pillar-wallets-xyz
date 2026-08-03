@@ -16,21 +16,48 @@ only fail. These contracts stake on pox-5.
 extend · unstake · auth guards · error codes · pool shares · gas station
 (20 sats sBTC) · multi-tranche reward payout · hostile-settle resistance.
 
-**Not covered, and not closable in simulation:**
+**STXER FIXED THE LOCK HANDLER** (stxer/stxer-sdk#7). STX now genuinely locks in
+simulation, `stx-account` is authoritative, and `(with-stacking ...)` allowances
+are really enforced. Everything below was re-run against the fixed simulator.
+Conclusions written before that fix — that lock/unlock was unobservable and the
+allowance unverifiable — are obsolete.
 
-| gap | why | how to close |
-|---|---|---|
-| `with-stacking` enforcement | stxer never runs the node PoX lock handler, so the allowance is never evaluated | one small mainnet stake + top-up |
-| live sBTC bonds | reward runs pass an empty `bond-periods` list, valid only while no bonds are active | re-run once a bond exists |
+**`(locked-ustx)` is now VERIFIED**
+([`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776)).
+Same contract, two allowance expressions, identical top-up:
 
-**Blockers before real funds:**
+```
+(with-stacking amount-increase)                    -> (err u0)   REJECTED
+(with-stacking (+ (locked-ustx) amount-increase))  -> (ok true)
+```
 
-1. `fakfun-wallet-v9` is **dead on arrival** — `onboard` -> `(err u6002)`.
-   Needs a v10. See section 3 below.
-2. Neither wallet is registered as canonical — the first `onboard` fails
+**BLOCKERS — both deployed wallets need a redeploy:**
+
+1. **`unstake` cannot succeed on either deployed wallet.** Real locks exposed it:
+   `(err u128)` = `MAX_ALLOWANCES`, "an asset class moved with no allowance
+   covering it". Probe
+   ([`dd44502e`](https://stxer.xyz/simulations/mainnet/dd44502efcdf8cdec5991c53f903113b)):
+
+   ```
+   (with-stacking (locked-ustx))           -> (err u128)   <- what is deployed
+   ()                                       -> (err u128)
+   (with-stacking ...) + (with-stx ...)     -> (err u128)
+   (with-all-assets-unsafe)                 -> (ok true)   <- only this works
+   ```
+
+   Fixed in source and verified in full wallet context
+   ([`a2f53f4a`](https://stxer.xyz/simulations/mainnet/a2f53f4ae1b499dc719baf0cd38f426c)).
+   Needs **`juice-safe-v1`**.
+
+2. **`fakfun-wallet-v9` is dead on arrival** — `onboard` -> `(err u6002)`, it
+   registers against `.fakfun-wallet-v8`. Needs **`fakfun-wallet-v10`**, which
+   should carry the unstake fix too.
+
+3. Neither wallet is registered as canonical — the first `onboard` fails
    `(err u6001)` until `set-verified-contract` is called. See section 2.
-3. The mainnet allowance test above is the last thing standing between this and
-   full certainty on the `(locked-ustx)` term.
+
+**Still not closable in simulation:** live sBTC bonds — reward runs pass an
+empty `bond-periods` list, valid only while no bonds are active.
 
 ---
 
@@ -82,7 +109,10 @@ fork. Nothing is redeployed; each call hits the on-chain bytes.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v0-lifecycle.js` | [`cdbfedc1`](https://stxer.xyz/simulations/mainnet/cdbfedc159e881a9a96c5afa6eae962f) | **40/40** — full lifecycle, gas station, payout, unstake+unlock, withdrawals |
+| `simul-juice-safe-v0-lifecycle.js` | [`b89bb343`](https://stxer.xyz/simulations/mainnet/b89bb34389a90fa44107b36d5643be02) | 45/3 — everything green except the 3 unstake failures above |
+| `simul-allowance-probe.js` | [`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776) | allowance discriminator — **now discriminates** |
+| `simul-unstake-allowance-probe.js` | [`dd44502e`](https://stxer.xyz/simulations/mainnet/dd44502efcdf8cdec5991c53f903113b) | isolates the unstake allowance bug |
+| `simul-juice-safe-v1-unstake-fix.js` | [`a2f53f4a`](https://stxer.xyz/simulations/mainnet/a2f53f4ae1b499dc719baf0cd38f426c) | **7/7** — the fix works |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
 | `simul-juice-safe-v0-recovery.js` | [`ac02e3a7`](https://stxer.xyz/simulations/mainnet/ac02e3a7ab3dfe81128017f81c9e06c6) | **16/16** — 2FA transfer + inactivity recovery |
 | `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | **32/32** — independent second harness |
@@ -236,44 +266,16 @@ nothing.
 
 ## NOT covered — read this before trusting a green run
 
-### 1. `with-stacking` enforcement is unverifiable on stxer
+### 1. `with-stacking` enforcement — RESOLVED
 
-stxer replays pox-5 *contract* state but does not run the node's PoX lock
-handler. Visible directly in the deployed-contract run
-([`12bc1378`](https://stxer.xyz/simulations/mainnet/12bc137820d8110284b7b38d33c05f4c)):
+This section previously said the allowance could not be verified, because stxer
+did not run the node's PoX lock handler: no `STXLockEvent`, `stx-account` stuck
+at `locked u0`, and the allowance branch skipped so any value passed. That was
+true of the simulator, not of the contract.
 
-- **`stx-account` reports `locked u0` at every step** — before the stake, after
-  the stake, after a top-up, after advancing 1360 burn blocks into the first
-  reward cycle, and after a further top-up. The lock never applies.
-- no `STXLockEvent` in any trace — the event list is all `CONTRACT_LOG`
-- pox-5's own event nevertheless declares `unlock-burn-height u1163750`: the
-  contract fully intends the lock, the account simply never receives it
-
-The allowance is only consulted when a stacking entry exists in the asset map:
-
-```rust
-if let Some(stx_stacked) = assets.get_stacking(owner) {   // None -> skipped
-    if stx_stacked > *allowance { record_violation(...) }
-}
-```
-
-No lock means no entry, means the branch is never taken, means **any**
-`(with-stacking N)` passes regardless of `N`. A green top-up is therefore a real
-pass of the *function* and a non-result for the *allowance line*.
-
-Corroborated by a control (`simul-allowance-probe.js`, and independently
-`simulations/verify-juice-safe-v0-pc-negative.js`): the same contract compiled
-two ways — correct allowance vs deliberately under-declared — both pass the
-identical `stake-update`.
-
-The evidence for the `(locked-ustx)` term stays the two failed mainnet
-transactions it came from, plus stacks-core's handler logging `amount_locked()`.
-
-**To close it:** stake a small amount from `juice-safe-v0` on mainnet, then top
-up. With `(+ (locked-ustx) amount-increase)` it succeeds; with `amount-increase`
-alone it aborts.
-
-Reported upstream: https://github.com/stxer/stxer-sdk/issues/7
+Fixed upstream (stxer/stxer-sdk#7). Locks now apply immediately on `stake`, and
+the allowance is genuinely checked — a deliberately under-declared one aborts.
+See the status block at the top.
 
 ### 1b. Live sBTC bonds are untested
 

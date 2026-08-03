@@ -94,6 +94,20 @@ const GAS_SATS = 20n;
 const GAS_TOPUP_USTX = 50_000_000;
 const REWARD_SATS = 2_000_000;   // sBTC sent to pox-5 = the cycle's rewards
 const REWARD_CYCLE = 141;
+// REAL Juice stakers with live cycle-141 shares, discovered on chain from
+// pox-5 stake/stake-update calls and the signer's set-og list. Paid in the
+// same fold as the safe, to exercise pay-stx-stakers across a real list
+// rather than a single synthetic entry.
+const REAL_STAKERS = [
+  "SP3TA7SMY7APYR9SFKDT0527NC0GWR84S3AHEM0NE",  // u50055762570
+  "SP3A4CP63QJB1R0EJR3TJ1PN16FC5HVJSPT77C8C0",  // u42025933179
+  "SP3TS3T9GSGFEDW7ZBJNFXMH6RY0AP7HNCQEE77DH",  // u10000357028
+  "SP3WAAYXPC6WZNEC7SHGR36D32RJPZVXRR1BG0QSY",  // u370074740
+  "SP1JAG6TV2XRYFGJN7CAAN6Z3CEW2YMZWMHJAJV91",  // u290373791
+  "SP389APB4DHZ836P4AE9RJW7EKEZAPV5NPDNG7N46",  // u218045440
+  "SP18QG8A8943KY9S15M08AMAWWF58W9X1M90BRCSJ",  // u101208721
+  "SP218F71JZ4R2ERQDKEBGA1FKVAQNZBM3HK7W8EA7",  // u100975859
+];
 
 const STACKS_NODE_API = "http://77.42.3.101/stacks-api";
 const RP_ID = "juiceofbtc.com"; // RP-ID-HASH-JUICEOFBTC-COM is whitelisted
@@ -102,7 +116,7 @@ const RP_ID = "juiceofbtc.com"; // RP-ID-HASH-JUICEOFBTC-COM is whitelisted
 // The safe is funded with 1,500 STX and stakes 1,000 then tops up 200. pox-5
 // requires the locked amount to be covered by the account's balance, and leaves
 // enough unlocked for fees.
-const FUND_USTX = 1_500_000_000;
+const FUND_USTX = 2_800_000_000;   // whale holds ~3139 STX; locks are real now
 const STAKE_USTX = 1_000_000_000;
 const TOPUP_USTX = 200_000_000;
 const EXTEND_CYCLES = 1;   // 96 is the max; post-advance num-cycles is 95
@@ -143,6 +157,12 @@ const tUpdateStake = (authId, amountIncrease, cyclesToExtend) =>
     "amount-increase": uintCV(amountIncrease),
     "cycles-to-extend": uintCV(cyclesToExtend),
   });
+const tExecuteNow = (authId, opId) =>
+  tupleCV({
+    topic: stringAsciiCV("execute-now"),
+    "auth-id": uintCV(authId),
+    "op-id": uintCV(opId),
+  });
 const tUnstake = (authId) =>
   tupleCV({
     topic: stringAsciiCV("unstake-stx-juice"),
@@ -170,6 +190,7 @@ async function main() {
   const sigExtend = sign(buildChallenge(tUpdateStake(2, 0, EXTEND_CYCLES)));
   const sigUnstake = sign(buildChallenge(tUnstake(3)));
   const sigGasTopup = sign(buildChallenge(tUpdateStake(7, GAS_TOPUP_USTX, 0)));
+  const sigNow0 = sign(buildChallenge(tExecuteNow(8, 0)));
 
   const plan = [];
   const b = SimulationBuilder.new({ stacksNodeAPI: STACKS_NODE_API });
@@ -307,15 +328,24 @@ async function main() {
   // simul-tranche-attack.js: 4 hostile settles, payouts unaffected.)
   evalc("R safe sBTC BEFORE payout",
     `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sb0", WALLET);
-  call("R signer.pay-stx-stakers([safe]) -> JUICE PAYS US (no settle)", RELAYER, SIGNER,
-    "pay-stx-stakers", [listCV([principalCV(WALLET)]), uintCV(REWARD_CYCLE), uintCV(0)], okre);
+  REAL_STAKERS.forEach((p, i) =>
+    evalc(`  real staker ${i + 1} sBTC before`,
+      `(contract-call? '${SBTC_TOKEN} get-balance '${p})`, `rs${i}a`, WALLET));
+  call(`R signer.pay-stx-stakers([safe + ${REAL_STAKERS.length} REAL stakers]) -> pays the whole list`,
+    RELAYER, SIGNER, "pay-stx-stakers",
+    [listCV([principalCV(WALLET), ...REAL_STAKERS.map((p) => standardPrincipalCV(p))]),
+     uintCV(REWARD_CYCLE), uintCV(0)], okre);
+  REAL_STAKERS.forEach((p, i) =>
+    evalc(`  real staker ${i + 1} sBTC after`,
+      `(contract-call? '${SBTC_TOKEN} get-balance '${p})`, `rs${i}b`, WALLET));
   evalc("R safe sBTC AFTER payout",
     `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sb1", WALLET);
 
   // ---- PAY TWICE: the stx-paid guard --------------------------------------
-  call("R2 pay-stx-stakers AGAIN, same tranche -> must pay NOTHING",
+  call("R2 pay-stx-stakers AGAIN, same tranche, SAME LIST -> must pay NOTHING",
     RELAYER, SIGNER, "pay-stx-stakers",
-    [listCV([principalCV(WALLET)]), uintCV(REWARD_CYCLE), uintCV(0)], okre);
+    [listCV([principalCV(WALLET), ...REAL_STAKERS.map((p) => standardPrincipalCV(p))]),
+     uintCV(REWARD_CYCLE), uintCV(0)], okre);
   evalc("safe sBTC after the SECOND pay",
     `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sbDouble", WALLET);
 
@@ -350,6 +380,31 @@ async function main() {
     [uintCV(WD_STX_OVER), standardPrincipalCV(RECIPIENT), noneCV(), noneCV(), noneCV()], okre);
   evalc("W2 recipient STX after over-threshold attempt",
     `(stx-get-balance '${RECIPIENT})`, "rStx2", WALLET);
+  evalc("W2 the pending op that was created", "(get-pending-operation u0)", "op0", WALLET);
+
+  // ---- PATH 1: passkey 2FA lifts the cooldown ------------------------------
+  // The op was created by the ADMIN key (sig-auth none), so passkey-created is
+  // false and the fast path is allowed -- that is the 2FA: admin created it,
+  // passkey releases it. A passkey-CREATED op cannot be fast-tracked by the
+  // same passkey (that would be one factor twice) and must serve the cooldown.
+  call("W4 plain execute BEFORE cooldown -> u4017", OWNER, WALLET,
+    "execute-pending-stx-transfer", [uintCV(0), noneCV()], "(err u4017)");
+  call("W5 execute-pending-stx-transfer-NOW (PASSKEY 2FA) -> ok, no waiting",
+    RELAYER, WALLET, "execute-pending-stx-transfer-now",
+    [uintCV(0), noneCV(), sigAuthTuple(8, key.pubKeyHex, sigNow0), noneCV()], okre);
+  evalc("W5 recipient STX after the 2FA fast-path",
+    `(stx-get-balance '${RECIPIENT})`, "rStx3", WALLET);
+
+  // ---- PATH 2: serve the 144-block cooldown --------------------------------
+  call(`W6 withdraw ${WD_STX_OVER / 1e6} STX again (OVER threshold -> op 1)`,
+    OWNER, WALLET, "stx-transfer",
+    [uintCV(WD_STX_OVER), standardPrincipalCV(RECIPIENT), noneCV(), noneCV(), noneCV()], okre);
+  b.addAdvanceBlocks({ bitcoin_blocks: 150, stacks_blocks_per_bitcoin: 1 });
+  plan.push({ kind: "advance", label: "advance 150 (past the u144 cooldown)" });
+  call("W7 plain execute AFTER cooldown -> ok", OWNER, WALLET,
+    "execute-pending-stx-transfer", [uintCV(1), noneCV()], okre);
+  evalc("W7 recipient STX after the cooldown path",
+    `(stx-get-balance '${RECIPIENT})`, "rStx4", WALLET);
 
   evalc("W3 recipient sBTC before",
     `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "rSb0", WALLET);
@@ -412,16 +467,17 @@ async function main() {
   const chk = (l, cond) => { console.log(`${cond ? "PASS" : "FAIL"} ${l}`); cond ? pass++ : fail++; };
   chk("owner set at onboard", String(cap.owner0).includes(OWNER));
   chk("nothing locked before stake", lockedFrom(cap.acct0) === 0n);
-  chk("pre-advance: lock NOT yet applied (expected -- cycle 141 not reached)",
-    lockedFrom(cap.acct1) === 0n);
+  chk("stake locks IMMEDIATELY (stxer now runs the PoX lock handler)",
+    lockedFrom(cap.acct1) === BigInt(STAKE_USTX));
   chk("staker-info present after stake", String(cap.info1).startsWith("(some"));
   chk("staker-info names the Juice signer",
     String(cap.info1).includes("juice-pool-stx-signer"));
   // stxer does not run the node PoX lock handler (no STXLockEvent is emitted),
   // so account locks never move here. Assert the KNOWN behaviour instead of a
   // mainnet expectation the simulator cannot produce.
-  chk("stxer applied no account lock (expected: no STXLockEvent emitted)",
-    lockedFrom(cap.acctL) === 0n && lockedFrom(cap.acctL2) === 0n);
+  chk("lock persists across the cycle boundary", lockedFrom(cap.acctL) > 0n);
+  chk("live top-up raised the account lock",
+    lockedFrom(cap.acctL2) > lockedFrom(cap.acctL));
   chk("we hold shares in the Juice pool for cycle 141",
     /u[1-9]/.test(String(cap.shares)));
   chk("extend increased num-cycles", String(cap.infoE).includes("num-cycles"));
@@ -432,6 +488,16 @@ async function main() {
   chk("Juice pot funded for the cycle", u(cap.pot) > 0n);
   chk("JUICE PAID THE SAFE (sBTC balance rose)", u(cap.sb1) > u(cap.sb0));
   chk("paying the SAME tranche twice pays nothing", u(cap.sbDouble) === u(cap.sb1));
+  let paidCount = 0;
+  console.log("\n   --- real stakers paid in the same fold ---");
+  REAL_STAKERS.forEach((p, i) => {
+    const before = u(cap[`rs${i}a`]), after = u(cap[`rs${i}b`]);
+    const delta = after - before;
+    if (delta > 0n) paidCount++;
+    console.log(`   ${p}  +${delta} sats`);
+  });
+  chk(`all ${REAL_STAKERS.length} real stakers were paid in the same call`,
+    paidCount === REAL_STAKERS.length);
   const amtOf = (x) => BigInt((String(x).match(/amount-ustx u(\d+)/) || [])[1] ?? "-1");
   chk("LOCK LIFECYCLE 1/4 - pox-5 records the stake as locked",
     amtOf(cap.info1) === BigInt(STAKE_USTX));
@@ -451,6 +517,10 @@ async function main() {
     u(cap.rStx1) - u(cap.rStx0) === BigInt(WD_STX_UNDER));
   chk("STX withdrawal OVER threshold moved NOTHING (pending op)",
     u(cap.rStx2) === u(cap.rStx1));
+  chk("2FA fast-path released the over-threshold op immediately",
+    u(cap.rStx3) - u(cap.rStx2) === BigInt(WD_STX_OVER));
+  chk("cooldown path released the second op after 144 blocks",
+    u(cap.rStx4) - u(cap.rStx3) === BigInt(WD_STX_OVER));
   chk("sBTC withdrawal moved funds",
     u(cap.rSb1) - u(cap.rSb0) === BigInt(WD_SBTC));
   console.log(`   after unstake : ${cap.uAcct}`);
