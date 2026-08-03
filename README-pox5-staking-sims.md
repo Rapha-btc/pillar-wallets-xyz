@@ -53,63 +53,101 @@ should hide extend while `num-cycles` is at the cap.
 
 ## Simulations
 
+Every reference below runs against the **deployed** contracts on a mainnet
+fork. Nothing is redeployed; each call hits the on-chain bytes.
+
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v0-lifecycle.js` | [`80d666f6`](https://stxer.xyz/simulations/mainnet/80d666f6ff5162bf722852f70f6ebb4b) | **25/25** — full lifecycle + real reward payout |
-| `simul-fakfun-wallet-v9.js` | [`6ae99c6e`](https://stxer.xyz/simulations/mainnet/6ae99c6ed0bc6934fed4cf4584bdebed) | **25/25** — v8→v9 delta + gas station |
-| `simul-juice-safe-v0.js` | [`d5906be5`](https://stxer.xyz/simulations/mainnet/d5906be5c28aadd893352a840376a17a) | 13/13 — pre-advance baseline |
-| `simul-allowance-probe.js` | [`c64d66a2`](https://stxer.xyz/simulations/mainnet/c64d66a2ae5d1d9a7287fba9e8961be7) | **negative result, by design** |
-| `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | 32/32 — independent second harness |
-| `simulations/verify-juice-safe-v0-pc-negative.js` | [`6b575389`](https://stxer.xyz/simulations/mainnet/6b575389e542484281d6dd1962a7e05c) | negative, agrees with the probe |
+| `simul-juice-safe-v0-lifecycle.js` | [`4723fe69`](https://stxer.xyz/simulations/mainnet/4723fe690d0c022ce27f25e276a9de07) | **28/28** — full lifecycle, gas station, reward payout |
+| `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | **32/32** — independent second harness |
+| `simul-fakfun-wallet-v9.js` (Part A) | [`6ae99c6e`](https://stxer.xyz/simulations/mainnet/6ae99c6ed0bc6934fed4cf4584bdebed) | deployed v9 `onboard` -> **`(err u6002)`** |
 
-All run against the **deployed** contracts, not fresh copies.
+### What the lifecycle run covers
+
+`SPV9K21T....juice-safe-v0`, step by step:
+
+```
+ 1  set-verified-contract                      (ok true)
+ 3  onboard                                    (ok true)
+ 6  stake by a random principal                (err u4001)   auth guard
+ 7  stake amount u0                            (err u4026)   err-zero-amount
+ 8  STAKE via passkey (rp juiceofbtc.com)      (ok true)
+10  staker-info      amount-ustx u1000000000, cycle 141, 96 cycles,
+                     signer = juice-pool-stx-signer
+11  TOP-UP (admin)                             (ok true)
+    fund 5000 sats sBTC
+    GAS-PAID top-up via passkey + gas-station  (ok true)   sBTC 5000 -> 4980
+    update with amount u0 AND cycles u0        (err u4026)
+    ADVANCE 1360 burn blocks  (cycle 140 -> 141)
+    TOP-UP post-advance                        (ok true)
+19  EXTEND +1 cycle via passkey                (ok true)   num-cycles 96 -> 97
+21  our shares cycle 141   u1250000000
+22  pool total cycle 141   u32244932193354
+    send 2,000,000 sats -> pox-5;  ADVANCE 1100
+    pox-5.calculate-rewards []                 rewards-per-ustx u52721463013
+    signer.pox-claim-rewards                   pot u5502
+    signer.pox-settle-stakers([safe])          entitlement u65
+34  signer.pay-stx-stakers([safe])             safe sBTC 4980 -> 5045
+```
+
+The gas station leg is the `(gas (optional <gas-trait>))` branch: a relayer
+broadcasts, and the safe pays the sponsor 20 sats of its own sBTC, bounded by
+`(with-ft sbtc-token max-gas-amount)` = `u1000`. Live values read from chain:
+`gas-station.get-gas` -> `u20`, `get-sponsor` -> `SPV9K21T...`.
 
 ### Reward payout IS reproducible on a fork
 
 pox-5 derives rewards from its own sBTC balance —
 `(get-rewards) = sbtc-balance(pox-5) - total-sbtc-staked - reserve` — so no BTC
-miner payout is needed. Sending sBTC to pox-5 and advancing is sufficient:
-
-```
-send 2,000,000 sats -> pox-5      get-new-rewards  u2000000
-advance 1100 blocks               (a distribution cycle = HALF a reward cycle)
-pox-5.calculate-rewards []        rewards-per-ustx u52721463013
-signer.pox-claim-rewards          total-rewards    u5502  -> Juice pot
-signer.pox-settle-stakers([safe]) entitlement      u63
-signer.pay-stx-stakers([safe])    safe sBTC u0 -> u63
-```
+miner payout is needed. Sending sBTC to pox-5 and advancing past a distribution
+cycle (HALF a reward cycle, 1050 blocks) is sufficient.
 
 `calculate-rewards` and `pox-claim-rewards` are **permissionless** — both were
 called from an unrelated relayer, not the admin. Only `set-admin`, `set-paused`
-and fee changes are gated. The operator cannot withhold distribution.
+and fee changes are gated, so the operator cannot withhold distribution.
 
 The empty `bond-periods` list is accepted only because no sBTC bonds are active.
-
----
 
 ## NOT covered — read this before trusting a green run
 
 ### 1. `with-stacking` enforcement is unverifiable on stxer
 
 stxer replays pox-5 *contract* state but does not run the node's PoX lock
-handler. Consequences, all directly observed:
+handler. Visible directly in the deployed-contract run
+([`4723fe69`](https://stxer.xyz/simulations/mainnet/4723fe690d0c022ce27f25e276a9de07)):
 
-- no `STXLockEvent` in any trace — only `CONTRACT_LOG` entries
-- `stx-account` reports `locked u0` **even after advancing a full reward cycle**
-- no asset-map stacking entry, so `get_stacking(owner)` is `None` and the
-  allowance branch is skipped entirely
+- **`stx-account` reports `locked u0` at every step** — before the stake, after
+  the stake, after a top-up, after advancing 1360 burn blocks into the first
+  reward cycle, and after a further top-up. The lock never applies.
+- no `STXLockEvent` in any trace — the event list is all `CONTRACT_LOG`
+- pox-5's own event nevertheless declares `unlock-burn-height u1163750`: the
+  contract fully intends the lock, the account simply never receives it
 
-Therefore **any** `(with-stacking N)` passes regardless of `N`. Two independent
-controls confirm it — `simul-allowance-probe.js` and
-`verify-juice-safe-v0-pc-negative.js` each deployed the known-bad
-`amount-increase` version alongside the correct one and **both passed**.
+The allowance is only consulted when a stacking entry exists in the asset map:
 
-A green top-up is *not* evidence the `(locked-ustx)` term is right. The evidence
-for that line is the two failed mainnet transactions it came from, plus
-stacks-core's handler logging `amount_locked()`.
+```rust
+if let Some(stx_stacked) = assets.get_stacking(owner) {   // None -> skipped
+    if stx_stacked > *allowance { record_violation(...) }
+}
+```
 
-**To actually close it:** stake a small amount from `juice-safe-v0` on mainnet,
-then top up. If the allowance were still `amount-increase`, the top-up aborts.
+No lock means no entry, means the branch is never taken, means **any**
+`(with-stacking N)` passes regardless of `N`. A green top-up is therefore a real
+pass of the *function* and a non-result for the *allowance line*.
+
+Corroborated by a control (`simul-allowance-probe.js`, and independently
+`simulations/verify-juice-safe-v0-pc-negative.js`): the same contract compiled
+two ways — correct allowance vs deliberately under-declared — both pass the
+identical `stake-update`.
+
+The evidence for the `(locked-ustx)` term stays the two failed mainnet
+transactions it came from, plus stacks-core's handler logging `amount_locked()`.
+
+**To close it:** stake a small amount from `juice-safe-v0` on mainnet, then top
+up. With `(+ (locked-ustx) amount-increase)` it succeeds; with `amount-increase`
+alone it aborts.
+
+Reported upstream: https://github.com/stxer/stxer-sdk/issues/7
 
 ### 2. Prerequisite: neither wallet is registered as canonical
 

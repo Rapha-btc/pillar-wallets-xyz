@@ -84,6 +84,10 @@ const POX5 = "SP000000000000000000002Q6VF78.pox-5";
 const SIGNER = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer";
 const SBTC_TOKEN = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 const SBTC_WHALE = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";
+const GAS_STATION_NAME = "gas-station";   // get-gas u20, get-sponsor SPV9K21T...
+const SBTC_FUND = 5_000;
+const GAS_SATS = 20n;
+const GAS_TOPUP_USTX = 50_000_000;
 const REWARD_SATS = 2_000_000;   // sBTC sent to pox-5 = the cycle's rewards
 const REWARD_CYCLE = 141;
 
@@ -161,6 +165,7 @@ async function main() {
   const sigStake = sign(buildChallenge(tStake(1, STAKE_USTX)));
   const sigExtend = sign(buildChallenge(tUpdateStake(2, 0, EXTEND_CYCLES)));
   const sigUnstake = sign(buildChallenge(tUnstake(3)));
+  const sigGasTopup = sign(buildChallenge(tUpdateStake(7, GAS_TOPUP_USTX, 0)));
 
   const plan = [];
   const b = SimulationBuilder.new({ stacksNodeAPI: STACKS_NODE_API });
@@ -209,6 +214,21 @@ async function main() {
   call("C1 update top-up (admin) -> ok", OWNER, WALLET,
     "update-stake-stx-juice", [uintCV(TOPUP_USTX), uintCV(0), noneCV(), noneCV()], okre);
   evalc("safe stx-account AFTER top-up", `(stx-account '${WALLET})`, "acct2");
+  // ---- GAS STATION on the DEPLOYED safe -----------------------------------
+  // Relayer broadcasts; the safe pays the sponsor 20 sats of sBTC out of its
+  // own balance, bounded by (with-ft sbtc-token max-gas-amount) = u1000.
+  call(`fund ${SBTC_FUND} sats sBTC (for gas)`, SBTC_WHALE, SBTC_TOKEN, "transfer",
+    [uintCV(SBTC_FUND), standardPrincipalCV(SBTC_WHALE), principalCV(WALLET), noneCV()], okre);
+  evalc("G sBTC BEFORE gas-paid call",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "gsb0", WALLET);
+  call("G top-up via PASSKEY + GAS STATION (safe pays 20 sats) -> ok",
+    RELAYER, WALLET, "update-stake-stx-juice",
+    [uintCV(GAS_TOPUP_USTX), uintCV(0),
+     someCV(sigAuthTuple(7, key.pubKeyHex, sigGasTopup)),
+     someCV(contractPrincipalCV(DEPLOYER, GAS_STATION_NAME))], okre);
+  evalc("G sBTC AFTER gas-paid call",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "gsb1", WALLET);
+
   call("C2 update with amount u0 AND cycles u0 -> u4026", OWNER, WALLET,
     "update-stake-stx-juice", [uintCV(0), uintCV(0), noneCV(), noneCV()], "(err u4026)");
   // -- ADVANCE across the cycle boundary so the lock actually applies --------
@@ -349,6 +369,8 @@ async function main() {
     /u[1-9]/.test(String(cap.shares)));
   chk("extend increased num-cycles", String(cap.infoE).includes("num-cycles"));
   const u = (x) => BigInt((String(x).match(/u(\d+)/) || [])[1] ?? "-1");
+  chk(`gas station charged the safe exactly ${GAS_SATS} sats`,
+    u(cap.gsb0) - u(cap.gsb1) === GAS_SATS);
   chk("pox-5 saw the reward drop", u(cap.newrew) > 0n);
   chk("Juice pot funded for the cycle", u(cap.pot) > 0n);
   chk("JUICE PAID THE SAFE (sBTC balance rose)", u(cap.sb1) > u(cap.sb0));
