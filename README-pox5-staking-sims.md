@@ -84,6 +84,7 @@ fork. Nothing is redeployed; each call hits the on-chain bytes.
 |---|---|---|
 | `simul-juice-safe-v0-lifecycle.js` | [`cdbfedc1`](https://stxer.xyz/simulations/mainnet/cdbfedc159e881a9a96c5afa6eae962f) | **40/40** — full lifecycle, gas station, payout, unstake+unlock, withdrawals |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
+| `simul-juice-safe-v0-recovery.js` | [`ac02e3a7`](https://stxer.xyz/simulations/mainnet/ac02e3a7ab3dfe81128017f81c9e06c6) | **16/16** — 2FA transfer + inactivity recovery |
 | `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | **32/32** — independent second harness |
 | `simul-fakfun-wallet-v9.js` (Part A) | [`6ae99c6e`](https://stxer.xyz/simulations/mainnet/6ae99c6ed0bc6934fed4cf4584bdebed) | deployed v9 `onboard` -> **`(err u6002)`** |
 
@@ -172,6 +173,37 @@ pay tranche 0 AGAIN  (ok u0)    sBTC 5045 -> 5045
 
 The `stx-paid {reward-cycle, tranche, staker}` guard makes `pay-stx-stakers`
 idempotent per tranche, so an operator script is safe to re-run.
+
+### Owner-change escape hatches
+
+Both verified on the deployed contract
+([`ac02e3a7`](https://stxer.xyz/simulations/mainnet/ac02e3a7ab3dfe81128017f81c9e06c6)):
+
+```
+2FA TRANSFER
+  propose-transfer by RANDOM      (err u4001)   not admin
+  propose-transfer by ADMIN       (ok true)
+  owner after propose             STILL OWNER   <- factor 1 alone moves nothing
+  confirm-transfer, WRONG rp.id   (err u4002)   example.com rejected
+  confirm-transfer, PASSKEY       (ok true)  -> owner = NEW_OWNER
+
+INACTIVITY RECOVERY  (INACTIVITY-PERIOD u52560 burn blocks, ~1 year)
+  recover by RECOVERY while ACTIVE  (err u4009)
+  ...advance 52,660 blocks...       is-inactive -> true
+  recover by RANDOM                 (err u4001)   wrong principal
+  recover by RECOVERY               (ok true)  -> owner = RESCUED
+  is-inactive after                 false         clock reset
+```
+
+Two consequences worth surfacing in the UI:
+
+- **Every wallet call runs `update-activity`**, restarting the ~1-year clock.
+  Recovery is a last resort for an abandoned wallet, not a fast path.
+- **Transfer is an exit ramp, not a rotation.** The new owner inherits the
+  wallet but has no registered passkey and can never add one, so every
+  passkey-gated action becomes unavailable to them. Deliberate -- any
+  post-onboard passkey-add path reachable by the admin key alone would let a
+  compromised admin key satisfy both factors itself.
 
 ### `pox-settle-stakers` is NOT on the payment path
 
