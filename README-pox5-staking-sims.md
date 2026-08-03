@@ -58,7 +58,8 @@ fork. Nothing is redeployed; each call hits the on-chain bytes.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v0-lifecycle.js` | [`4723fe69`](https://stxer.xyz/simulations/mainnet/4723fe690d0c022ce27f25e276a9de07) | **28/28** — full lifecycle, gas station, reward payout |
+| `simul-juice-safe-v0-lifecycle.js` | [`12bc1378`](https://stxer.xyz/simulations/mainnet/12bc137820d8110284b7b38d33c05f4c) | **27/27** — full lifecycle, gas station, reward payout |
+| `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
 | `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | **32/32** — independent second harness |
 | `simul-fakfun-wallet-v9.js` (Part A) | [`6ae99c6e`](https://stxer.xyz/simulations/mainnet/6ae99c6ed0bc6934fed4cf4584bdebed) | deployed v9 `onboard` -> **`(err u6002)`** |
 
@@ -85,9 +86,8 @@ fork. Nothing is redeployed; each call hits the on-chain bytes.
 22  pool total cycle 141   u32244932193354
     send 2,000,000 sats -> pox-5;  ADVANCE 1100
     pox-5.calculate-rewards []                 rewards-per-ustx u52721463013
-    signer.pox-claim-rewards                   pot u5502
-    signer.pox-settle-stakers([safe])          entitlement u65
-34  signer.pay-stx-stakers([safe])             safe sBTC 4980 -> 5045
+    signer.pox-claim-rewards                   pot u5452
+    signer.pay-stx-stakers([safe])             safe sBTC 4980 -> 5045
 ```
 
 The gas station leg is the `(gas (optional <gas-trait>))` branch: a relayer
@@ -107,6 +107,35 @@ called from an unrelated relayer, not the admin. Only `set-admin`, `set-paused`
 and fee changes are gated, so the operator cannot withhold distribution.
 
 The empty `bond-periods` list is accepted only because no sBTC bonds are active.
+
+### `pox-settle-stakers` is NOT on the payment path
+
+The operator flow is only:
+
+```
+sBTC -> pox-5  ->  calculate-rewards  ->  pox-claim-rewards  ->  pay-stx-stakers
+```
+
+`pay-one` computes `owed = pot(cycle,tranche) * shares / total-shares`, reading
+only Juice's local `stx-pot` and pox-5's `staker-shares-staked-for-cycle`.
+`settle` writes neither — it touches `staker-unclaimed-rewards-for-cycle` and
+`staker-rewards-per-token-settled-for-cycle`, a reward watermark nothing in the
+payout reads. Shares are written **only** by the stake/unstake paths
+(`add-/remove-staker-from-signer-for-cycle` and the bond equivalents).
+
+Verified both ways:
+
+- **omitted** — [`12bc1378`](https://stxer.xyz/simulations/mainnet/12bc137820d8110284b7b38d33c05f4c)
+  pays the identical 65 sats with no settle anywhere
+- **abused** — [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62)
+  4 hostile `pox-settle-stakers` calls from an unrelated principal (between
+  tranches, after a tranche is claimed but before it is paid, then 3 in a row):
+  tranche 1 still pays in full, shares stay `u1250000000`, and replaying a paid
+  tranche pays `u0`
+
+`pox-settle-stakers` is permissionless, like `calculate-rewards` and
+`pox-claim-rewards`. An attacker calling it burns their own gas and changes
+nothing.
 
 ## NOT covered — read this before trusting a green run
 

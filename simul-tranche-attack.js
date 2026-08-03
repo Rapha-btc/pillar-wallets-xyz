@@ -264,49 +264,66 @@ async function main() {
     `(contract-call? '${POX5} get-staker-unclaimed-rewards-for-cycle 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer u141 none '${WALLET})`,
     "rew", WALLET);
 
-  // ---- REWARD PAYOUT ------------------------------------------------------
-  // Rewards are simply sBTC sitting in the pox-5 contract: pox-5 derives them
-  // as (sbtc-balance - total-sbtc-staked - reserve). So "Juice getting paid" is
-  // modelled by sending sBTC to pox-5 and then running the distribution chain:
-  //   pox-5.calculate-rewards          (permissionless, needs a NEW dist cycle;
-  //                                     a dist cycle is HALF a reward cycle)
-  //   signer.pox-claim-rewards         pulls the signer's share into its pot
-  //   signer.pay-stx-stakers           pays them out of the pot
-  //   (pox-settle-stakers is NOT needed and is not called -- see below)
-  evalc("R0 pox-5 sBTC balance BEFORE reward drop",
-    `(contract-call? '${SBTC_TOKEN} get-balance '${POX5})`, "px0", WALLET);
-  call(`R1 send ${REWARD_SATS} sats to pox-5 (= the cycle's rewards)`,
-    SBTC_WHALE, SBTC_TOKEN, "transfer",
-    [uintCV(REWARD_SATS), standardPrincipalCV(SBTC_WHALE), principalCV(POX5), noneCV()],
-    okre);
-  evalc("R1 pox-5 new-rewards seen", `(contract-call? '${POX5} get-new-rewards)`, "newrew", WALLET);
+  // ---- MULTI-TRANCHE + HOSTILE SETTLE --------------------------------------
+  // Question: if pox-settle-stakers is called after tranche 1 but before
+  // tranche 2, does the staker lose tranche 2? And can an attacker grief by
+  // calling it (it is permissionless -- no assert-admin)?
+  //
+  // pay-one computes owed = pot(cycle,tranche) * shares / total-shares, i.e.
+  // from SHARES and the LOCAL pot -- never from pox-5's settle accounting. So
+  // the prediction is: settling changes nothing about who gets paid what.
+  const RC = 141;
+  const dropAndClaim = (n, sats) => {
+    call(`T${n} send ${sats} sats -> pox-5`, SBTC_WHALE, SBTC_TOKEN, "transfer",
+      [uintCV(sats), standardPrincipalCV(SBTC_WHALE), principalCV(POX5), noneCV()], okre);
+    b.addAdvanceBlocks({ bitcoin_blocks: 1100, stacks_blocks_per_bitcoin: 1 });
+    plan.push({ kind: "advance", label: `T${n} advance 1100 (new distribution cycle)` });
+    call(`T${n} calculate-rewards`, RELAYER, POX5, "calculate-rewards", [listCV([])], okre);
+    call(`T${n} pox-claim-rewards -> creates tranche ${n}`, RELAYER, SIGNER,
+      "pox-claim-rewards", [listCV([]), uintCV(RC)], okre);
+    evalc(`T${n} tranche-count`, `(contract-call? '${SIGNER} get-tranche-count u${RC})`, `tc${n}`, WALLET);
+    evalc(`T${n} pot for tranche ${n}`, `(contract-call? '${SIGNER} get-stx-pot u${RC} u${n})`, `pot${n}`, WALLET);
+  };
 
-  // A distribution cycle is pox-reward-cycle-length/2 = 1050 blocks; advance
-  // past one so calculate-rewards is not ERR_DISTRIBUTION_ALREADY_COMPUTED.
-  b.addAdvanceBlocks({ bitcoin_blocks: 1100, stacks_blocks_per_bitcoin: 1 });
-  plan.push({ kind: "advance", label: "advance 1100 (clear a distribution cycle)" });
+  evalc("sBTC before any reward", `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "b0", WALLET);
+  dropAndClaim(0, 2_000_000);
 
-  call("R2 pox-5.calculate-rewards (permissionless)", RELAYER, POX5,
-    "calculate-rewards", [listCV([])], okre);
-  call("R3 signer.pox-claim-rewards -> pulls into the Juice pot", RELAYER, SIGNER,
-    "pox-claim-rewards", [listCV([]), uintCV(REWARD_CYCLE)], okre);
-  evalc("R3 Juice stx-pot for cycle/tranche 0",
-    `(contract-call? '${SIGNER} get-stx-pot u${REWARD_CYCLE} u0)`, "pot", WALLET);
-  evalc("R3 our entitlement per the signer",
-    `(contract-call? '${SIGNER} get-staker-entitlement '${WALLET} u${REWARD_CYCLE} none)`, "ent", WALLET);
+  // ATTACKER (unrelated principal) settles between tranches -- permissionless.
+  call("ATTACK pox-settle-stakers by a RANDOM principal (permissionless)",
+    RANDOM, SIGNER, "pox-settle-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(RC), noneCV()], okre);
+  evalc("pox-5 unclaimed after hostile settle",
+    `(contract-call? '${POX5} get-staker-unclaimed-rewards-for-cycle '${SIGNER} u${RC} none '${WALLET})`,
+    "afterSettle", WALLET);
 
-  // NOTE: pox-settle-stakers is deliberately NOT called. It is not on the
-  // payment path -- pay-one computes owed = pot * shares / total-shares from
-  // the LOCAL pot and the shares map, neither of which settle writes. Settle
-  // only moves a reward watermark inside pox-5. Skipping it proves the payout
-  // stands alone. (Separately verified harmless-if-called in
-  // simul-tranche-attack.js: 4 hostile settles, payouts unaffected.)
-  evalc("R safe sBTC BEFORE payout",
-    `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sb0", WALLET);
-  call("R signer.pay-stx-stakers([safe]) -> JUICE PAYS US (no settle)", RELAYER, SIGNER,
-    "pay-stx-stakers", [listCV([principalCV(WALLET)]), uintCV(REWARD_CYCLE), uintCV(0)], okre);
-  evalc("R safe sBTC AFTER payout",
-    `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "sb1", WALLET);
+  call("PAY tranche 0", RELAYER, SIGNER, "pay-stx-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(RC), uintCV(0)], okre);
+  evalc("sBTC after tranche 0 paid", `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "b1", WALLET);
+
+  // Second drop -> tranche 1, AFTER the hostile settle.
+  dropAndClaim(1, 3_000_000);
+  // (b) settle AFTER tranche 1 is claimed but BEFORE it is paid
+  call("ATTACK-2 settle after t1 CLAIMED, before t1 PAID", RANDOM, SIGNER,
+    "pox-settle-stakers", [listCV([principalCV(WALLET)]), uintCV(RC), noneCV()], okre);
+  // (c) spam it three times in a row
+  call("ATTACK-3 settle spam 1/3", RANDOM, SIGNER, "pox-settle-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(RC), noneCV()], okre);
+  call("ATTACK-3 settle spam 2/3", RANDOM, SIGNER, "pox-settle-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(RC), noneCV()], okre);
+  call("ATTACK-3 settle spam 3/3", RANDOM, SIGNER, "pox-settle-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(RC), noneCV()], okre);
+  evalc("shares STILL intact after 4 hostile settles",
+    `(contract-call? '${POX5} get-staker-shares-staked-for-cycle '${WALLET} u${RC} none '${SIGNER})`,
+    "sharesAfter", WALLET);
+
+  call("PAY tranche 1 (post-settle -- is it lost?)", RELAYER, SIGNER, "pay-stx-stakers",
+    [listCV([principalCV(WALLET)]), uintCV(RC), uintCV(1)], okre);
+  evalc("sBTC after tranche 1 paid", `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "b2", WALLET);
+
+  // Re-paying an already-paid tranche must be a no-op (stx-paid guard).
+  call("REPLAY pay tranche 0 again -> must pay nothing", RELAYER, SIGNER,
+    "pay-stx-stakers", [listCV([principalCV(WALLET)]), uintCV(RC), uintCV(0)], okre);
+  evalc("sBTC after replay", `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "b3", WALLET);
 
   // -- run + verify ------------------------------------------------------------
   console.log("=== juice-safe-v0 (DEPLOYED) + juice-safe-auth-helpers-v1 - stxer harness ===\n");
@@ -375,10 +392,19 @@ async function main() {
   const u = (x) => BigInt((String(x).match(/u(\d+)/) || [])[1] ?? "-1");
   chk(`gas station charged the safe exactly ${GAS_SATS} sats`,
     u(cap.gsb0) - u(cap.gsb1) === GAS_SATS);
-  chk("pox-5 saw the reward drop", u(cap.newrew) > 0n);
-  chk("Juice pot funded for the cycle", u(cap.pot) > 0n);
-  chk("JUICE PAID THE SAFE (sBTC balance rose)", u(cap.sb1) > u(cap.sb0));
 
+
+  console.log("\n--- multi-tranche / attacker checks ---");
+  const uu = (x) => BigInt((String(x).match(/u(\d+)/) || [])[1] ?? "-1");
+  const c2 = (l, c) => { console.log(`${c ? "PASS" : "FAIL"} ${l}`); c ? pass++ : fail++; };
+  c2("tranche 0 paid out", uu(cap.b1) > uu(cap.b0));
+  c2("tranche 1 STILL paid after a hostile settle", uu(cap.b2) > uu(cap.b1));
+  c2("replaying a paid tranche pays nothing", uu(cap.b3) === uu(cap.b2));
+  c2("two distinct tranches exist", uu(cap.tc1) === 2n);
+  c2("shares survive 4 hostile settles", uu(cap.sharesAfter) === 1250000000n);
+  console.log(`   tranche pots: t0=${cap.pot0}  t1=${cap.pot1}`);
+  console.log(`   sBTC: start=${cap.b0} afterT0=${cap.b1} afterT1=${cap.b2} afterReplay=${cap.b3}`);
+  console.log(`   pox-5 unclaimed right after hostile settle: ${cap.afterSettle}`);
   console.log(`\n=== ${pass} passed, ${fail} failed ===\nView: ${url}`);
   if (fail > 0) process.exit(1);
 }
