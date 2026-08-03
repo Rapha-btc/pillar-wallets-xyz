@@ -109,7 +109,7 @@ All against the **deployed** contracts. Nothing redeployed.
 | harness | link | result |
 |---|---|---|
 | `simul-juice-safe-v1-lifecycle.js` | [`767531ff`](https://stxer.xyz/simulations/mainnet/767531ff808902263766f6259534117c) | **58/58** — full surface |
-| `simul-fakfun-wallet-v10.js` | [`cdd04e32`](https://stxer.xyz/simulations/mainnet/cdd04e324d2070fe2d9cded06c8a3009) | **27/27** — v8→v10 delta |
+| `simul-fakfun-wallet-v10.js` | [`bea10c7c`](https://stxer.xyz/simulations/mainnet/bea10c7ce1085a9419f4527453a17849) | **41/41** — v8→v10 delta + withdrawals |
 | `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
 | `simul-juice-safe-v1.js` | [`10b46fa6`](https://stxer.xyz/simulations/mainnet/10b46fa699d4ef86485bb52eb0a08930) | **10/10** — stake→unstake→STX returns |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
@@ -209,6 +209,14 @@ execute-pending-*-transfer by OWNER      (ok true)     owner alone, after the wa
 The two paths are deliberately asymmetric: the fast path needs the passkey (so
 a stolen admin key cannot use it), and the slow path needs only the admin but
 costs 144 blocks under veto watch.
+
+**`fakfun-wallet-v10` has NO fast path.** `execute-pending-*-now` appears twice
+in `juice-safe-v1` and zero times in v10 -- the passkey 2FA release is a
+jing-mm-safe lineage feature that v1 inherited and the fakfun-wallet line never
+had. On v10 every over-threshold withdrawal serves the full u144 wait, both
+assets, with no way to skip it. Verified in
+[`bea10c7c`](https://stxer.xyz/simulations/mainnet/bea10c7ce1085a9419f4527453a17849).
+The FE should not offer a "confirm now" action on v10 wallets.
 
 The over-threshold case is the safe working as designed: it returns `(ok true)`
 and queues a pending operation rather than transferring, so a compromised admin

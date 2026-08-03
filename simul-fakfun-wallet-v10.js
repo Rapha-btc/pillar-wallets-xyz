@@ -45,6 +45,12 @@ const DEPLOYER = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
 const OWNER = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";
 const RANDOM = "SP1MGH8BH1KRY49Z7EE5TY0JVKT6C3NT9RTVM8FND";
+const RECIPIENT = "SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B";
+const WD_STX_UNDER = 50_000_000;     // under the u100000000 default threshold
+const WD_STX_OVER = 400_000_000;     // OVER -> pending op
+const WD_SBTC_UNDER = 1_000;         // under the u100000 default threshold
+const WD_SBTC_OVER = 150_000;        // OVER -> pending op
+const SBTC_BIG_FUND = 500_000;
 const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
 const SBTC_WHALE = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";  // == OWNER, holds sBTC
@@ -214,6 +220,57 @@ async function main() {
   evalc("staker-info after unlock (expect none)",
     `(contract-call? '${POX5} get-staker-info '${FIXED})`, "si2", FIXED);
 
+  // ---- WITHDRAWALS + the threshold guard -----------------------------------
+  // NOTE: v10 has NO execute-pending-*-now. The passkey 2FA fast-path is a
+  // jing-mm-safe lineage feature that juice-safe-v1 inherited; the
+  // fakfun-wallet line only has the cooldown path (plus veto). So every
+  // over-threshold op here MUST serve the full u144 wait.
+  evalc("W recipient STX before", `(stx-get-balance '${RECIPIENT})`, "rStx0", FIXED);
+  call(`W1 withdraw ${WD_STX_UNDER / 1e6} STX (UNDER threshold -> immediate)`,
+    OWNER, FIXED, "stx-transfer",
+    [uintCV(WD_STX_UNDER), standardPrincipalCV(RECIPIENT), noneCV(), noneCV(), noneCV()], okre);
+  evalc("W1 recipient STX after", `(stx-get-balance '${RECIPIENT})`, "rStx1", FIXED);
+
+  call(`W2 withdraw ${WD_STX_OVER / 1e6} STX (OVER threshold -> pending op 0)`,
+    OWNER, FIXED, "stx-transfer",
+    [uintCV(WD_STX_OVER), standardPrincipalCV(RECIPIENT), noneCV(), noneCV(), noneCV()], okre);
+  evalc("W2 recipient STX after (must be unchanged)",
+    `(stx-get-balance '${RECIPIENT})`, "rStx2", FIXED);
+  call("W3 plain execute BEFORE cooldown -> u4017", OWNER, FIXED,
+    "execute-pending-stx-transfer", [uintCV(0), noneCV()], "(err u4017)");
+
+  // sBTC over the threshold -> op 1
+  call(`fund ${SBTC_BIG_FUND} sats sBTC`, SBTC_WHALE, SBTC_TOKEN, "transfer",
+    [uintCV(SBTC_BIG_FUND), standardPrincipalCV(SBTC_WHALE), principalCV(FIXED), noneCV()], okre);
+  evalc("S recipient sBTC before",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR0", FIXED);
+  call(`S1 send ${WD_SBTC_UNDER} sats (UNDER threshold -> immediate)`,
+    OWNER, FIXED, "sip010-transfer",
+    [uintCV(WD_SBTC_UNDER), standardPrincipalCV(RECIPIENT), noneCV(),
+     contractPrincipalCV("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token"),
+     stringAsciiCV("sbtc-token"), noneCV(), noneCV()], okre);
+  evalc("S1 recipient sBTC after",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR1", FIXED);
+  call(`S2 send ${WD_SBTC_OVER} sats (OVER threshold -> pending op 1)`,
+    OWNER, FIXED, "sip010-transfer",
+    [uintCV(WD_SBTC_OVER), standardPrincipalCV(RECIPIENT), noneCV(),
+     contractPrincipalCV("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token"),
+     stringAsciiCV("sbtc-token"), noneCV(), noneCV()], okre);
+  evalc("S2 recipient sBTC after (must be unchanged)",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR2", FIXED);
+
+  // serve the cooldown, then release BOTH by the owner
+  b.addAdvanceBlocks({ bitcoin_blocks: 150, stacks_blocks_per_bitcoin: 1 });
+  plan.push({ kind: "advance", label: "advance 150 (past the u144 cooldown)" });
+  call("W4 execute STX op 0 by OWNER after cooldown -> ok", OWNER, FIXED,
+    "execute-pending-stx-transfer", [uintCV(0), noneCV()], okre);
+  evalc("W4 recipient STX after cooldown release",
+    `(stx-get-balance '${RECIPIENT})`, "rStx3", FIXED);
+  call("S3 execute sBTC op 1 by OWNER after cooldown -> ok", OWNER, FIXED,
+    "execute-pending-sbtc-transfer", [uintCV(1), noneCV()], okre);
+  evalc("S3 recipient sBTC after cooldown release",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${RECIPIENT})`, "sR3", FIXED);
+
   console.log("=== fakfun-wallet-v10 - stxer harness (v8 -> v10 delta) ===\n");
   const id = await b.run();
   const url = `https://stxer.xyz/simulations/mainnet/${id}`;
@@ -271,6 +328,15 @@ async function main() {
   chk("position gone from pox-5", String(cap.si2).trim() === "none");
   console.log(`   locked before unstake ${cap.lk1}`);
   console.log(`   locked after unlock   ${cap.lk3}`);
+  const uu = (x) => BigInt((String(x).match(/u(\d+)/) || [])[1] ?? "-1");
+  chk("STX under threshold moved funds", uu(cap.rStx1) - uu(cap.rStx0) === BigInt(WD_STX_UNDER));
+  chk("STX OVER threshold moved NOTHING", uu(cap.rStx2) === uu(cap.rStx1));
+  chk("STX released by OWNER after the 144-block cooldown",
+    uu(cap.rStx3) - uu(cap.rStx2) === BigInt(WD_STX_OVER));
+  chk("sBTC under threshold moved funds", uu(cap.sR1) - uu(cap.sR0) === BigInt(WD_SBTC_UNDER));
+  chk("sBTC OVER threshold moved NOTHING", uu(cap.sR2) === uu(cap.sR1));
+  chk("sBTC released by OWNER after the 144-block cooldown",
+    uu(cap.sR3) - uu(cap.sR2) === BigInt(WD_SBTC_OVER));
   chk("gas-paid top-up also moved the stake",
     amt(cap.iG) === BigInt(STAKE_USTX) + BigInt(TOPUP_USTX) + BigInt(GAS_TOPUP_USTX));
 
