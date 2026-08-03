@@ -109,7 +109,7 @@ All against the **deployed** contracts. Nothing redeployed.
 | harness | link | result |
 |---|---|---|
 | `simul-juice-safe-v1-lifecycle.js` | [`767531ff`](https://stxer.xyz/simulations/mainnet/767531ff808902263766f6259534117c) | **58/58** — full surface |
-| `simul-fakfun-wallet-v10.js` | [`bea10c7c`](https://stxer.xyz/simulations/mainnet/bea10c7ce1085a9419f4527453a17849) | **41/41** — v8→v10 delta + withdrawals |
+| `simul-fakfun-wallet-v10.js` | [`336cb4c3`](https://stxer.xyz/simulations/mainnet/336cb4c3f3ebf0ba67dda900cde59257) | **49/49** — v8→v10 delta, withdrawals, reward payout |
 | `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
 | `simul-juice-safe-v1.js` | [`10b46fa6`](https://stxer.xyz/simulations/mainnet/10b46fa699d4ef86485bb52eb0a08930) | **10/10** — stake→unstake→STX returns |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
@@ -209,6 +209,12 @@ execute-pending-*-transfer by OWNER      (ok true)     owner alone, after the wa
 The two paths are deliberately asymmetric: the fast path needs the passkey (so
 a stolen admin key cannot use it), and the slow path needs only the admin but
 costs 144 blocks under veto watch.
+
+**Juice pays BOTH wallets.** The reward chain was verified on v10 as well as v1
+([`336cb4c3`](https://stxer.xyz/simulations/mainnet/336cb4c3f3ebf0ba67dda900cde59257)):
+sBTC to pox-5 -> advance a distribution cycle -> `calculate-rewards` ->
+`pox-claim-rewards` -> `pay-stx-stakers`, wallet sBTC `u4980 -> u5034`, and a
+replay of the same tranche pays nothing.
 
 **`fakfun-wallet-v10` has NO fast path.** `execute-pending-*-now` appears twice
 in `juice-safe-v1` and zero times in v10 -- the passkey 2FA release is a

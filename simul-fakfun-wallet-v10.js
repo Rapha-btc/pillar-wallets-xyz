@@ -35,7 +35,7 @@
 import crypto from "node:crypto";
 import {
   tupleCV, uintCV, bufferCV, noneCV, someCV, principalCV,
-  standardPrincipalCV, contractPrincipalCV, stringAsciiCV, serializeCV, deserializeCV,
+  standardPrincipalCV, contractPrincipalCV, listCV, stringAsciiCV, serializeCV, deserializeCV,
   cvToString, ClarityVersion, PostConditionMode,
 } from "@stacks/transactions";
 import { SimulationBuilder, getSimulationResult } from "stxer";
@@ -51,6 +51,8 @@ const WD_STX_OVER = 400_000_000;     // OVER -> pending op
 const WD_SBTC_UNDER = 1_000;         // under the u100000 default threshold
 const WD_SBTC_OVER = 150_000;        // OVER -> pending op
 const SBTC_BIG_FUND = 500_000;
+const REWARD_SATS = 2_000_000;   // sBTC dropped on pox-5 = the cycle's rewards
+const RC = 141;
 const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
 const SBTC_WHALE = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";  // == OWNER, holds sBTC
@@ -209,6 +211,40 @@ async function main() {
     `(contract-call? '${POX5} get-total-shares-staked-for-cycle u141 none)`, "tot", FIXED);
   evalc("unclaimed rewards cycle 141",
     `(contract-call? '${POX5} get-staker-unclaimed-rewards-for-cycle '${DEPLOYER}.juice-pool-stx-signer u141 none '${FIXED})`, "rew", FIXED);
+  // ---- DOES JUICE ACTUALLY PAY THIS WALLET? --------------------------------
+  // pox-5 derives rewards from its own sBTC balance:
+  //   get-rewards = sbtc-balance(pox-5) - total-sbtc-staked - reserve
+  // so dropping sBTC on pox-5 and advancing past a distribution cycle (HALF a
+  // reward cycle) is enough. calculate-rewards and pox-claim-rewards are both
+  // PERMISSIONLESS -- called here from an unrelated relayer, not the admin.
+  // pox-settle-stakers is deliberately NOT called: it is not on the payment
+  // path (pay-one reads the local pot and shares, never pox-5's settle state).
+  evalc("R wallet sBTC before any reward",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${FIXED})`, "rb0", FIXED);
+  call(`R1 send ${REWARD_SATS} sats -> pox-5 (the cycle's rewards)`,
+    SBTC_WHALE, SBTC_TOKEN, "transfer",
+    [uintCV(REWARD_SATS), standardPrincipalCV(SBTC_WHALE),
+     principalCV("SP000000000000000000002Q6VF78.pox-5"), noneCV()], okre);
+  b.addAdvanceBlocks({ bitcoin_blocks: 1100, stacks_blocks_per_bitcoin: 1 });
+  plan.push({ kind: "advance", label: "R advance 1100 (clear a distribution cycle)" });
+  call("R2 pox-5.calculate-rewards (permissionless)", RELAYER,
+    "SP000000000000000000002Q6VF78.pox-5", "calculate-rewards", [listCV([])], okre);
+  call("R3 signer.pox-claim-rewards -> fills the Juice pot", RELAYER,
+    `${DEPLOYER}.juice-pool-stx-signer`, "pox-claim-rewards",
+    [listCV([]), uintCV(RC)], okre);
+  evalc("R3 Juice pot for tranche 0",
+    `(contract-call? '${DEPLOYER}.juice-pool-stx-signer get-stx-pot u${RC} u0)`, "pot", FIXED);
+  call("R4 signer.pay-stx-stakers([v10 wallet]) -> JUICE PAYS V10", RELAYER,
+    `${DEPLOYER}.juice-pool-stx-signer`, "pay-stx-stakers",
+    [listCV([principalCV(FIXED)]), uintCV(RC), uintCV(0)], okre);
+  evalc("R4 wallet sBTC AFTER payout",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${FIXED})`, "rb1", FIXED);
+  call("R5 pay the SAME tranche again -> must pay nothing", RELAYER,
+    `${DEPLOYER}.juice-pool-stx-signer`, "pay-stx-stakers",
+    [listCV([principalCV(FIXED)]), uintCV(RC), uintCV(0)], okre);
+  evalc("R5 wallet sBTC after replay",
+    `(contract-call? '${SBTC_TOKEN} get-balance '${FIXED})`, "rb2", FIXED);
+
   call("C6 unstake by random -> u4001", RANDOM, FIXED, "unstake", [noneCV(), noneCV()], "(err u4001)");
   call("C7 unstake (PASSKEY) -> ok", RELAYER, FIXED,
     "unstake", [someCV(sigAuth(5, key.pubKeyHex, sUnstake)), noneCV()], okre);
@@ -337,6 +373,10 @@ async function main() {
   chk("sBTC OVER threshold moved NOTHING", uu(cap.sR2) === uu(cap.sR1));
   chk("sBTC released by OWNER after the 144-block cooldown",
     uu(cap.sR3) - uu(cap.sR2) === BigInt(WD_SBTC_OVER));
+  chk("Juice pot funded for the cycle", uu(cap.pot) > 0n);
+  chk("JUICE PAID THE V10 WALLET (sBTC rose)", uu(cap.rb1) > uu(cap.rb0));
+  chk("paying the same tranche twice pays nothing", uu(cap.rb2) === uu(cap.rb1));
+  console.log(`   sBTC before reward ${cap.rb0} -> after payout ${cap.rb1} -> after replay ${cap.rb2}`);
   chk("gas-paid top-up also moved the stake",
     amt(cap.iG) === BigInt(STAKE_USTX) + BigInt(TOPUP_USTX) + BigInt(GAS_TOPUP_USTX));
 
