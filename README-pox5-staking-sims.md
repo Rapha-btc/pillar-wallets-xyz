@@ -212,7 +212,7 @@ idempotent per tranche, so an operator script is safe to re-run.
 ### Owner-change escape hatches
 
 Both verified on the deployed contract
-([`ac02e3a7`](https://stxer.xyz/simulations/mainnet/ac02e3a7ab3dfe81128017f81c9e06c6)):
+([`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897), on the deployed v1):
 
 ```
 2FA TRANSFER
@@ -257,8 +257,8 @@ payout reads. Shares are written **only** by the stake/unstake paths
 
 Verified both ways:
 
-- **omitted** — [`12bc1378`](https://stxer.xyz/simulations/mainnet/12bc137820d8110284b7b38d33c05f4c)
-  pays the identical 65 sats with no settle anywhere
+- **omitted** — [`77080151`](https://stxer.xyz/simulations/mainnet/770801519c5a96309c29f54349c9d126)
+  pays out with no settle called anywhere
 - **abused** — [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62)
   4 hostile `pox-settle-stakers` calls from an unrelated principal (between
   tranches, after a tranche is claimed but before it is paid, then 3 in a row):
