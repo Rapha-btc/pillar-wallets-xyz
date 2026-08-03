@@ -128,13 +128,32 @@
 
 (define-data-var token-lock-enabled bool false)
 
+;; `gas` is a THIRD counter and a DISJOINT one: a fee lands in `gas` and
+;; nowhere else, a transfer lands in `sbtc` and nowhere else. Both are sats,
+;; but they meter two independent channels against two independent caps --
+;; `sbtc` against sbtc-threshold (which decides whether a transfer executes now
+;; or queues as a pending op), `gas` against max-gas-per-period (which decides
+;; whether a gasless call is allowed to pay a station at all).
+;;
+;; NOT overlapping, and that is deliberate. Charging the fee to `sbtc` as well
+;; would buy no safety -- the fee is already capped by the gas fuse, so the
+;; second count can only ever bite AFTER the first one already would have --
+;; while quietly spending the transfer budget: 25 calls at the u1000 default is
+;; a quarter of the u100000 default threshold, i.e. sBTC transfers start queuing
+;; early for a reason the user cannot see. Two channels, two caps, no crosstalk.
+;;
+;; Consequence for readers: neither counter alone is "sBTC out this period".
+;; That total is (+ sbtc gas), and it is more useful shown as two numbers --
+;; what you sent vs what you paid to relay -- than as one.
 (define-data-var spent-this-period {
   stx: uint,
   sbtc: uint,
+  gas: uint,
   period-start: uint,
 } {
   stx: u0,
   sbtc: u0,
+  gas: u0,
   period-start: DEPLOYED-BURNT-BLOCK,
 })
 
@@ -150,6 +169,7 @@
       {
         stx: u0,
         sbtc: u0,
+        gas: u0,
         period-start: burn-block-height,
       }
       spent
@@ -173,31 +193,20 @@
   )
 )
 
-;; MOVED UP from below is-authorized so pay-gas-accounted can reach
-;; would-exceed-sbtc-threshold -- Clarity resolves top-down. Bodies unchanged.
-(define-private (would-exceed-stx-threshold (amount uint))
-  (let (
-      (config (var-get wallet-config))
-      (spent (get-current-spent))
+;; Touches `gas` ONLY -- see the note on spent-this-period. A fee must not also
+;; land in `sbtc`, or the transfer budget silently pays for relaying.
+(define-private (add-spent-gas (amount uint))
+  (let ((current (get-current-spent)))
+    (var-set spent-this-period
+      (merge current { gas: (+ (get gas current) amount) })
     )
-    (> (+ (get stx spent) amount) (get stx-threshold config))
   )
 )
 
-(define-private (would-exceed-sbtc-threshold (amount uint))
-  (let (
-      (config (var-get wallet-config))
-      (spent (get-current-spent))
-    )
-    (> (+ (get sbtc spent) amount) (get sbtc-threshold config))
-  )
-)
-
-;; Gas paid to a station is sBTC LEAVING the safe, so it counts against the
-;; period budget like any other sBTC spend. Before this, the gas path was the
-;; one sBTC outflow that never touched spent-this-period: a relayer could skim
-;; up to max-gas-amount on every gasless call the user signs, indefinitely,
-;; without ever moving the safe closer to its sbtc-threshold.
+;; Gas paid to a station is sBTC LEAVING the safe, so it gets metered -- on its
+;; own channel, `gas`. Before this, the gas path was the one sBTC outflow that
+;; touched no counter at all: a relayer could skim up to max-gas-amount on every
+;; gasless call the user signs, indefinitely, against no cap of any kind.
 ;;
 ;; The amount charged is the safe's own BALANCE DELTA across the call, not
 ;; <gas-trait>'s get-gas-amount: the station is caller-supplied, so anything it
@@ -206,14 +215,26 @@
 ;; call. A station that somehow sends sBTC IN is charged nothing rather than
 ;; underflowing -- credits do not refill the budget.
 ;;
-;; `enforce` decides whether the threshold is a LEDGER or a CEILING for this
-;; call. Counting alone stops no drain: it only makes the next legitimate
-;; transfer queue sooner, while the fees themselves keep flowing past the limit.
-;; GAS-ENFORCED makes sbtc-threshold mean what it says -- total sBTC out per
-;; period, fees included -- by reverting the whole call when the fee would cross
-;; it. The cost is that an exhausted budget makes those paths unusable until the
-;; period rolls (cooldown-period blocks), gaslessly at least; a funded admin EOA
-;; can still drive them directly, since the no-sig-auth path pays no gas.
+;; `enforce` decides whether the GAS FUSE is live for this call. Metering alone
+;; stops no drain -- a counter nobody checks is just bookkeeping. GAS-ENFORCED
+;; caps the skim, by reverting the whole call when this fee would push the
+;; period's gas total past max-gas-per-period.
+;;
+;; The ceiling is derived, not fixed: max-gas-amount * GAS-CALLS-PER-PERIOD. So
+;; the cap is really "N gasless calls per period" regardless of what a single
+;; fee costs, and raising max-gas-amount raises the ceiling with it -- which is
+;; safe precisely because that raise is itself two-step and cooldown-gated (see
+;; propose-max-gas-amount). A flat sat constant would have silently tightened
+;; into a brick wall every time max-gas-amount went up.
+;;
+;; Deliberately NOT gated on sbtc-threshold, and deliberately not counted there
+;; either. Gating on it was the first attempt and it was wrong: only 4 of the 14
+;; enforced paths move sBTC at all, so one large under-threshold transfer would
+;; leave a few sats of headroom and then brick unstake, veto-operation,
+;; sip009-transfer and stx-transfer -- none of which spend sBTC -- until the
+;; period rolled. Merely COUNTING there was the second attempt and was also
+;; wrong, for the quieter reason given on spent-this-period: it adds no cap the
+;; fuse does not already impose, and spends the transfer budget to do it.
 ;;
 ;; GAS-EXEMPT is granted to exactly ONE call, confirm-transfer-wallet, and the
 ;; qualifying property is that it CANNOT LOOP. Every other gasless surface can:
@@ -249,6 +270,16 @@
 (define-constant GAS-ENFORCED true)
 (define-constant GAS-EXEMPT false)
 
+;; How many max-price gasless calls one period may fund. 25 * the u1000 default
+;; = 25000 sats per cooldown-period (u144 blocks, ~1 day); at the u10000
+;; MAX-GAS-CEILING it is 250000. Sized to sit well clear of any plausible day of
+;; real use while still turning "unbounded skim" into a bounded one.
+(define-constant GAS-CALLS-PER-PERIOD u25)
+
+(define-private (max-gas-per-period)
+  (* (var-get max-gas-amount) GAS-CALLS-PER-PERIOD)
+)
+
 (define-private (pay-gas-accounted
     (g <gas-trait>)
     (enforce bool)
@@ -265,19 +296,24 @@
           u0
         ))
       )
-      ;; Checked BEFORE add-spent-sbtc: would-exceed asks "does spent + fee
-      ;; cross?", which is only the right question while `spent` still excludes
-      ;; this fee. A zero fee can never cross, so a station that charges nothing
-      ;; is never blocked even on an exhausted budget.
+      ;; Checked BEFORE add-spent-gas, against the pre-fee `gas` total: the
+      ;; question is "does gas-so-far + this fee cross?", which is only right
+      ;; while the counter still excludes this fee. A zero fee can never cross,
+      ;; so a station that charges nothing is never blocked even on a spent
+      ;; fuse.
+      ;;
       ;; Reads as the ABORT condition, negated once for asserts! (which
       ;; continues on true): revert only when this call enforces AND the fee
-      ;; crosses. GAS-EXEMPT short-circuits the `and`, so an exempt call never
-      ;; reverts here no matter how far over budget it is -- it still falls
-      ;; through to add-spent-sbtc below and counts.
-      (asserts! (not (and enforce (would-exceed-sbtc-threshold fee)))
+      ;; blows the fuse. GAS-EXEMPT short-circuits the `and`, so an exempt call
+      ;; never reverts here no matter how far over it is -- it still falls
+      ;; through to add-spent-gas below and counts.
+      (asserts!
+        (not (and enforce
+          (> (+ (get gas (get-current-spent)) fee) (max-gas-per-period))
+        ))
         err-threshold-exceeded
       )
-      (add-spent-sbtc fee)
+      (add-spent-gas fee)
       (ok true)
     )
   )
@@ -545,6 +581,24 @@
 
 (define-read-only (get-pending-operation (op-id uint))
   (map-get? pending-operations op-id)
+)
+
+(define-private (would-exceed-stx-threshold (amount uint))
+  (let (
+      (config (var-get wallet-config))
+      (spent (get-current-spent))
+    )
+    (> (+ (get stx spent) amount) (get stx-threshold config))
+  )
+)
+
+(define-private (would-exceed-sbtc-threshold (amount uint))
+  (let (
+      (config (var-get wallet-config))
+      (spent (get-current-spent))
+    )
+    (> (+ (get sbtc spent) amount) (get sbtc-threshold config))
+  )
 )
 
 (define-private (is-authorized (sig-message-auth (optional {
