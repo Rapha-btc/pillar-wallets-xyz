@@ -12,51 +12,51 @@ only fail. These contracts stake on pox-5.
 
 ## Status at a glance
 
-**Covered** (all against the DEPLOYED contracts): onboard · stake · top-up ·
-extend · unstake · auth guards · error codes · pool shares · gas station
-(20 sats sBTC) · multi-tranche reward payout · hostile-settle resistance.
+**DEPLOY `juice-safe-v1` AND `fakfun-wallet-v10`. Do NOT onboard v0 or v9** --
+both are live but broken, and neither is registered as canonical, which is what
+currently makes them un-onboardable. Leave them unregistered.
 
-**STXER FIXED THE LOCK HANDLER** (stxer/stxer-sdk#7). STX now genuinely locks in
-simulation, `stx-account` is authoritative, and `(with-stacking ...)` allowances
-are really enforced. Everything below was re-run against the fixed simulator.
-Conclusions written before that fix — that lock/unlock was unobservable and the
-allowance unverifiable — are obsolete.
+| contract | state |
+|---|---|
+| `juice-safe-v1` | deployed, **49/49 + 16/16 + 10/10**, use this |
+| `fakfun-wallet-v10` | deployed, **27/27**, use this |
+| `juice-safe-v0` | live but `unstake` -> `(err u128)`: **no exit path** |
+| `fakfun-wallet-v9` | live but `onboard` -> `(err u6002)`, plus the same unstake bug |
+| `juice-safe-auth-helpers-v1` | deployed, shared by both wallets |
 
-**`(locked-ustx)` is now VERIFIED**
-([`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776)).
-Same contract, two allowance expressions, identical top-up:
+**Two bugs found, both only visible once stxer fixed its PoX lock handler**
+(stxer/stxer-sdk#7 -- before that STX never locked in simulation):
+
+1. **`unstake` could never succeed.** `(err u128)` = `MAX_ALLOWANCES`, "an asset
+   class moved with no allowance covering it". `with-stacking` bounds STX going
+   INTO a lock; unstake pulls the unlock height FORWARD, and the allowance enum
+   (`Stx`/`Ft`/`Nft`/`Stacking`/`All`) has **no unlocking form**. Probed at
+   `u999999999999` and with an empty list `()` -- both fail. Only
+   `with-all-assets-unsafe` covers it, and that grant has nothing to reach for:
+   unstake has no recipient, it only rewrites this contract's own lock schedule.
+2. **`fakfun-wallet-v9`'s `register-wallet` named `.fakfun-wallet-v8`** so the
+   hash check failed and no v9 wallet could ever be initialised.
+
+**The `(locked-ustx)` top-up allowance is VERIFIED.** Same contract, two
+allowance expressions, identical call
+([`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776)):
 
 ```
 (with-stacking amount-increase)                    -> (err u0)   REJECTED
 (with-stacking (+ (locked-ustx) amount-increase))  -> (ok true)
 ```
 
-**BLOCKERS — both deployed wallets need a redeploy:**
+**Full round trip proven** -- stake, lock, unstake, advance past the unlock
+height, STX returns:
 
-1. **`unstake` cannot succeed on either deployed wallet.** Real locks exposed it:
-   `(err u128)` = `MAX_ALLOWANCES`, "an asset class moved with no allowance
-   covering it". Probe
-   ([`dd44502e`](https://stxer.xyz/simulations/mainnet/dd44502efcdf8cdec5991c53f903113b)):
+```
+after stake      locked u1450000000  unlock-height u1165850
+after unstake    locked u1450000000  unlock-height  u964250   <- pulled forward
+  ...advance past it...
+AFTER UNLOCK     locked u0           unlocked u2800000000     staker-info: none
+```
 
-   ```
-   (with-stacking (locked-ustx))           -> (err u128)   <- what is deployed
-   ()                                       -> (err u128)
-   (with-stacking ...) + (with-stx ...)     -> (err u128)
-   (with-all-assets-unsafe)                 -> (ok true)   <- only this works
-   ```
-
-   Fixed in source and verified in full wallet context
-   ([`a2f53f4a`](https://stxer.xyz/simulations/mainnet/a2f53f4ae1b499dc719baf0cd38f426c)).
-   Needs **`juice-safe-v1`**.
-
-2. **`fakfun-wallet-v9` is dead on arrival** — `onboard` -> `(err u6002)`, it
-   registers against `.fakfun-wallet-v8`. Needs **`fakfun-wallet-v10`**, which
-   should carry the unstake fix too.
-
-3. Neither wallet is registered as canonical — the first `onboard` fails
-   `(err u6001)` until `set-verified-contract` is called. See section 2.
-
-**Still not closable in simulation:** live sBTC bonds — reward runs pass an
+**Still not closable in simulation:** live sBTC bonds -- reward runs pass an
 empty `bond-periods` list, valid only while no bonds are active.
 
 ---
@@ -104,19 +104,24 @@ should hide extend while `num-cycles` is at the cap.
 
 ## Simulations
 
-Every reference below runs against the **deployed** contracts on a mainnet
-fork. Nothing is redeployed; each call hits the on-chain bytes.
+All against the **deployed** contracts. Nothing redeployed.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v0-lifecycle.js` | [`b89bb343`](https://stxer.xyz/simulations/mainnet/b89bb34389a90fa44107b36d5643be02) | 45/3 — everything green except the 3 unstake failures above |
-| `simul-allowance-probe.js` | [`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776) | allowance discriminator — **now discriminates** |
-| `simul-unstake-allowance-probe.js` | [`dd44502e`](https://stxer.xyz/simulations/mainnet/dd44502efcdf8cdec5991c53f903113b) | isolates the unstake allowance bug |
-| `simul-juice-safe-v1-unstake-fix.js` | [`a2f53f4a`](https://stxer.xyz/simulations/mainnet/a2f53f4ae1b499dc719baf0cd38f426c) | **7/7** — the fix works |
+| `simul-juice-safe-v1-lifecycle.js` | [`77080151`](https://stxer.xyz/simulations/mainnet/770801519c5a96309c29f54349c9d126) | **49/49** — full surface |
+| `simul-fakfun-wallet-v10.js` | [`cdd04e32`](https://stxer.xyz/simulations/mainnet/cdd04e324d2070fe2d9cded06c8a3009) | **27/27** — v8→v10 delta |
+| `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
+| `simul-juice-safe-v1.js` | [`10b46fa6`](https://stxer.xyz/simulations/mainnet/10b46fa699d4ef86485bb52eb0a08930) | **10/10** — stake→unstake→STX returns |
 | `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
-| `simul-juice-safe-v0-recovery.js` | [`ac02e3a7`](https://stxer.xyz/simulations/mainnet/ac02e3a7ab3dfe81128017f81c9e06c6) | **16/16** — 2FA transfer + inactivity recovery |
-| `simulations/verify-juice-safe-v0-staking.js` | [`efbb19bb`](https://stxer.xyz/simulations/mainnet/efbb19bb97dd8f068285d3a360fc4269) | **32/32** — independent second harness |
-| `simul-fakfun-wallet-v9.js` (Part A) | [`6ae99c6e`](https://stxer.xyz/simulations/mainnet/6ae99c6ed0bc6934fed4cf4584bdebed) | deployed v9 `onboard` -> **`(err u6002)`** |
+| `simul-allowance-probe.js` | [`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776) | allowance discriminator |
+| `simul-unstake-allowance-probe.js` | [`578a6d97`](https://stxer.xyz/simulations/mainnet/578a6d97af05c2661a8d712991bdfd11) | isolates the unstake bug |
+
+Covered on the deployed v1/v10: onboard · 3-step admin init · stake · top-up ·
+extend · **unstake + unlock + STX returned** · auth guards · error codes · pool
+shares · gas station (20 sats sBTC) · multi-tranche reward payout to the safe
+**plus 8 real mainnet stakers** · double-pay guard · STX/sBTC withdrawals ·
+over-threshold pending ops released by **both** the 2FA fast-path and the
+144-block cooldown · 2FA ownership transfer · inactivity recovery.
 
 ### What the lifecycle run covers
 

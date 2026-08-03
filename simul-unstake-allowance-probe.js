@@ -21,10 +21,8 @@ const src = (allow) => `(define-constant POX5 'SP000000000000000000002Q6VF78.pox
     (try! (contract-call? POX5 unstake SIGNER)))) (ok true)))`;
 
 const VARIANTS = [
-  ["zz-un-stacking", "(with-stacking (locked-ustx))", "what juice-safe-v0 ships today"],
-  ["zz-un-empty",    "",                              "no allowance at all"],
-  ["zz-un-both",     "(with-stacking (locked-ustx)) (with-stx (locked-ustx))", "stacking + stx"],
-  ["zz-un-unsafe",   "(with-all-assets-unsafe)",      "escape hatch"],
+  ["zz-un-empty",  "",                         "empty allowance list"],
+  ["zz-un-unsafe", "(with-all-assets-unsafe)", "escape hatch"],
 ];
 
 const plan = [];

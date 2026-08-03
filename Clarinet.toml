@@ -107,3 +107,13 @@ epoch = "latest"
 # signer-manager-trait argument in juice-pox5-stake.
 [[project.requirements]]
 contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer"
+
+[contracts.fakfun-wallet-v10]
+path = "contracts/fakfun-wallet-v10.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.juice-safe-v1]
+path = "contracts/juice-safe-v1.clar"
+clarity_version = 4
+epoch = "latest"
