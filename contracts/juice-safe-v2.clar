@@ -83,13 +83,6 @@
 (define-constant RP-ID-HASH-PILLARWALLETS-XYZ 0xf4c61c15653973c702fe8d22c25516d6b84af766e53142d59c7b2d5abfa9b50b)
 (define-constant RP-ID-HASH-JINGSWAP-COM 0x9e56c212239ee7582cb385fb4432e9d2cae3c1aef98e4c1e508d40112147d4e5)
 (define-constant RP-ID-HASH-JUICEOFBTC-COM 0x1516f9ea2a21f961d99143eedf2aeeab86e3784a34a401b038bb97a7631e668b)
-;; www variant. WebAuthn defaults rp.id to the FULL origin host, so a frontend
-;; served from https://www.juiceofbtc.com that does not explicitly pass
-;; rpId: "juiceofbtc.com" will sign under "www.juiceofbtc.com" -- a different
-;; hash, rejected as err-invalid-signature. Whitelisting both means either
-;; works. NOTE they are still DISTINCT credentials to the authenticator: a
-;; passkey registered under one rp.id is not offered for the other.
-(define-constant RP-ID-HASH-WWW-JUICEOFBTC-COM 0x9b8e59a2ccbe7491acba349a300567cb4cf7d3e625a84ffa9dbdcb16940b2ac8)
 (define-constant RP-ID-HASH-FAK-FUN 0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f2249)
 (define-constant RP-ID-HASH-FAKFUN-COM 0x5e8ba70d734d2bd57e0225bfd9a25f2c4d70db36fa1128e5eeb00cdab7a1ccdb)
 
@@ -1145,7 +1138,6 @@
         (is-eq auth-rp-id RP-ID-HASH-PILLARWALLETS-XYZ)
         (is-eq auth-rp-id RP-ID-HASH-JINGSWAP-COM)
         (is-eq auth-rp-id RP-ID-HASH-JUICEOFBTC-COM)
-        (is-eq auth-rp-id RP-ID-HASH-WWW-JUICEOFBTC-COM)
         (is-eq auth-rp-id RP-ID-HASH-FAK-FUN)
         (is-eq auth-rp-id RP-ID-HASH-FAKFUN-COM)
       )
