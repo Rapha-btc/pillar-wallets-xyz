@@ -10,6 +10,30 @@ only fail. These contracts stake on pox-5.
 
 ---
 
+## Status at a glance
+
+**Covered** (all against the DEPLOYED contracts): onboard · stake · top-up ·
+extend · unstake · auth guards · error codes · pool shares · gas station
+(20 sats sBTC) · multi-tranche reward payout · hostile-settle resistance.
+
+**Not covered, and not closable in simulation:**
+
+| gap | why | how to close |
+|---|---|---|
+| `with-stacking` enforcement | stxer never runs the node PoX lock handler, so the allowance is never evaluated | one small mainnet stake + top-up |
+| live sBTC bonds | reward runs pass an empty `bond-periods` list, valid only while no bonds are active | re-run once a bond exists |
+
+**Blockers before real funds:**
+
+1. `fakfun-wallet-v9` is **dead on arrival** — `onboard` -> `(err u6002)`.
+   Needs a v10. See section 3 below.
+2. Neither wallet is registered as canonical — the first `onboard` fails
+   `(err u6001)` until `set-verified-contract` is called. See section 2.
+3. The mainnet allowance test above is the last thing standing between this and
+   full certainty on the `(locked-ustx)` term.
+
+---
+
 ## The contracts
 
 | contract | what it is |
@@ -143,7 +167,7 @@ nothing.
 
 stxer replays pox-5 *contract* state but does not run the node's PoX lock
 handler. Visible directly in the deployed-contract run
-([`4723fe69`](https://stxer.xyz/simulations/mainnet/4723fe690d0c022ce27f25e276a9de07)):
+([`12bc1378`](https://stxer.xyz/simulations/mainnet/12bc137820d8110284b7b38d33c05f4c)):
 
 - **`stx-account` reports `locked u0` at every step** — before the stake, after
   the stake, after a top-up, after advancing 1360 burn blocks into the first
@@ -177,6 +201,15 @@ up. With `(+ (locked-ustx) amount-increase)` it succeeds; with `amount-increase`
 alone it aborts.
 
 Reported upstream: https://github.com/stxer/stxer-sdk/issues/7
+
+### 1b. Live sBTC bonds are untested
+
+Every reward run passes an empty `bond-periods` list to `calculate-rewards` and
+`pox-claim-rewards`. That is accepted only because no sBTC bonds are currently
+active — `assert-all-active-bonds-included` passes trivially. Once a bond
+exists, both calls must enumerate the active bond periods, and the payout maths
+gains a bond leg (`bond-rewards` / `bond-totals`, both `u0`/empty in these runs).
+Re-run the reward harness at that point.
 
 ### 2. Prerequisite: neither wallet is registered as canonical
 
