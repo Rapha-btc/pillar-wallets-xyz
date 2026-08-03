@@ -12,105 +12,62 @@ only fail. These contracts stake on pox-5.
 
 ## Status at a glance
 
-**DEPLOY `juice-safe-v1` AND `fakfun-wallet-v10`. Do NOT onboard v0 or v9** --
-both are live but broken, and neither is registered as canonical, which is what
-currently makes them un-onboardable. Leave them unregistered.
+**DEPLOY `juice-safe-v2` and `fakfun-wallet-v11`.** Earlier versions are live but
+superseded; none of v0/v1/v9/v10 should be onboarded. Keeping them unregistered
+as canonical is what makes them un-onboardable.
 
 | contract | state |
 |---|---|
-| `juice-safe-v1` | deployed, **49/49 + 16/16 + 10/10**, use this |
-| `fakfun-wallet-v10` | deployed, **27/27**, use this |
-| `juice-safe-v0` | live but `unstake` -> `(err u128)`: **no exit path** |
-| `fakfun-wallet-v9` | live but `onboard` -> `(err u6002)`, plus the same unstake bug |
+| `juice-safe-v2` | deployed, **62 + 16 + 14 + 39 + 10 pass**, use this |
+| `fakfun-wallet-v11` | deployed, **50 + 17 pass**, use this |
+| `juice-safe-v1` | superseded -- unbounded `set-max-gas-amount` |
+| `juice-safe-v0` | broken -- `unstake` -> `(err u128)`, no exit path |
+| `fakfun-wallet-v10` | superseded -- unbounded `set-max-gas-amount` |
+| `fakfun-wallet-v9` | broken -- `onboard` -> `(err u6002)` |
 | `juice-safe-auth-helpers-v1` | deployed, shared by both wallets |
 
-**Two bugs found, both only visible once stxer fixed its PoX lock handler**
-(stxer/stxer-sdk#7 -- before that STX never locked in simulation):
+### What v2 / v11 fixed
 
-1. **`unstake` could never succeed.** `(err u128)` = `MAX_ALLOWANCES`, "an asset
-   class moved with no allowance covering it". `with-stacking` bounds STX going
-   INTO a lock; unstake pulls the unlock height FORWARD, and the allowance enum
-   (`Stx`/`Ft`/`Nft`/`Stacking`/`All`) has **no unlocking form**. Probed at
-   `u999999999999` and with an empty list `()` -- both fail. Only
-   `with-all-assets-unsafe` covers it, and that grant has nothing to reach for:
-   unstake has no recipient, it only rewrites this contract's own lock schedule.
-2. **`fakfun-wallet-v9`'s `register-wallet` named `.fakfun-wallet-v8`** so the
-   hash check failed and no v9 wallet could ever be initialised.
+**Gas-station vector** (audit, low severity, demonstrated against v1 at
+[`bf0a97e5`](https://stxer.xyz/simulations/mainnet/bf0a97e5584c479e15242447dec7d485)):
+the `<gas-trait>` contract is caller-supplied and NOT bound by the signed hash,
+and the gas path never consults `would-exceed-sbtc-threshold`. With
+`set-max-gas-amount` instant and unbounded, admin + relay compromise drained
+400,000 sats in one call -- 4x the threshold, no pending op, no cooldown.
 
-**The `(locked-ustx)` top-up allowance is VERIFIED.** Same contract, two
-allowance expressions, identical call
-([`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776)):
+Low, not medium: needs the admin key AND the relay; phishing is impossible
+(WebAuthn origin binding + the rp.id whitelist); each drain burns one single-use
+signature so it is rate-limited by real user activity; and a compromised
+frontend has the strictly better `confirm-transfer` route.
 
-```
-(with-stacking amount-increase)                    -> (err u0)   REJECTED
-(with-stacking (+ (locked-ustx) amount-increase))  -> (ok true)
-```
-
-**Full round trip proven** -- stake, lock, unstake, advance past the unlock
-height, STX returns:
+Three layers now, verified on both wallets
+([v2 `da4dd815`](https://stxer.xyz/simulations/mainnet/da4dd81584a1c377734fe8e5de8fccec),
+[v11 `a12bacf7`](https://stxer.xyz/simulations/mainnet/a12bacf794042a436498598fda435100)):
 
 ```
-after stake      locked u1450000000  unlock-height u1165850
-after unstake    locked u1450000000  unlock-height  u964250   <- pulled forward
-  ...advance past it...
-AFTER UNLOCK     locked u0           unlocked u2800000000     staker-info: none
+propose 20000 (> MAX-GAS-CEILING u10000)  (err u4018)
+propose by a RANDOM principal             (err u4001)
+confirm with nothing proposed             (err u4016)
+propose 5000 (legal)                      (ok true)   max-gas UNCHANGED
+confirm BEFORE the cooldown               (err u4012)
+  hostile station mid-cooldown            (err u0)    attacker: 0 sats
+advance 150
+confirm AFTER the cooldown                (ok true) -> u5000, pending cleared
 ```
 
-## Audit findings
+Stronger than designed: mid-cooldown the hostile station asked for more than the
+still-current cap and the WHOLE transaction aborted. The attacker gets nothing
+and the call fails loudly, rather than leaking the old cap.
 
-### 1. Gas station bypasses the sBTC threshold guard — MEDIUM, exploitable
+Also in v2/v11: **token-lock now gates the gasless staking paths** (it did not
+before -- an omission when porting from the pox-4 functions), and **v2 narrows
+the rp.id whitelist to `juiceofbtc.com` alone**, dropping the four unrelated
+origins inherited from `jing-mm-safe`.
 
-Confirmed: [`bf0a97e5`](https://stxer.xyz/simulations/mainnet/bf0a97e5584c479e15242447dec7d485)
+### Not fixed, by design
 
-```
-default max-gas-amount                              u1000
-ADMIN set-max-gas-amount(400000)                    (ok true)  instant, no cap
-RELAYER: legit passkey stake + HOSTILE gas station  (ok true)
-attacker sBTC   u0      -> u400000
-safe sBTC       u500000 -> u100000
-pending op created?  none
-```
-
-400,000 sats left the safe in ONE call -- 4x the `u100000` threshold, no pending
-op, no cooldown. Two weaknesses compose:
-
-1. **The `<gas-trait>` contract is not bound by any signed hash.** A relayer
-   holding one legitimate signature can substitute any trait implementer.
-   `pay-gas` runs inside `as-contract?`, so `contract-caller` is the wallet.
-2. **`set-max-gas-amount` is admin-only, instant and unbounded** -- no ceiling,
-   no cooldown, no `signal-config-change` -- and the gas path never consults
-   `would-exceed-sbtc-threshold`.
-
-The threshold exists so a compromised admin key cannot move sBTC in one shot.
-This route ignores it: the admin raises the cap silently, the drain fires on the
-user's next gasless action.
-
-Fixes, cheapest first: cap `max-gas-amount` with a constant; or put it behind the
-config cooldown; or bind `(contract-of gas)` into the signed hash (the proper
-fix -- it also stops relayer substitution).
-
-### 2. Pending-op execution does not count toward the period — LOW
-
-`execute-pending-*-transfer` contains zero `add-spent-*` calls, so released ops
-never consume the daily allowance. An admin can queue N ops and release them all
-after one shared 144-block wait. **The veto window is the real defence, not the
-threshold** -- the threshold reads like a rate limit and is not one.
-
-### Checked and clean
-
-Gas-path reentrancy (the wallet is never in `admins`, so a callback fails
-`is-admin-calling`) · 15 `pay-gas` sites, 0 reachable without a passkey ·
-`with-all-assets-unsafe` on unstake (no recipient) · fresh-stake allowance ·
-top-up allowance · the 2FA `passkey-created` guard · veto ordering · recovery
-requiring both inactivity and the recovery principal.
-
-### Scope note
-
-Both findings sit in code inherited from `pillar-safe-v2` / `fakfun-wallet-v8`,
-not in the pox-5 work -- so they likely affect `jing-mm-safe`,
-`yguazu-stx-safe` and every deployed fak.fun wallet. Blast radius unverified.
-
----
+Pending ops still do not count toward the daily period. They are gated by the
+cooldown and the veto window, so the threshold was never meant as a rate limit.
 
 **Still not closable in simulation:** live sBTC bonds -- reward runs pass an
 empty `bond-periods` list, valid only while no bonds are active.
@@ -160,24 +117,25 @@ should hide extend while `num-cycles` is at the cap.
 
 ## Simulations
 
-All against the **deployed** contracts. Nothing redeployed.
+All against the **deployed** contracts. Nothing redeployed. 191 assertions.
 
 | harness | link | result |
 |---|---|---|
-| `simul-juice-safe-v1-lifecycle.js` | [`225f6970`](https://stxer.xyz/simulations/mainnet/225f6970dee8bfc1d92bf14777ce7d7f) | **62/62** — full surface |
-| `simul-fakfun-wallet-v10.js` | [`e8ecd262`](https://stxer.xyz/simulations/mainnet/e8ecd2625f9f5eeb5638160e7e834a06) | **50/50** — v8→v10 delta, withdrawals, reward payout |
-| `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
-| `simul-juice-safe-v1.js` | [`2268a587`](https://stxer.xyz/simulations/mainnet/2268a5871ba06410461d52fc1a59888a) | **10/10** — stake→unstake→STX returns |
-| `simul-tranche-attack.js` | [`f2f798d0`](https://stxer.xyz/simulations/mainnet/f2f798d0c746bf8c85146e9205448da0) | **39/39** — multi-tranche + hostile settle |
-| `simul-allowance-probe.js` | [`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776) | allowance discriminator |
-| `simul-unstake-allowance-probe.js` | [`578a6d97`](https://stxer.xyz/simulations/mainnet/578a6d97af05c2661a8d712991bdfd11) | isolates the unstake bug |
+| `simul-juice-safe-v2-lifecycle.js` | [`7c417156`](https://stxer.xyz/simulations/mainnet/7c4171563d29b62a9852145a90b9c0bf) | **62/62** |
+| `simul-fakfun-wallet-v11.js` | [`bfe35568`](https://stxer.xyz/simulations/mainnet/bfe35568b89b55df35d86f0b4e3d02e5) | **50/50** |
+| `simul-tranche-attack-v2.js` | [`0f87da02`](https://stxer.xyz/simulations/mainnet/0f87da02fde3f015fd1d1bf1daa7a0e6) | **39/39** |
+| `simul-max-gas-cooldown-v11.js` | [`a12bacf7`](https://stxer.xyz/simulations/mainnet/a12bacf794042a436498598fda435100) | **17/17** |
+| `simul-juice-safe-v2-recovery.js` | [`46effee6`](https://stxer.xyz/simulations/mainnet/46effee6a217e3cc9f75ceab1e8e4377) | **16/16** |
+| `simul-max-gas-cooldown.js` | [`da4dd815`](https://stxer.xyz/simulations/mainnet/da4dd81584a1c377734fe8e5de8fccec) | **14/14** |
+| `simul-juice-safe-v2.js` | [`5386b3dc`](https://stxer.xyz/simulations/mainnet/5386b3dcb12ab4aa02801f9af8b52585) | **10/10** |
+| `simul-gas-station-exploit.js` | [`bf0a97e5`](https://stxer.xyz/simulations/mainnet/bf0a97e5584c479e15242447dec7d485) | the PoC, against v1 |
 
-Covered on the deployed v1/v10: onboard · 3-step admin init · stake · top-up ·
-extend · **unstake + unlock + STX returned** · auth guards · error codes · pool
-shares · gas station (20 sats sBTC) · multi-tranche reward payout to the safe
-**plus 8 real mainnet stakers** · double-pay guard · STX/sBTC withdrawals ·
-over-threshold pending ops released by **both** the 2FA fast-path and the
-144-block cooldown · 2FA ownership transfer · inactivity recovery.
+Covered on the deployed v2/v11: onboard (and v11's 3-step admin init) · stake ·
+top-up · extend · **unstake by admin key AND by passkey**, rejecting anyone else ·
+unlock + STX returned · gas station · **reward payout alongside 8 real mainnet
+stakers** · double-pay guard · multi-tranche + hostile settle · STX/sBTC
+withdrawals with the threshold guard and both release paths · 2FA ownership
+transfer · inactivity recovery · **max-gas ceiling, admin gate and cooldown**.
 
 ### What the lifecycle run covers
 
