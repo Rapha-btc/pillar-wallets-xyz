@@ -117,3 +117,13 @@ epoch = "latest"
 path = "contracts/juice-safe-v1.clar"
 clarity_version = 4
 epoch = "latest"
+
+[contracts.juice-safe-v2]
+path = "contracts/juice-safe-v2.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.fakfun-wallet-v11]
+path = "contracts/fakfun-wallet-v11.clar"
+clarity_version = 4
+epoch = "latest"
