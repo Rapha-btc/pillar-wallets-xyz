@@ -280,7 +280,7 @@ payout reads. Shares are written **only** by the stake/unstake paths
 
 Verified both ways:
 
-- **omitted** — [`77080151`](https://stxer.xyz/simulations/mainnet/770801519c5a96309c29f54349c9d126)
+- **omitted** — [`767531ff`](https://stxer.xyz/simulations/mainnet/767531ff808902263766f6259534117c)
   pays out with no settle called anywhere
 - **abused** — [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62)
   4 hostile `pox-settle-stakers` calls from an unrelated principal (between
