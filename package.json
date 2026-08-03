@@ -19,7 +19,9 @@
     "simul:tweet:dry": "node simul-fakfun-v2-tweet.js --dry",
     "simul:tweet": "node simul-fakfun-v2-tweet.js",
     "simul:tweet-real": "node simul-fakfun-v2-tweet-real.js",
-    "simul:pillar-safe": "node simul-pillar-safe.js"
+    "simul:pillar-safe": "node simul-pillar-safe.js",
+    "simul:juice-safe:staking": "node simulations/verify-juice-safe-v0-staking.js",
+    "simul:juice-safe:pc-negative": "node simulations/verify-juice-safe-v0-pc-negative.js"
   },
   "author": "",
   "license": "ISC",
