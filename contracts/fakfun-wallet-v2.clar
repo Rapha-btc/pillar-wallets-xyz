@@ -2230,11 +2230,20 @@
     (var-set initial-pubkey pubkey)
     (map-set pubkey-to-admin pubkey 'SP000000000000000000002Q6VF78)
     (var-set pubkey-initialized true)
+    ;; Pre-approve the xtrata-inscribe extension at deploy time so NEW wallets can
+    ;; inscribe immediately -- no 2-step whitelist, no 24h cooldown. Trust note:
+    ;; this hard-codes trust in one fixed, audited extension that only forwards a
+    ;; payload to Xtrata mint-single-tx (spends the STX fee, mints the NFT back to
+    ;; the wallet); it cannot drain the wallet. Editing this template changes the
+    ;; canonical hash -> requires a NEW verified version (see register-wallet ref).
+    (map-set whitelisted-extensions
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.xtrata-inscribe true
+    )
     (try! (as-contract? ()
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v6
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v7
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core

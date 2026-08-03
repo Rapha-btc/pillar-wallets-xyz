@@ -1,5 +1,5 @@
 // Which allowance does pox-5 unstake actually require, now that stxer applies
-// real locks? juice-safe-v0 currently declares (with-stacking (locked-ustx))
+// real locks? The shipped v0 declared (with-stacking (locked-ustx))
 // and that returned (err u128) = MAX_ALLOWANCES = "an asset class moved with no
 // allowance covering it". Four variants, identical otherwise.
 import { uintCV, cvToString, deserializeCV, ClarityVersion, PostConditionMode } from "@stacks/transactions";

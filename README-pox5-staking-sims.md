@@ -56,6 +56,62 @@ after unstake    locked u1450000000  unlock-height  u964250   <- pulled forward
 AFTER UNLOCK     locked u0           unlocked u2800000000     staker-info: none
 ```
 
+## Audit findings
+
+### 1. Gas station bypasses the sBTC threshold guard — MEDIUM, exploitable
+
+Confirmed: [`bf0a97e5`](https://stxer.xyz/simulations/mainnet/bf0a97e5584c479e15242447dec7d485)
+
+```
+default max-gas-amount                              u1000
+ADMIN set-max-gas-amount(400000)                    (ok true)  instant, no cap
+RELAYER: legit passkey stake + HOSTILE gas station  (ok true)
+attacker sBTC   u0      -> u400000
+safe sBTC       u500000 -> u100000
+pending op created?  none
+```
+
+400,000 sats left the safe in ONE call -- 4x the `u100000` threshold, no pending
+op, no cooldown. Two weaknesses compose:
+
+1. **The `<gas-trait>` contract is not bound by any signed hash.** A relayer
+   holding one legitimate signature can substitute any trait implementer.
+   `pay-gas` runs inside `as-contract?`, so `contract-caller` is the wallet.
+2. **`set-max-gas-amount` is admin-only, instant and unbounded** -- no ceiling,
+   no cooldown, no `signal-config-change` -- and the gas path never consults
+   `would-exceed-sbtc-threshold`.
+
+The threshold exists so a compromised admin key cannot move sBTC in one shot.
+This route ignores it: the admin raises the cap silently, the drain fires on the
+user's next gasless action.
+
+Fixes, cheapest first: cap `max-gas-amount` with a constant; or put it behind the
+config cooldown; or bind `(contract-of gas)` into the signed hash (the proper
+fix -- it also stops relayer substitution).
+
+### 2. Pending-op execution does not count toward the period — LOW
+
+`execute-pending-*-transfer` contains zero `add-spent-*` calls, so released ops
+never consume the daily allowance. An admin can queue N ops and release them all
+after one shared 144-block wait. **The veto window is the real defence, not the
+threshold** -- the threshold reads like a rate limit and is not one.
+
+### Checked and clean
+
+Gas-path reentrancy (the wallet is never in `admins`, so a callback fails
+`is-admin-calling`) · 15 `pay-gas` sites, 0 reachable without a passkey ·
+`with-all-assets-unsafe` on unstake (no recipient) · fresh-stake allowance ·
+top-up allowance · the 2FA `passkey-created` guard · veto ordering · recovery
+requiring both inactivity and the recovery principal.
+
+### Scope note
+
+Both findings sit in code inherited from `pillar-safe-v2` / `fakfun-wallet-v8`,
+not in the pox-5 work -- so they likely affect `jing-mm-safe`,
+`yguazu-stx-safe` and every deployed fak.fun wallet. Blast radius unverified.
+
+---
+
 **Still not closable in simulation:** live sBTC bonds -- reward runs pass an
 empty `bond-periods` list, valid only while no bonds are active.
 
@@ -111,8 +167,8 @@ All against the **deployed** contracts. Nothing redeployed.
 | `simul-juice-safe-v1-lifecycle.js` | [`225f6970`](https://stxer.xyz/simulations/mainnet/225f6970dee8bfc1d92bf14777ce7d7f) | **62/62** — full surface |
 | `simul-fakfun-wallet-v10.js` | [`e8ecd262`](https://stxer.xyz/simulations/mainnet/e8ecd2625f9f5eeb5638160e7e834a06) | **50/50** — v8→v10 delta, withdrawals, reward payout |
 | `simul-juice-safe-v1-recovery.js` | [`99298476`](https://stxer.xyz/simulations/mainnet/992984767c70f941318765eac82e1897) | **16/16** — 2FA transfer + recovery |
-| `simul-juice-safe-v1.js` | [`10b46fa6`](https://stxer.xyz/simulations/mainnet/10b46fa699d4ef86485bb52eb0a08930) | **10/10** — stake→unstake→STX returns |
-| `simul-tranche-attack.js` | [`9fdaa1db`](https://stxer.xyz/simulations/mainnet/9fdaa1dbdd73445f41efec5d5ccc4d62) | **39/39** — multi-tranche + hostile settle |
+| `simul-juice-safe-v1.js` | [`2268a587`](https://stxer.xyz/simulations/mainnet/2268a5871ba06410461d52fc1a59888a) | **10/10** — stake→unstake→STX returns |
+| `simul-tranche-attack.js` | [`f2f798d0`](https://stxer.xyz/simulations/mainnet/f2f798d0c746bf8c85146e9205448da0) | **39/39** — multi-tranche + hostile settle |
 | `simul-allowance-probe.js` | [`e1ef8c13`](https://stxer.xyz/simulations/mainnet/e1ef8c131f83c8556fc2893052f28776) | allowance discriminator |
 | `simul-unstake-allowance-probe.js` | [`578a6d97`](https://stxer.xyz/simulations/mainnet/578a6d97af05c2661a8d712991bdfd11) | isolates the unstake bug |
 

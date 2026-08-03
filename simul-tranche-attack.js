@@ -1,5 +1,5 @@
-// simul-juice-safe-v0-lifecycle.js
-// Stxer mainnet-fork simulation for juice-safe-v0 + juice-safe-auth-helpers-v1,
+// simul-juice-safe-v1-lifecycle.js
+// Stxer mainnet-fork simulation for juice-safe-v1 + juice-safe-auth-helpers-v1,
 // both DEPLOYED FRESH in the sim (neither exists on mainnet yet), exercising the
 // pox-5 staking surface against the LIVE pox-5 boot contract and the LIVE
 // SPV9K21....juice-pool-stx-signer.
@@ -42,7 +42,7 @@
 // shortens num-cycles), so a second `stake` would hit ERR_ALREADY_STAKED. Every
 // stake/update step therefore runs BEFORE the unstake, and unstake is last.
 //
-// Run: node simul-juice-safe-v0.js
+// Run: node simul-juice-safe-v1.js
 import crypto from "node:crypto";
 import {
   tupleCV,
@@ -76,7 +76,7 @@ const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
 
 // -- contracts ---------------------------------------------------------------
-const WALLET_NAME = "juice-safe-v0";
+const WALLET_NAME = "juice-safe-v1";
 const HELPER_NAME = "juice-safe-auth-helpers-v1";
 const WALLET = `${DEPLOYER}.${WALLET_NAME}`;
 const WALLET_CORE = `${DEPLOYER}.fakfun-wallet-core`;
@@ -185,7 +185,7 @@ async function main() {
   // -- A: contracts are ALREADY DEPLOYED on mainnet; exercise the real bytes.
   //    (An earlier revision deployed them fresh in-sim; that now collides with
   //    "Duplicate contract". Testing the deployed bytes is strictly better.)
-  call("set-verified-contract(juice-safe-v0)", DEPLOYER, WALLET_CORE,
+  call("set-verified-contract(juice-safe-v1)", DEPLOYER, WALLET_CORE,
     "set-verified-contract", [principalCV(WALLET), noneCV()], okre);
   b.withSender(STX_WHALE).addSTXTransfer({ recipient: WALLET, amount: FUND_USTX });
   plan.push({ kind: "fund", label: `fund safe ${FUND_USTX / 1e6} STX (whale)` });
@@ -326,7 +326,7 @@ async function main() {
   evalc("sBTC after replay", `(contract-call? '${SBTC_TOKEN} get-balance '${WALLET})`, "b3", WALLET);
 
   // -- run + verify ------------------------------------------------------------
-  console.log("=== juice-safe-v0 (DEPLOYED) + juice-safe-auth-helpers-v1 - stxer harness ===\n");
+  console.log("=== juice-safe-v1 (DEPLOYED) + juice-safe-auth-helpers-v1 - stxer harness ===\n");
   const sessionId = await b.run();
   const url = `https://stxer.xyz/simulations/mainnet/${sessionId}`;
   console.log(`Submitted: ${url}\n`);
@@ -376,16 +376,15 @@ async function main() {
   const chk = (l, cond) => { console.log(`${cond ? "PASS" : "FAIL"} ${l}`); cond ? pass++ : fail++; };
   chk("owner set at onboard", String(cap.owner0).includes(OWNER));
   chk("nothing locked before stake", lockedFrom(cap.acct0) === 0n);
-  chk("pre-advance: lock NOT yet applied (expected -- cycle 141 not reached)",
-    lockedFrom(cap.acct1) === 0n);
+  chk("stake locks IMMEDIATELY (stxer now runs the PoX lock handler)",
+    lockedFrom(cap.acct1) === BigInt(STAKE_USTX));
   chk("staker-info present after stake", String(cap.info1).startsWith("(some"));
   chk("staker-info names the Juice signer",
     String(cap.info1).includes("juice-pool-stx-signer"));
   // stxer does not run the node PoX lock handler (no STXLockEvent is emitted),
   // so account locks never move here. Assert the KNOWN behaviour instead of a
   // mainnet expectation the simulator cannot produce.
-  chk("stxer applied no account lock (expected: no STXLockEvent emitted)",
-    lockedFrom(cap.acctL) === 0n && lockedFrom(cap.acctL2) === 0n);
+  chk("lock persists across the cycle boundary", lockedFrom(cap.acctL) > 0n);
   chk("we hold shares in the Juice pool for cycle 141",
     /u[1-9]/.test(String(cap.shares)));
   chk("extend increased num-cycles", String(cap.infoE).includes("num-cycles"));

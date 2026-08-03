@@ -1,24 +1,11 @@
-// simul-juice-safe-v1-unstake-fix.js
-// The two owner-change escape hatches on the DEPLOYED SPV9K21....juice-safe-v0.
+// simul-juice-safe-v1.js
+// Stake -> top-up -> unstake -> unlock on the DEPLOYED SPV9K21....juice-safe-v1.
 //
-//   A. 2FA ownership transfer
-//        propose-transfer-wallet(new-admin)   admin key, direct
-//        confirm-transfer-wallet(sig-auth)    PASSKEY -- the second factor
-//      Neither factor alone can move the wallet.
+// The narrow proof that v1 fixes what v0 could not: v0's unstake returns
+// (err u128) and has NO exit path. Here the full round trip completes and the
+// STX comes back once the unlock height passes.
 //
-//   B. inactivity recovery
-//        recover-inactive-wallet(new-admin)   recovery address only, and only
-//                                             once is-inactive
-//      is-inactive is burn-block-height > last-activity-block + INACTIVITY-PERIOD
-//      (u52560 burn blocks, roughly a year). EVERY wallet call runs
-//      update-activity, so the clock restarts on any use -- this harness
-//      therefore advances the full period AFTER the last touch.
-//
-// Kept separate from the lifecycle harness precisely because of that 52,560
-// block advance; stacking those on top of the lifecycle's own advances would
-// make one very long fork.
-//
-// Run: node simul-juice-safe-v0-recovery.js
+// Run: node simul-juice-safe-v1.js
 import fs from "node:fs";
 import crypto from "node:crypto";
 import {

@@ -2,7 +2,8 @@
 // Does (with-stacking N) actually get ENFORCED on a pox-5 stake-update, at the
 // block the call happens?
 //
-// WHY THIS EXISTS. The juice-safe-v0 run showed stx-account reporting
+// WHY THIS EXISTS (historical). Before stxer fixed its PoX lock handler
+// (stxer/stxer-sdk#7), runs showed stx-account reporting
 // `locked u0` even with a live staker-info -- the lock is scheduled for
 // first-reward-cycle, not applied on the spot. If the node writes no stacking
 // entry at this block, then assets.get_stacking(owner) is None, the whole

@@ -41,6 +41,8 @@
 (define-constant RP-ID-HASH-PILLARWALLETS-XYZ 0xf4c61c15653973c702fe8d22c25516d6b84af766e53142d59c7b2d5abfa9b50b)
 (define-constant RP-ID-HASH-JINGSWAP-COM 0x9e56c212239ee7582cb385fb4432e9d2cae3c1aef98e4c1e508d40112147d4e5)
 (define-constant RP-ID-HASH-JUICEOFBTC-COM 0x1516f9ea2a21f961d99143eedf2aeeab86e3784a34a401b038bb97a7631e668b)
+(define-constant RP-ID-HASH-FAK-FUN 0xb877fea5df49f6d2fe544db0c7ced754f117ade85f60266bc217db3b239f2249)
+(define-constant RP-ID-HASH-FAKFUN-COM 0x5e8ba70d734d2bd57e0225bfd9a25f2c4d70db36fa1128e5eeb00cdab7a1ccdb)
 
 (define-constant JUICE-SIGNER 'SP1JAG6TV2XRYFGJN7CAAN6Z3CEW2YMZWMHJAJV91)
 
@@ -836,6 +838,8 @@
         (is-eq auth-rp-id RP-ID-HASH-PILLARWALLETS-XYZ)
         (is-eq auth-rp-id RP-ID-HASH-JINGSWAP-COM)
         (is-eq auth-rp-id RP-ID-HASH-JUICEOFBTC-COM)
+        (is-eq auth-rp-id RP-ID-HASH-FAK-FUN)
+        (is-eq auth-rp-id RP-ID-HASH-FAKFUN-COM)
       )
       err-invalid-signature
     )
@@ -1207,7 +1211,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.pillar-safe
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.pillar-safe-v2
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
