@@ -173,6 +173,116 @@
   )
 )
 
+;; MOVED UP from below is-authorized so pay-gas-accounted can reach
+;; would-exceed-sbtc-threshold -- Clarity resolves top-down. Bodies unchanged.
+(define-private (would-exceed-stx-threshold (amount uint))
+  (let (
+      (config (var-get wallet-config))
+      (spent (get-current-spent))
+    )
+    (> (+ (get stx spent) amount) (get stx-threshold config))
+  )
+)
+
+(define-private (would-exceed-sbtc-threshold (amount uint))
+  (let (
+      (config (var-get wallet-config))
+      (spent (get-current-spent))
+    )
+    (> (+ (get sbtc spent) amount) (get sbtc-threshold config))
+  )
+)
+
+;; Gas paid to a station is sBTC LEAVING the safe, so it counts against the
+;; period budget like any other sBTC spend. Before this, the gas path was the
+;; one sBTC outflow that never touched spent-this-period: a relayer could skim
+;; up to max-gas-amount on every gasless call the user signs, indefinitely,
+;; without ever moving the safe closer to its sbtc-threshold.
+;;
+;; The amount charged is the safe's own BALANCE DELTA across the call, not
+;; <gas-trait>'s get-gas-amount: the station is caller-supplied, so anything it
+;; reports about itself is unverified. The delta is what actually left, and it
+;; is bounded by the same max-gas-amount post-condition that already guards the
+;; call. A station that somehow sends sBTC IN is charged nothing rather than
+;; underflowing -- credits do not refill the budget.
+;;
+;; `enforce` decides whether the threshold is a LEDGER or a CEILING for this
+;; call. Counting alone stops no drain: it only makes the next legitimate
+;; transfer queue sooner, while the fees themselves keep flowing past the limit.
+;; GAS-ENFORCED makes sbtc-threshold mean what it says -- total sBTC out per
+;; period, fees included -- by reverting the whole call when the fee would cross
+;; it. The cost is that an exhausted budget makes those paths unusable until the
+;; period rolls (cooldown-period blocks), gaslessly at least; a funded admin EOA
+;; can still drive them directly, since the no-sig-auth path pays no gas.
+;;
+;; GAS-EXEMPT is granted to exactly ONE call, confirm-transfer-wallet, and the
+;; qualifying property is that it CANNOT LOOP. Every other gasless surface can:
+;; a compromised passkey mints a fresh auth-id, gets a fresh message-hash, and
+;; sails past the used-pubkey-authorizations replay check, so an exempt path
+;; would let an attacker call it over and over -- each iteration skimming up to
+;; max-gas-amount to a station THEY choose, since <gas-trait> is caller-supplied
+;; and not covered by the signed hash. veto-operation is the sharpest case: it
+;; only asserts the op is unexecuted, so one stale pending op can be re-vetoed
+;; indefinitely. That is unbounded sBTC extraction through the fee channel,
+;; invisible to sbtc-threshold and to the pending-op alerts. Enforcement caps it
+;; at the period budget, which is the whole point of having a threshold.
+;;
+;; confirm-transfer-wallet is different in kind, not degree: it is single-shot.
+;; It requires a pending-transfer that only propose-transfer-wallet can set, it
+;; clears that back to the burn address, and it deletes the old owner from
+;; `admins`. Since pubkey-to-admin still points the signing pubkey at that now
+;; ex-admin, is-admin-pubkey fails afterward and NO further gasless call of any
+;; kind is possible. One call, then the surface is gone -- there is no loop to
+;; cap, and blocking the terminal exit ramp on an exhausted budget would strand
+;; the wallet. It still COUNTS its fee; it just never reverts on it.
+;;
+;; CONSEQUENCE, accepted: with veto-operation and unstake enforced, an exhausted
+;; budget makes them unreachable GASLESSLY until the period rolls. Both remain
+;; reachable by the admin EOA on the no-sig-auth branch, which pays no sBTC gas
+;; and so never reaches this assert -- the panic button moves to the EOA, it is
+;; not lost.
+;;
+;; Ordering: every call site pays gas BEFORE its own would-exceed-sbtc-threshold
+;; check, so the fee is already inside `spent` when the threshold is evaluated.
+;; An sBTC transfer sitting just under the limit is pushed into a pending op by
+;; its own gas fee.
+(define-constant GAS-ENFORCED true)
+(define-constant GAS-EXEMPT false)
+
+(define-private (pay-gas-accounted
+    (g <gas-trait>)
+    (enforce bool)
+  )
+  (let ((before (try! (contract-call? SBTC-CONTRACT get-balance current-contract))))
+    (try! (as-contract?
+      ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+      (try! (contract-call? g pay-gas))
+    ))
+    (let (
+        (after (try! (contract-call? SBTC-CONTRACT get-balance current-contract)))
+        (fee (if (> before after)
+          (- before after)
+          u0
+        ))
+      )
+      ;; Checked BEFORE add-spent-sbtc: would-exceed asks "does spent + fee
+      ;; cross?", which is only the right question while `spent` still excludes
+      ;; this fee. A zero fee can never cross, so a station that charges nothing
+      ;; is never blocked even on an exhausted budget.
+      ;; Reads as the ABORT condition, negated once for asserts! (which
+      ;; continues on true): revert only when this call enforces AND the fee
+      ;; crosses. GAS-EXEMPT short-circuits the `and`, so an exempt call never
+      ;; reverts here no matter how far over budget it is -- it still falls
+      ;; through to add-spent-sbtc below and counts.
+      (asserts! (not (and enforce (would-exceed-sbtc-threshold fee)))
+        err-threshold-exceeded
+      )
+      (add-spent-sbtc fee)
+      (ok true)
+    )
+  )
+)
+
 (define-map pending-operations
   uint
   {
@@ -292,10 +402,7 @@
             client-data-suffix: (get client-data-suffix sig-auth-details),
           })))
           (match gas
-            g (try! (as-contract?
-              ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-              (try! (contract-call? g pay-gas))
-            ))
+            g (try! (pay-gas-accounted g GAS-ENFORCED))
             true
           )
         )
@@ -421,10 +528,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -441,24 +545,6 @@
 
 (define-read-only (get-pending-operation (op-id uint))
   (map-get? pending-operations op-id)
-)
-
-(define-private (would-exceed-stx-threshold (amount uint))
-  (let (
-      (config (var-get wallet-config))
-      (spent (get-current-spent))
-    )
-    (> (+ (get stx spent) amount) (get stx-threshold config))
-  )
-)
-
-(define-private (would-exceed-sbtc-threshold (amount uint))
-  (let (
-      (config (var-get wallet-config))
-      (spent (get-current-spent))
-    )
-    (> (+ (get sbtc spent) amount) (get sbtc-threshold config))
-  )
 )
 
 (define-private (is-authorized (sig-message-auth (optional {
@@ -519,10 +605,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -614,10 +697,7 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (as-contract?
-        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-        (try! (contract-call? g pay-gas))
-      ))
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
     (map-set pending-operations op-id (merge op { executed: true }))
@@ -671,10 +751,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -765,10 +842,7 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (as-contract?
-        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-        (try! (contract-call? g pay-gas))
-      ))
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
     (map-set pending-operations op-id (merge op { executed: true }))
@@ -823,10 +897,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -930,10 +1001,7 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (as-contract?
-        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-        (try! (contract-call? g pay-gas))
-      ))
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
     (let (
@@ -1001,10 +1069,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -1080,10 +1145,7 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (as-contract?
-        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-        (try! (contract-call? g pay-gas))
-      ))
+      g (try! (pay-gas-accounted g GAS-EXEMPT))
       true
     )
     (try! (ft-mint? ect u1 current-contract))
@@ -1209,10 +1271,7 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (as-contract?
-        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-        (try! (contract-call? g pay-gas))
-      ))
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
     (var-set pending-recovery new-recovery)
@@ -1287,10 +1346,7 @@
       )
     )
     (match gas
-      g (try! (as-contract?
-        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-        (try! (contract-call? g pay-gas))
-      ))
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
@@ -1400,10 +1456,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -1487,10 +1540,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
@@ -1555,10 +1605,7 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (as-contract?
-            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
-            (try! (contract-call? g pay-gas))
-          ))
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
           true
         )
       )
