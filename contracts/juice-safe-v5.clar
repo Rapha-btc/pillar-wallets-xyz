@@ -1969,6 +1969,7 @@
     (recovery principal)
     (stx-threshold uint)
     (sbtc-threshold uint)
+    (cooldown-period uint)
   )
   (begin
     (asserts! (is-eq tx-sender FAKFUN-DEPLOYER) err-unauthorised)
@@ -1991,11 +1992,19 @@
     ;; nothing from a lost owner key.
     (asserts! (not (is-eq recovery current-contract)) err-unauthorised)
     (asserts! (not (is-eq recovery new-owner)) err-unauthorised)
+    ;; Same bounds set-wallet-config enforces. v4 hardcoded u144 here, so the
+    ;; opening cooldown was the only one nobody could choose -- a user wanting a
+    ;; slower safe had to onboard at u144 and then run a full signal/confirm cycle
+    ;; at the very cooldown they were trying to replace. Bounded, not free: below
+    ;; MIN-COOLDOWN the delays stop being delays, above MAX-CONFIG-COOLDOWN pending
+    ;; operations freeze for longer than the longest wait this contract enforces.
+    (asserts! (>= cooldown-period MIN-COOLDOWN) err-cooldown-too-short)
+    (asserts! (<= cooldown-period MAX-CONFIG-COOLDOWN) err-cooldown-too-long)
     (var-set recovery-address recovery)
     (var-set wallet-config {
       stx-threshold: stx-threshold,
       sbtc-threshold: sbtc-threshold,
-      cooldown-period: u144,
+      cooldown-period: cooldown-period,
       config-signaled-at: none,
     })
     (var-set pubkey-initialized true)
@@ -2014,7 +2023,7 @@
       log-confirm-recovery recovery
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-wallet-config-set stx-threshold sbtc-threshold u0 u144
+      log-wallet-config-set stx-threshold sbtc-threshold u0 cooldown-period
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-wallet-initialized pubkey
