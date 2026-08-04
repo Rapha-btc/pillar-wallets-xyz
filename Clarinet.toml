@@ -127,3 +127,38 @@ epoch = "latest"
 path = "contracts/fakfun-wallet-v11.clar"
 clarity_version = 4
 epoch = "latest"
+
+[contracts.juice-safe-v3]
+path = "contracts/juice-safe-v3.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.fakfun-wallet-v12]
+path = "contracts/fakfun-wallet-v12.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.juice-safe-v4]
+path = "contracts/juice-safe-v4.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.fakfun-wallet-v14]
+path = "contracts/fakfun-wallet-v14.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.juice-safe-v5]
+path = "contracts/juice-safe-v5.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.fakfun-wallet-v15]
+path = "contracts/fakfun-wallet-v15.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.smart-wallet-standard-auth-helpers-v9]
+path = "contracts/smart-wallet-standard-auth-helpers-v9.clar"
+clarity_version = 6
+epoch = "latest"

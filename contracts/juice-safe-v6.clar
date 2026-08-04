@@ -1,83 +1,7 @@
-;; juice-safe-v5: juice-safe-v4 with the config surface behind the passkey.
-;; Full rationale: pillar/contracts/pillar-wallets/README-v5-v15-design.md
-;;
-;; 1. enroll-dual-stacking REMOVED (pox-4 era; new enrolment no longer works).
-;; 2. set-wallet-config REQUIRES the passkey. signal-config-change stays
-;;    admin-only, so the two steps span two DIFFERENT factors: a stolen admin key
-;;    can start a config change and never finish one. In v4 both halves were
-;;    (is-authorized none), so the key the cooldown protects against could set
-;;    cooldown-period to u0 and collapse every delay in the wallet.
-;;    Values are committed at SIGNAL time and the confirm applies what is pending,
-;;    so the cooldown window shows WHAT is coming, not merely that something is.
-;; 3. confirm-max-gas-amount REQUIRES the passkey; propose stays admin-only.
-;;    Both hashes bind the values, so the passkey approves specific numbers.
-;; 4. cooldown-period bounded: MIN-COOLDOWN u144 floor, MAX-CONFIG-COOLDOWN u4032
-;;    ceiling, at onboard AND at signal. v4 bounded neither and hardcoded u144 at
-;;    onboard. err-cooldown-too-long u4019 was declared in v4 and never used.
-;; 5. RECOVERY IS MANDATORY AT ONBOARD. Was (optional principal); passing none made
-;;    a lost admin key a permanent loss of funds. Rejected if it is the burn
-;;    sentinel, this contract, or the owner.
-;; 6. Cannot be seated as its own admin, guarded at every reachable admins write.
-;;
-;; ABI: onboard takes a bare recovery principal plus a cooldown-period, six args in
-;; all. set-wallet-config and confirm-max-gas-amount take a required sig-auth and an
-;; optional gas (confirm was zero-arg); signal-config-change takes the three values.
-;; DEPLOY smart-wallet-standard-auth-helpers-v9 FIRST -- referenced by
-;; fully-qualified principal, fails analysis without it. Then
-;; set-verified-contract(<this>, none), then onboard.
-;;
-;; juice-safe-v4: juice-safe-v2 plus a metered, fused gas channel.
-;;
-;; v2 left one sBTC outflow uncounted. A gasless call pays a caller-supplied
-;; <gas-trait> station up to max-gas-amount, and that payment touched no
-;; counter and no ceiling -- so a relayer could skim the max on every call the
-;; user signs, forever, against no cap. See the block on spent-this-period and
-;; pay-gas-accounted below for the full reasoning, and README-GAS-METERING.md
-;; for why the obvious fixes (charge it to sbtc-threshold; block on it) were
-;; both tried and both rejected.
-;;
-;; Everything else is v2 verbatim. Only register-wallet's argument changes, to
-;; name this contract -- see the NOTE at onboard.
-;;
-;; juice-safe-v1: juice-safe-v0 with the unstake allowance fixed. v0's unstake
-;; declared (with-staking (locked-ustx)) and could NEVER succeed -- (err u128)
-;; = MAX_ALLOWANCES, "an asset class moved with no allowance covering it".
-;; with-stacking bounds STX going INTO a lock; unstake pulls the unlock height
-;; FORWARD, and the allowance enum (Stx/Ft/Nft/Stacking/All) has no unlocking
-;; form, so no amount of with-stacking helps. v0 has no exit path at all.
-;;
-;; juice-safe-v1: pillar-safe-v2 + pox-5 staking with the Juice signer
-;; (juiceofbtc.com/stake), as a first-class wallet surface rather than a
-;; whitelisted extension. Two things distinguish it from the base safe:
-;;   1. stake-stx-juice / update-stake-stx-juice / unstake -- pox-5
-;;      stake / stake-update / unstake against
-;;      SPV9K21....juice-pool-stx-signer, run under as-contract so tx-sender is
-;;      THIS safe: the STX locks in the safe's own account and the pool never
-;;      custodies anything.
-;;   2. execute-pending-*-now -- passkey 2FA lifts the withdrawal cooldown:
-;;      over-threshold STX / sBTC pending ops still exist (alerts still fire),
-;;      but a WebAuthn signature executes them immediately.
-;;
-;; The pox-4 paths this template used to carry (stack-stx-fast-pool, and
-;; stack-stx-juice's delegate-stx to the operator EOA) are GONE: pox-4's last
-;; reward cycle was 140 and the chain has forked to pox-5, so they could only
-;; ever fail. Everything staking-related below targets pox-5.
-;;
-;; The RFQ / market-maker desk from jing-mm-safe (fix-rfq, fulfill-rfq,
-;; rfq-operator and the Pyth traits they needed) is removed entirely -- this
-;; safe holds a stacker's own STX, it is not a counterparty to anyone.
 (use-trait gas-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait.gas-station-trait)
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
-
-;; NOTE: no signer-manager trait is imported. pox-5 identifies a signer by the
-;; CONTRACT passed as signer-manager, and every call here names JUICE-SIGNER,
-;; a constant -- Clarity accepts a literal contract principal for a trait
-;; argument, so nothing needs to be caller-supplied. The consequence is that
-;; this safe can ONLY ever stake with Juice: moving a position in from another
-;; pox-5 pool would need that pool as a trait parameter, and there is none.
-;; A safe staked elsewhere must unstake and wait out the unlock instead.
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -101,14 +25,11 @@
 (define-constant err-cooldown-too-long (err u4019))
 (define-constant err-cooldown-too-short (err u4031))
 (define-constant err-no-pending-transfer (err u4020))
-;; u4021 (err-no-pending-pubkey) retired with the propose/confirm-admin-pubkey flow
+
 (define-constant err-token-locked (err u4023))
 (define-constant err-limit-expired (err u4024))
 (define-constant err-limit-not-hit (err u4025))
-;; u4026 was err-rfq-not-found on jing-mm-safe. Reused, not reserved: this
-;; contract has never been deployed, so no consumer holds a code table to
-;; protect. Codes u4001-u4025 above are left exactly as inherited -- they are
-;; shared vocabulary across the pillar wallet family and worth keeping aligned.
+
 (define-constant err-zero-amount (err u4026))
 (define-constant err-fatal-owner-not-admin (err u9999))
 
@@ -117,17 +38,6 @@
 
 (define-constant MAX-CONFIG-COOLDOWN u4032)
 
-;; Floor and ceiling on cooldown-period. v4 bounded NEITHER, and both directions
-;; were footguns. With no floor, a stolen admin key could signal a change, wait
-;; one current cooldown, set cooldown-period to u0, and collapse every delay in
-;; the wallet at once -- the cooldown existed to protect against exactly that key.
-;; With no ceiling, an absurd value froze every pending operation instead, the
-;; same footgun mirrored, and after a recovery the config is passkey-gated and can
-;; no longer be repaired. The ceiling reuses MAX-CONFIG-COOLDOWN: the wait for a
-;; config change was already clamped to it, so nothing gains from a cooldown
-;; longer than the longest wait the contract will ever enforce.
-;; err-cooldown-too-long u4019 was declared in v4 and never used; it is wired up
-;; here, which is what it was clearly for.
 (define-constant MIN-COOLDOWN u144)
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
@@ -138,16 +48,9 @@
 
 (define-constant POX5 'SP000000000000000000002Q6VF78.pox-5)
 
-;; The Juice signer CONTRACT, not the pool operator EOA. pox-4 delegated to an
-;; address (SP1JAG6TV2...); pox-5 derives the signer identity as
-;; (contract-of signer-manager), so the pool is named by contract now.
 (define-constant JUICE-SIGNER
   'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
 
-;; Maximum lock pox-5 accepts. NOT a commitment: unstake truncates a staker's
-;; shares to current-cycle + 1 whenever it is called, so 96 buys the longest
-;; auto-rolling position available rather than locking anyone in for 96 cycles.
-;; Matches what juiceofbtc.com/stake passes, so a safe and an EOA behave alike.
 (define-constant NUM-CYCLES u96)
 
 (define-data-var last-activity-block uint burn-block-height)
@@ -182,23 +85,6 @@
 
 (define-data-var token-lock-enabled bool false)
 
-;; gas is a THIRD counter and a DISJOINT one: a fee lands in gas and
-;; nowhere else, a transfer lands in sbtc and nowhere else. Both are sats,
-;; but they meter two independent channels against two independent caps --
-;; sbtc against sbtc-threshold (which decides whether a transfer executes now
-;; or queues as a pending op), gas against max-gas-per-period (which decides
-;; whether a gasless call is allowed to pay a station at all).
-;;
-;; NOT overlapping, and that is deliberate. Charging the fee to sbtc as well
-;; would buy no safety -- the fee is already capped by the gas fuse, so the
-;; second count can only ever bite AFTER the first one already would have --
-;; while quietly spending the transfer budget: 25 calls at the u1000 default is
-;; a quarter of the u100000 default threshold, i.e. sBTC transfers start queuing
-;; early for a reason the user cannot see. Two channels, two caps, no crosstalk.
-;;
-;; Consequence for readers: neither counter alone is "sBTC out this period".
-;; That total is (+ sbtc gas), and it is more useful shown as two numbers --
-;; what you sent vs what you paid to relay -- than as one.
 (define-data-var spent-this-period {
   stx: uint,
   sbtc: uint,
@@ -247,8 +133,6 @@
   )
 )
 
-;; Touches gas ONLY -- see the note on spent-this-period. A fee must not also
-;; land in sbtc, or the transfer budget silently pays for relaying.
 (define-private (add-spent-gas (amount uint))
   (let ((current (get-current-spent)))
     (var-set spent-this-period
@@ -257,104 +141,15 @@
   )
 )
 
-;; Gas paid to a station is sBTC LEAVING the safe, so it gets metered -- on its
-;; own channel, gas. Before this, the gas path was the one sBTC outflow that
-;; touched no counter at all: a relayer could skim up to max-gas-amount on every
-;; gasless call the user signs, indefinitely, against no cap of any kind.
-;;
-;; The amount charged is the safe's own BALANCE DELTA across the call, not
-;; <gas-trait>'s get-gas-amount: the station is caller-supplied, so anything it
-;; reports about itself is unverified. The delta is what actually left, and it
-;; is bounded by the same max-gas-amount post-condition that already guards the
-;; call. A station that somehow sends sBTC IN is charged nothing rather than
-;; underflowing -- credits do not refill the budget.
-;;
-;; enforce decides whether the GAS FUSE is live for this call. Metering alone
-;; stops no drain -- a counter nobody checks is just bookkeeping. GAS-ENFORCED
-;; caps the skim, by reverting the whole call when this fee would push the
-;; period's gas total past max-gas-per-period.
-;;
-;; The ceiling is derived, not fixed: max-gas-amount * GAS-CALLS-PER-PERIOD. So
-;; the cap is really "N gasless calls per period" regardless of what a single
-;; fee costs, and raising max-gas-amount raises the ceiling with it -- which is
-;; safe precisely because that raise is itself two-step and cooldown-gated (see
-;; propose-max-gas-amount). A flat sat constant would have silently tightened
-;; into a brick wall every time max-gas-amount went up.
-;;
-;; Deliberately NOT gated on sbtc-threshold, and deliberately not counted there
-;; either. Gating on it was the first attempt and it was wrong: only 4 of the 14
-;; enforced paths move sBTC at all, so one large under-threshold transfer would
-;; leave a few sats of headroom and then brick unstake, veto-operation,
-;; sip009-transfer and stx-transfer -- none of which spend sBTC -- until the
-;; period rolled. Merely COUNTING there was the second attempt and was also
-;; wrong, for the quieter reason given on spent-this-period: it adds no cap the
-;; fuse does not already impose, and spends the transfer budget to do it.
-;;
-;; GAS-EXEMPT is granted to exactly ONE call, confirm-transfer-wallet, and the
-;; qualifying property is that it CANNOT LOOP. Every other gasless surface can:
-;; a compromised passkey mints a fresh auth-id, gets a fresh message-hash, and
-;; sails past the used-pubkey-authorizations replay check, so an exempt path
-;; would let an attacker call it over and over -- each iteration skimming up to
-;; max-gas-amount to a station THEY choose, since <gas-trait> is caller-supplied
-;; and not covered by the signed hash. veto-operation is the sharpest case: it
-;; only asserts the op is unexecuted, so one stale pending op can be re-vetoed
-;; indefinitely. That is unbounded sBTC extraction through the fee channel,
-;; invisible to sbtc-threshold and to the pending-op alerts. Enforcement caps it
-;; at the period budget, which is the whole point of having a threshold.
-;;
-;; confirm-transfer-wallet is different in kind, not degree: it is single-shot.
-;; It requires a pending-transfer that only propose-transfer-wallet can set, it
-;; clears that back to the burn address, and it deletes the old owner from
-;; admins. Since pubkey-to-admin still points the signing pubkey at that now
-;; ex-admin, is-admin-pubkey fails afterward and NO further gasless call of any
-;; kind is possible. One call, then the surface is gone -- there is no loop to
-;; cap, and blocking the terminal exit ramp on an exhausted budget would strand
-;; the wallet. It still COUNTS its fee; it just never reverts on it.
-;;
-;; CONSEQUENCE, accepted: with veto-operation and unstake enforced, an exhausted
-;; budget makes them unreachable GASLESSLY until the period rolls. Both remain
-;; reachable by the admin EOA on the no-sig-auth branch, which pays no sBTC gas
-;; and so never reaches this assert -- the panic button moves to the EOA, it is
-;; not lost.
-;;
-;; Ordering: every call site pays gas BEFORE its own would-exceed-sbtc-threshold
-;; check, so the fee is already inside spent when the threshold is evaluated.
-;; An sBTC transfer sitting just under the limit is pushed into a pending op by
-;; its own gas fee.
 (define-constant GAS-ENFORCED true)
 (define-constant GAS-EXEMPT false)
 
-;; How many max-price gasless calls one period may fund. 25 * the u1000 default
-;; = 25000 sats per cooldown-period (u144 blocks, ~1 day); at the u10000
-;; MAX-GAS-CEILING it is 250000. Sized to sit well clear of any plausible day of
-;; real use while still turning "unbounded skim" into a bounded one.
 (define-constant GAS-CALLS-PER-PERIOD u25)
 
 (define-private (max-gas-per-period)
   (* (var-get max-gas-amount) GAS-CALLS-PER-PERIOD)
 )
 
-;; NOTE: unwrap-panic here is LOAD-BEARING -- do not 'clean it up' to try!.
-;; try! must read the err value out to propagate it, which requires the err
-;; type to be resolved; at Clarity 6 it is not, and contract INIT aborts with
-;; (err none) / vm_error "attempted to obtain 'err' value from response, but
-;; 'err' type is indeterminate". That is what killed the juice-safe-v3 and
-;; fakfun-wallet-v12 deploys (0xc84209a5..., 0x34aa0304...) and it reproduces
-;; in isolation at C6 even with a literal target (simul-c6-bisect.js).
-;; unwrap-panic discards the err instead of reading it, so it needs no type.
-;; clarinet flags unwrap-panic as a warning and cannot see the abort at all.
-;;
-;; The call TARGET is also the literal, not the SBTC-CONTRACT constant,
-;; even though the allowance below happily takes the constant. A constant that
-;; is also used as a plain principal value (with-ft, and the is-eq comparisons
-;; in sip010-transfer) analyses as principal, so contract-call? cannot resolve
-;; get-balance's signature, the response's err type comes back indeterminate,
-;; and try! aborts contract init with (err none) -- vm_error "attempted to
-;; obtain 'err' value from response, but 'err' type is indeterminate". That is
-;; what killed the first juice-safe-v3 / fakfun-wallet-v12 deploys
-;; (0xc84209a5..., 0x34aa0304...). clarinet does NOT catch it: it skips type
-;; checking on constant-target contract-calls entirely. POX5 gets away with the
-;; constant only because it is never used as a value anywhere else.
 (define-private (pay-gas-accounted
     (g <gas-trait>)
     (enforce bool)
@@ -377,17 +172,7 @@
           u0
         ))
       )
-      ;; Checked BEFORE add-spent-gas, against the pre-fee gas total: the
-      ;; question is "does gas-so-far + this fee cross?", which is only right
-      ;; while the counter still excludes this fee. A zero fee can never cross,
-      ;; so a station that charges nothing is never blocked even on a spent
-      ;; fuse.
-      ;;
-      ;; Reads as the ABORT condition, negated once for asserts! (which
-      ;; continues on true): revert only when this call enforces AND the fee
-      ;; blows the fuse. GAS-EXEMPT short-circuits the and, so an exempt call
-      ;; never reverts here no matter how far over it is -- it still falls
-      ;; through to add-spent-gas below and counts.
+
       (asserts!
         (not (and enforce
           (> (+ (get gas (get-current-spent)) fee) (max-gas-per-period))
@@ -412,10 +197,7 @@
     execute-after: uint,
     executed: bool,
     vetoed: bool,
-    ;; Which factor CREATED the op. The execute-*-now fast path (passkey
-    ;; signature lifts the cooldown) only accepts admin-created ops: a
-    ;; passkey-created op passkey-executed-now would be ONE factor twice,
-    ;; not 2FA. Passkey-created ops must wait out the cooldown.
+
     passkey-created: bool,
   }
 )
@@ -430,19 +212,6 @@
   proposed-at: u0,
 })
 
-
-;; Values committed at SIGNAL time, applied at confirm time.
-;;
-;; The draft of this version put the values on set-wallet-config, which left the
-;; cooldown window useless: an observer saw that a config change was coming and
-;; had no way to learn WHAT until it landed, because core's
-;; log-signal-config-change carries no arguments. An unactionable warning is not a
-;; protection. The values are now public the moment the clock starts, and the
-;; passkey confirms exactly what was committed a cooldown earlier -- the same
-;; shape as propose-max-gas-amount / confirm-max-gas-amount.
-;;
-;; Presence is tracked by wallet-config.config-signaled-at and NOT duplicated
-;; here: one source of truth for the clock, one for the values.
 (define-data-var pending-config {
   stx-threshold: uint,
   sbtc-threshold: uint,
@@ -461,17 +230,6 @@
   (var-get pending-max-gas)
 )
 
-;; Raising max-gas-amount is a two-step under the wallet cooldown.
-;;
-;; WHY: the <gas-trait> contract is caller-supplied and is NOT bound by the
-;; signed hash, so whoever relays a gasless call chooses which gas station gets
-;; paid, bounded only by max-gas-amount. The gas path also never consults
-;; would-exceed-sbtc-threshold, so it does not queue a pending op. A compromised
-;; admin key could therefore raise this instantly and silently, and the next
-;; gasless action the user takes would leak up to the new amount to a hostile
-;; station -- no phishing and no passkey compromise required, only control of
-;; the relay. The cooldown makes the raise visible and delayed instead: the
-;; propose fires an alert and the owner has the full period to react.
 (define-public (propose-max-gas-amount (amount uint))
   (begin
     (try! (is-admin-calling tx-sender))
@@ -506,13 +264,10 @@
         wallet-cooldown
       ))
     )
-    ;; STEP 2 IS THE PASSKEY. propose-max-gas-amount stays admin-only, so raising
-    ;; the gas cap now needs both factors across two steps. The hash binds the
-    ;; PENDING amount, so a signature collected for a modest raise cannot be
-    ;; replayed against a larger proposal swapped in afterwards.
+
     (try! (is-authorized (some {
       message-hash: (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v9
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10
         build-confirm-max-gas-amount-hash {
         auth-id: (get auth-id sig-auth),
         amount: (get amount pending),
@@ -523,13 +278,7 @@
       client-data-prefix: (get client-data-prefix sig-auth),
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
-    ;; Standard gas pattern, same reasoning as set-wallet-config.
-    ;;
-    ;; The fee is metered BEFORE max-gas-amount is updated below, so it is charged
-    ;; against the OLD, lower cap and the OLD max-gas-per-period. That is the
-    ;; conservative order: a pending raise cannot fund a larger fee on the very
-    ;; call that grants it. propose-max-gas-amount takes no gas param, being
-    ;; admin-only.
+
     (match gas
       g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
@@ -607,9 +356,7 @@
   )
   (let ((config (var-get wallet-config)))
     (try! (is-authorized none))
-    ;; Bounds are checked HERE, at propose time, so an out-of-range value fails
-    ;; immediately instead of after a cooldown. Same as propose-max-gas-amount
-    ;; asserting MAX-GAS-CEILING at propose rather than at confirm.
+
     (asserts! (>= new-cooldown-period MIN-COOLDOWN) err-cooldown-too-short)
     (asserts! (<= new-cooldown-period MAX-CONFIG-COOLDOWN) err-cooldown-too-long)
     (var-set pending-config {
@@ -621,8 +368,7 @@
       (merge config { config-signaled-at: (some burn-block-height) })
     )
     (update-activity)
-    ;; core's log-signal-config-change takes no arguments, so the values are
-    ;; printed here. This is what makes the cooldown window inspectable.
+
     (print {
       event: "signal-config-change",
       stx-threshold: new-stx-threshold,
@@ -661,18 +407,10 @@
         wallet-cooldown
       ))
     )
-    ;; STEP 2 IS THE PASSKEY, NOT THE ADMIN KEY. In v4 both halves were
-    ;; (is-authorized none), so the key that the cooldown protects against could
-    ;; also switch the cooldown off. signal-config-change stays admin-only, so
-    ;; the two steps now need two DIFFERENT factors: a stolen admin key can start
-    ;; a config change and can never finish one.
-    ;;
-    ;; The hash binds the PENDING values -- the ones committed publicly a cooldown
-    ;; ago -- so the passkey approves exactly what was signalled and nothing can be
-    ;; substituted at confirm time. Bounds were already asserted at signal.
+
     (try! (is-authorized (some {
       message-hash: (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v9
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10
         build-set-wallet-config-hash {
         auth-id: (get auth-id sig-auth),
         stx-threshold: new-stx-threshold,
@@ -685,14 +423,7 @@
       client-data-prefix: (get client-data-prefix sig-auth),
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
-    ;; Standard gas pattern. This call is passkey-only now, so it is normally
-    ;; RELAYED -- without a gas station the owner has to broadcast it themselves
-    ;; and pay STX. Placed after the signature check and metered GAS-ENFORCED,
-    ;; like every other station-paying site except confirm-transfer-wallet.
-    ;;
-    ;; signal-config-change deliberately takes NO gas param: it is admin-only, and
-    ;; the invariant across both wallets is that a function without sig-auth takes
-    ;; no gas either, so a compromised admin key alone can never drain via gas.
+
     (match gas
       g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
@@ -707,11 +438,7 @@
       cooldown-period: new-cooldown-period,
       config-signaled-at: none,
     })
-    ;; Clear the queue, same as confirm-max-gas-amount clears pending-max-gas.
-    ;; Two reasons. get-pending-config would otherwise keep reporting the values
-    ;; of a change that has already landed, so any UI reading it alone shows a
-    ;; phantom pending change. And all-zeros becomes an unambiguous "nothing
-    ;; queued", so a reader does not have to consult config-signaled-at to know.
+
     (var-set pending-config {
       stx-threshold: u0,
       sbtc-threshold: u0,
@@ -803,11 +530,7 @@
     )
     (asserts! (not (get executed op)) err-already-executed)
     (map-set pending-operations op-id (merge op { vetoed: true }))
-    ;; Vetoing is the owner actively defending the wallet. Omitting this meant an
-    ;; owner whose only interaction across a year was killing hostile pending ops
-    ;; counted as ABANDONED, and the recovery address could seize the wallet from
-    ;; someone demonstrably present. Inherited from v4; 21 of 25 public functions
-    ;; already did this, and the docs claim all of them do.
+
     (update-activity)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-operation-vetoed op-id
@@ -950,10 +673,6 @@
   )
 )
 
-;; Passkey 2FA lifts the cooldown: same checks as execute-pending-stx-transfer
-;; EXCEPT execute-after. The pending op (with its alert) still happened -- the
-;; WebAuthn signature is the second factor that buys immediacy. A stolen admin
-;; key alone still has to wait out the cooldown under veto watch.
 (define-public (execute-pending-stx-transfer-now
     (op-id uint)
     (memo (optional (buff 34)))
@@ -971,7 +690,7 @@
     (asserts! (is-eq (get op-type op) "stx-transfer") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
-    ;; 2FA means TWO factors: only admin-created ops may be passkey-fast-tracked.
+
     (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (try! (is-authorized (some {
@@ -1098,7 +817,6 @@
   )
 )
 
-;; Passkey 2FA fast-path twin of execute-pending-sbtc-transfer (no cooldown).
 (define-public (execute-pending-sbtc-transfer-now
     (op-id uint)
     (memo (optional (buff 34)))
@@ -1116,7 +834,7 @@
     (asserts! (is-eq (get op-type op) "sbtc-transfer") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
-    ;; 2FA means TWO factors: only admin-created ops may be passkey-fast-tracked.
+
     (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (try! (is-authorized (some {
@@ -1258,7 +976,6 @@
   )
 )
 
-;; Passkey 2FA fast-path twin of execute-pending-sbtc-withdrawal (no cooldown).
 (define-public (execute-pending-sbtc-withdrawal-now
     (op-id uint)
     (sig-auth {
@@ -1275,7 +992,7 @@
     (asserts! (is-eq (get op-type op) "sbtc-withdraw") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
-    ;; 2FA means TWO factors: only admin-created ops may be passkey-fast-tracked.
+
     (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
     (try! (is-authorized (some {
@@ -1441,10 +1158,7 @@
     )
     (try! (ft-mint? ect u1 current-contract))
     (try! (ft-burn? ect u1 current-contract))
-    ;; NEVER this contract. as-contract? rebinds tx-sender to this contract,
-    ;; so seating it here would let any caller-supplied gas station re-enter
-    ;; with sig-auth none and pass is-admin-calling. Clarity's principal
-    ;; type does not distinguish a standard principal from a contract one.
+
     (asserts! (not (is-eq pending current-contract)) err-unauthorised)
     (map-set admins pending true)
     (map-delete admins (var-get owner))
@@ -1457,20 +1171,6 @@
     (ok true)
   )
 )
-
-;; Passkey registration is FIXED AT ONBOARDING. The former
-;; propose-admin-pubkey / confirm-admin-pubkey flow (2-step, pubkey-cooldown
-;; gated) and its signal/confirm-pubkey-cooldown-change tuning pair were
-;; REMOVED: no passkey can be added, removed or rotated after onboard.
-;; Rationale: any post-onboard add path reachable by the admin key alone
-;; would let a compromised admin key register an attacker-generated r1 key
-;; as a "passkey" and satisfy both factors itself.
-;; CONSEQUENCE: confirm-transfer-wallet still executes (signed by the
-;; existing passkey), but the NEW owner has no registered passkey and can
-;; never add one -- after a transfer, all passkey-gated paths (a further
-;; transfer, propose-recovery, any sig-auth/gasless call) are unusable.
-;; Transfer is an exit ramp, not a rotation; a lost passkey means migrating
-;; funds to a freshly onboarded wallet.
 
 (define-read-only (verify-signature
     (message-hash (buff 32))
@@ -1487,10 +1187,7 @@
       err-invalid-signature
     )))
     (try! (is-admin-pubkey pubkey))
-    ;; juiceofbtc.com ONLY. v0/v1 inherited a five-origin whitelist from
-    ;; jing-mm-safe (pillarwallets.xyz, jingswap.com, fak.fun, fakfun.com); a
-    ;; Juice safe has no reason to accept a signature minted on any of them, so
-    ;; the surface is narrowed to the single origin that actually serves it.
+
     (asserts! (is-eq auth-rp-id RP-ID-HASH-JUICEOFBTC-COM) err-invalid-signature)
     (asserts!
       (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
@@ -1570,16 +1267,7 @@
       g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
-    ;; No burn-address check here: confirm-recovery already asserts the pending
-    ;; value is not 'SP000...2Q6VF78 before writing it, so proposing the sentinel
-    ;; can never take effect. onboard is different -- it writes recovery-address
-    ;; directly with no confirm step, so it checks there.
-    ;;
-    ;; NEVER this contract, though. recover-inactive-wallet gates on
-    ;; tx-sender == recovery-address, and as-contract? makes tx-sender this
-    ;; contract, so a contract-valued recovery address is a path a gas station
-    ;; could reach. update-activity running first makes it unreachable today; this
-    ;; keeps it unreachable if that ordering ever changes.
+
     (asserts! (not (is-eq new-recovery current-contract)) err-unauthorised)
     (var-set pending-recovery new-recovery)
     (update-activity)
@@ -1611,10 +1299,7 @@
     (asserts! (is-inactive) err-inactive-required)
     (asserts! (is-eq tx-sender (var-get recovery-address)) err-unauthorised)
     (map-delete admins (var-get owner))
-    ;; NEVER this contract. as-contract? rebinds tx-sender to this contract,
-    ;; so seating it here would let any caller-supplied gas station re-enter
-    ;; with sig-auth none and pass is-admin-calling. Clarity's principal
-    ;; type does not distinguish a standard principal from a contract one.
+
     (asserts! (not (is-eq new-admin current-contract)) err-unauthorised)
     (map-set admins new-admin true)
     (var-set owner new-admin)
@@ -1626,75 +1311,10 @@
   )
 )
 
-;; ------------------------------------------------------------ pox-5 staking
-;; The safe stacks its OWN STX with Juice. Every pox-5 call runs inside
-;; as-contract? so tx-sender is this contract: pox-5 keys the staker off
-;; tx-sender, so the lock lands on the safe's balance and Juice never custodies
-;; anything.
-;;
-;; ALLOWANCES. Epoch 4.0 made locking STX an asset event in its own right, with
-;; its own allowance form: (with-staking uint). with-all-assets-unsafe would
-;; have waved through any amount AND every other asset class the safe holds --
-;; the escape hatch the pox-4 code needed because there was no stacking
-;; allowance to name. There is one now, so nothing here uses it.
-;;
-;; THE AMOUNT IS A BALANCE, NOT A DELTA. This is the one genuinely
-;; counter-intuitive thing on this surface. Post-conditions normally bound what
-;; MOVES in a transaction; the stacking entry instead reports what the account
-;; now HAS stacked. The node computes it as amount_locked() after the lock and
-;; INSERTS (not adds) it into the asset map, and the allowance check is
-;; stacked > allowance -> violation. So on a top-up the number to declare is
-;; the RESULTING TOTAL: declaring amount-increase aborts every top-up, because
-;; existing+increase always exceeds increase. A first-time stake only looks
-;; fine because there the increase IS the total.
-;;
-;; Hence (locked-ustx) on the update path: the pre-call locked balance, straight
-;; from the native stx-account, which is the same quantity the node reports.
-;; Adding the increase gives the post-call total the allowance is checked
-;; against. stake-stx-juice needs no such term -- nothing can be staked when it
-;; succeeds, so its amount already IS the total.
-;;
-;; unstake declares (locked-ustx) unchanged rather than an empty list. pox-5's
-;; unstake leaves amount-ustx alone and only shortens num-cycles, so IF the node
-;; writes a stacking entry it can only be that same total; and if it writes none,
-;; the check is skipped and an unused allowance costs nothing. Declaring it is
-;; correct either way, where an empty list is correct only in the second.
-;;
-;; SIGNATURE SCOPE. Every caller-supplied argument that reaches pox-5 is bound
-;; by the signed hash. helpers-v7's build-stack-stx-juice-hash could not do that
-;; here -- it covers { auth-id, amount-ustx } because it was written for pox-4
-;; delegate-stx, which took an amount and nothing else -- so the pox-5 actions
-;; use juice-safe-auth-helpers-v1 instead. What stays constant in this contract
-;; (the JUICE-SIGNER destination, and NUM-CYCLES / burn-block-height on the
-;; fresh-stake path) needs no binding precisely because a caller cannot vary it.
-;; All three are challenged from juice-safe-auth-helpers-v1, including unstake
-;; -- it has no caller-supplied argument at all, so helpers-v7's auth-id-only
-;; build-revoke-stacking-hash would have worked, but keeping every pox-5 action
-;; on one helper keeps one naming scheme in front of the signing prompt.
-
-;; The safe's own locked uSTX. This is the quantity the node puts in the asset
-;; map's stacking entry (it logs amount_locked() after applying the lock), so it
-;; is what every (with-staking ...) below is denominated in. Read natively via
-;; stx-account -- no pox-5 call, so no cross-contract read and none of the
-;; get-staker-info read-only typing trouble.
 (define-read-only (locked-ustx)
   (get locked (stx-account current-contract))
 )
 
-;; Stake with Juice for the first time -- pox-5 stake.
-;;
-;; SPLIT FROM update-stake-stx-juice deliberately. pox-5 has two entry points
-;; and neither handles both cases (stake returns ERR_ALREADY_STAKED when a
-;; position exists, stake-update returns ERR_NOT_STAKING when it does not), so
-;; something has to choose. That something is the caller: juiceofbtc.com/stake
-;; already reads pox-5 state to decide, so a read here would only be a second
-;; answer to a question the front end has already answered. Folding both into
-;; one function would also mean one signature covering two different argument
-;; meanings -- amount-as-initial-lock vs amount-as-increase.
-;;
-;; num-cycles is NUM-CYCLES and start-burn-ht is burn-block-height, both
-;; constant, so amount-ustx is the only caller-supplied argument and the signed
-;; hash covers the whole call.
 (define-public (stake-stx-juice
     (amount-ustx uint)
     (sig-auth (optional {
@@ -1733,24 +1353,11 @@
       (try! (is-authorized none))
     )
     (asserts! (> amount-ustx u0) err-zero-amount)
-    ;; log-stake-stx-stacking-dao is the deployed core's generic "STX staked"
-    ;; event; its name is historical and cannot be changed from here.
+
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-stake-stx-stacking-dao amount-ustx
     ))
-    ;; start-burn-ht must fall inside the CURRENT reward cycle so pox-5 resolves
-    ;; first-reward-cycle to current + 1. burn-block-height always does, and
-    ;; unlike a caller-supplied height it cannot be wrong or forged.
-    ;;
-    ;; try!, NOT (err (to-uint ...)): pox-5's errors are already uint. The pox-4
-    ;; call sites this template used to carry coerced because pox-4 returns INT
-    ;; errors; copying that pattern here does not typecheck.
-    ;; amount-ustx IS the resulting total here, so no (locked-ustx) term: pox-5
-    ;; rejects stake with ERR_ALREADY_STAKED unless staker-info is absent, and
-    ;; this contract is post-fork so it can never be carrying a stray pox-4
-    ;; lock either -- nothing is staked when this call succeeds. Adding a
-    ;; balance that must be u0 would only widen the allowance if it ever were
-    ;; not. The update path is where the total differs from the delta.
+
     (try! (as-contract? ((with-staking amount-ustx))
       (try! (contract-call? POX5 stake
         JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height none
@@ -1765,18 +1372,6 @@
   )
 )
 
-;; Top up an existing Juice position, extend it, or both -- pox-5 stake-update.
-;;
-;; WHY cycles-to-extend IS AN INPUT. pox-5's lock window is ROLLING, not fixed:
-;; stake-update recomputes num-cycles as (unlock-cycle - current-cycle - 1), so
-;; a position opened for the 96-cycle maximum has only 86 left ten cycles later.
-;; Pinning it to u0 would make every top-up leave the window to decay toward
-;; zero with no way to re-top it. pox-5 caps the result at MAX_NUM_CYCLES (u96)
-;; and returns ERR_INVALID_NUM_CYCLES (u20) past it, so an over-large value
-;; fails loudly rather than doing something surprising.
-;;
-;; Both signers are JUICE-SIGNER: this safe can only ever hold a Juice position,
-;; and pox-5 rejects a mismatched old-signer itself.
 (define-public (update-stake-stx-juice
     (amount-increase uint)
     (cycles-to-extend uint)
@@ -1816,17 +1411,12 @@
       )
       (try! (is-authorized none))
     )
-    ;; A pure extend (amount u0) and a pure top-up (cycles u0) are both
-    ;; legitimate; a call that does neither is a no-op worth rejecting.
+
     (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)) err-zero-amount)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-stake-stx-stacking-dao amount-increase
     ))
-    ;; amount-increase is the DELTA, not the new total: pox-5 adds it to the
-    ;; existing amount-ustx and only the delta is newly locked. A pure extend
-    ;; passes u0 here and locks nothing.
-    ;; (locked-ustx) + amount-increase = the total pox-5 will report. Declaring
-    ;; amount-increase alone aborts every top-up -- see ALLOWANCES above.
+
     (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
       (try! (contract-call? POX5 stake-update
         JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase none
@@ -1841,12 +1431,6 @@
   )
 )
 
-;; Leave Juice. pox-5 removes the safe's shares from current-cycle + 1, so the
-;; cycle in progress still pays out; the STX unlocks when its lock ends.
-;;
-;; Getting OUT must always work, so this stays reachable by every factor the
-;; safe accepts. The signed hash is auth-id only: pox-5's unstake takes just the
-;; old signer-manager, and that is the JUICE-SIGNER constant here.
 (define-public (unstake
     (sig-auth (optional {
       auth-id: uint,
@@ -1881,36 +1465,11 @@
       )
       (try! (is-authorized none))
     )
-    ;; log-revoke-fast-pool is the deployed core's generic "stopped stacking"
-    ;; event; its name is historical and cannot be changed from here.
+
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-revoke-fast-pool
     ))
 
-    ;; (with-pox) -- the allowance built for exactly this call. SIP-044 defines
-    ;; it as "interacting with the latest PoX contract ... functions that act on
-    ;; behalf of tx-sender and do NOT trigger a staking event", and names
-    ;; unstake first in its list (also unstake-sbtc, update-bond-registration,
-    ;; announce-l1-early-exit). The SIP's own example is this exact call with an
-    ;; empty allowance list failing and ((with-pox)) succeeding.
-    ;;
-    ;; SUPERSEDES an escape hatch. This used to be (with-all-assets-unsafe),
-    ;; chosen after probing every Clarity 4 form and finding they all returned
-    ;; (err u128) = MAX_ALLOWANCES, "an asset class moved with no allowance
-    ;; covering it". That probe was not wrong, it was version-bound: with-pox
-    ;; did not exist below Clarity 6. Flagged by Brice Dobry.
-    ;;
-    ;; WHY THE TIGHTENING IS WORTH IT even though we call pox-5 directly. The
-    ;; allowance never gated the call, only its EFFECTS. unsafe blanket-approved
-    ;; every asset class for the duration; (with-pox) approves PoX state changes
-    ;; and nothing else, so an STX/FT/NFT outflow from this body now reverts
-    ;; instead of sailing through. That is not hypothetical in this contract:
-    ;; pox-5's neighbouring unstake-sbtc DOES transfer sBTC out, and pox-5's
-    ;; stake path calls INTO the caller-supplied signer-manager
-    ;; (signer-manager-validate-stake -> contract-call? signer-manager
-    ;; validate-stake!), which is why pox-5 carries its own
-    ;; validate-no-reentrancy guard. Plain unstake touches neither today; the
-    ;; allowance is what keeps that true after a future edit or a pox upgrade.
     (try! (as-contract? ((with-pox))
       (try! (contract-call? POX5 unstake JUICE-SIGNER))
     ))
@@ -1935,27 +1494,14 @@
     (var-set initial-pubkey pubkey)
     (map-set pubkey-to-admin pubkey new-owner)
     (map-delete admins 'SP000000000000000000002Q6VF78)
-    ;; NEVER this contract. as-contract? rebinds tx-sender to this contract,
-    ;; so seating it here would let any caller-supplied gas station re-enter
-    ;; with sig-auth none and pass is-admin-calling. Clarity's principal
-    ;; type does not distinguish a standard principal from a contract one.
+
     (asserts! (not (is-eq new-owner current-contract)) err-unauthorised)
     (map-set admins new-owner true)
     (var-set owner new-owner)
-    ;; RECOVERY IS MANDATORY. In v4 this was (optional principal), and onboarding
-    ;; with none meant losing the admin key lost the funds outright -- the one
-    ;; genuinely permanent loss vector in the contract, chosen at onboard by
-    ;; whoever called it. It cannot be none here, cannot be this contract, and
-    ;; cannot be the owner, since a recovery address equal to the owner recovers
-    ;; nothing from a lost owner key.
+
     (asserts! (not (is-eq recovery current-contract)) err-unauthorised)
     (asserts! (not (is-eq recovery new-owner)) err-unauthorised)
-    ;; Same bounds set-wallet-config enforces. v4 hardcoded u144 here, so the
-    ;; opening cooldown was the only one nobody could choose -- a user wanting a
-    ;; slower safe had to onboard at u144 and then run a full signal/confirm cycle
-    ;; at the very cooldown they were trying to replace. Bounded, not free: below
-    ;; MIN-COOLDOWN the delays stop being delays, above MAX-CONFIG-COOLDOWN pending
-    ;; operations freeze for longer than the longest wait this contract enforces.
+
     (asserts! (>= cooldown-period MIN-COOLDOWN) err-cooldown-too-short)
     (asserts! (<= cooldown-period MAX-CONFIG-COOLDOWN) err-cooldown-too-long)
     (var-set recovery-address recovery)
@@ -1971,7 +1517,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v5
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v6
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core

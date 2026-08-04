@@ -12,6 +12,18 @@ only fail. These contracts stake on pox-5.
 
 ## Status at a glance
 
+> **SUPERSEDED. Do not deploy from this file.**
+>
+> `juice-safe-v4` and `fakfun-wallet-v14` replaced v2/v11 -- they add metered,
+> fused gas and the Clarity 6 allowance forms. See **`README-v4-v14-sims.md`**
+> for what to deploy, the 272-assertion suite and the open findings, and
+> **`README-v5-v15-design.md`** for the v5/v15 changes now written but not
+> deployed.
+>
+> Everything below still describes the v2/v11 generation. Read it for the pox-5
+> staking surface, the allowance semantics and the v0/v1/v9/v10 history, none of
+> which changed. Ignore its deploy advice.
+
 **DEPLOY `juice-safe-v2` and `fakfun-wallet-v11`.** Earlier versions are live but
 superseded; none of v0/v1/v9/v10 should be onboarded. Keeping them unregistered
 as canonical is what makes them un-onboardable.
