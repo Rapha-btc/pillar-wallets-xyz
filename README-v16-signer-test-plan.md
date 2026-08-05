@@ -1,5 +1,15 @@
 # Test plan: fakfun-wallet-v16 and juice-pool-stx-signer
 
+> **STATUS: DONE.** Both contracts have Clarinet coverage and RV fuzzing.
+>
+> | contract | clarinet | RV | error codes |
+> |---|---|---|---|
+> | `fakfun-wallet-v16` | **54 tests**, 31/31 in-scope public fns | **800 runs, 13 invariants, 0 failures** | 26/28 (2 faktory-only) |
+> | `juice-pool-stx-signer` | **30 tests**, 14/14 public, 19/19 read-only | **1500 runs, 10 invariants, 0 failures** | 10/12 (2 unreachable) |
+>
+> No contract defects found in either. Corrections to the plan as written, and the
+> findings, are recorded in the "Outcome" section at the end.
+
 Written after finishing juice-safe-v6 (108 vitest, 100% of reachable lines, 1500 RV
 runs, 12 invariants). Everything below reuses that harness. The v6 work is documented
 in `README-clarinet-rv.md`; this file is the plan for the next two contracts.
@@ -260,3 +270,98 @@ handles. If any of them is ever edited, this exclusion expires.
 2. **Part A Phase 0** -- unblock v16, since everything else depends on it.
 3. **Part A Phases 1-5** -- parity, then the 9 new functions, then measure.
 4. **RV for both** (A6, B4) once the vitest suites define what correct means.
+
+
+---
+
+# Outcome
+
+## Corrections to this plan, found by doing it
+
+1. **The v16 deploy blocker was none of the guesses in Phase 0.** Not missing deps (all
+   11 heavy ones were already cached), not the source (the cached mainnet copy is
+   byte-identical to the repo), not the epoch. **Clarinet publishes v16 BEFORE
+   `juice-pool-stx-signer`, which v16 depends on** -- both in batch 7, v16 first. The
+   publish aborts with a useless `Runtime error while interpreting ...fakfun-wallet-v16`
+   and every later call says the contract does not exist, which sends you hunting in the
+   wrong place. Hand-reordering the plan does NOT survive: clarinet rewrites it on the
+   next run. Fix: drop v16 from requirements and publish it from the suites via
+   `deployV16()` with sender `SPV9K21...`, which lands it at its real mainnet address
+   after every dependency exists. A third clarinet issue worth filing.
+
+2. **Only `validate-stake!` is pox-5-gated** (and the `!` matters -- a naive grep
+   truncates the name). `pox-claim-rewards`, `pay-stx-stakers` and `pox-settle-stakers`
+   are all PERMISSIONLESS, and `ERR_PAUSED u101` is reachable from `validate-stake!`
+   alone -- so the pause is only observable through a real stake attempt, which is the
+   point: it stops NEW delegation without disturbing existing positions.
+
+3. **v16 has no passkey fast path at all**, confirmed: `passkey-created` appears 0
+   times and the three `-now` variants do not exist, so v6's `u4003` self-approval rule
+   has no equivalent.
+
+## The finding that matters most
+
+**`extension-call` invokes the extension under `(with-all-assets-unsafe)`**
+(`fakfun-wallet-v16.clar:848`). A whitelisted extension can move ANYTHING the wallet
+holds. The whitelist is not a convenience list, it is a grant of full custody, and the
+two-step + passkey gate on whitelisting is the only real control. `onboard`
+pre-whitelists `xtrata-inscribe`.
+
+`tests/cl-v16/contracts/zz-extension.clar` is deliberately hostile and drains both STX
+and sBTC once whitelisted, so this is demonstrated rather than asserted. Anything that
+weakens the whitelist path is a custody change, not a convenience change.
+
+## Other findings, none of them defects
+
+- **`toggle-token-lock` is asymmetric** in both wallets: ON accepts a passkey, OFF
+  requires the admin (`v16:386`). A stolen passkey can lock the wallet but must not be
+  able to unlock it. My first test had this backwards.
+- **`set-admin` on the signer has NO guard.** The contract itself or the burn address
+  can be seated and nothing on chain can undo it. Pinned as a footgun; the RV invariant
+  `admin-not-contract` is what would catch a sequence reaching it.
+- **`confirm-fee-bips` unwraps `pending-fee` before `assert-admin`**, so a stranger can
+  distinguish "no pending fee" (u113) from "not admin" (u100). Harmless, but it means an
+  admin-only sweep has to seed a proposal first to reach the authorisation check.
+- **u4005 orphaned passkey** behaves as in v6: `pubkey-to-admin` is never rewritten
+  while the admins map rotates, so after a transfer the wallet is single-factor under the
+  new admin.
+- **u4016 sits behind the signature check** and the hash is built from the PENDING
+  values, so reaching it means signing over the empty (all-zero) pending config.
+
+## Two error codes that are genuinely unreachable
+
+- **`u109 ERR_NO_NEW_REWARDS` is shadowed.** The signer's `(> claimed u0)` assert sits
+  after `(try! POX5 claim-rewards)`, and pox-5 answers `u32 ERR_NO_CLAIMABLE_REWARDS`
+  first. u109 can only fire if pox-5 returns ok with `total-rewards u0`.
+- **`u103 ERR_SETTLE_FAILED` is unreachable in simnet.** pox-5's
+  `claim-staker-rewards-for-signer` returns `(ok u0)` for a future cycle, a bogus
+  bond-index, an unknown principal and an empty batch. All four probes are in the test,
+  recorded rather than faked.
+
+Both are defence in depth, correct to keep. Same category as v6's two
+`MAX-CONFIG-COOLDOWN` clamp arms.
+
+## The highest-value test written
+
+Conservation over a two-staker cycle in `signer-rewards.test.ts`:
+
+```
+tranche-paid + residue        == pot          (to the sat)
+net-to-stakers + fees         == tranche-paid (to the sat)
+```
+
+asserted both with and without a fee. **Two stakers rather than one, because a single
+staker hides share splitting, the fee cut, and the rounding residue that
+`sweep-tranche-dust` exists for.** Also covered: `get-stx-owed` predicting a payout
+exactly, an OG and a normal staker in the SAME call (the OG keeps its full gross), the
+`stx-paid` replay guard, and a zero-share staker skipped rather than paid.
+
+## Traps added to the list
+
+18. **rv requires the target to define `update-context` and a `context` map itself** --
+    it is NOT injected. Without them the run dies with `Method 'update-context' does not
+    exist`.
+19. **Matching on `sbtc-token.get-balance` does not type-check** -- its err type is
+    indeterminate, the same fault that aborted the v3/v12 deploys. Use `unwrap-panic`
+    in any invariant that reads it.
+20. **Clarinet ignores inter-requirement dependency order** (see correction 1).
