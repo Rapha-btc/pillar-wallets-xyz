@@ -318,6 +318,44 @@ over the floor stops earning if other stakers leave and the signer drops back un
 it mid-cycle.
 
 
+### What the coverage numbers mean, in plain English
+
+Three numbers get quoted and only one of them matters. In short:
+
+**753/753 = 100%** is the real answer: every line of this contract that CAN run, ran
+during the tests. Nothing was left untried.
+
+**94.0% is the raw tool output, and it is misleading.** The coverage tool counts lines
+of text. Clarity code spreads one instruction across several lines, and the tool only
+credits the FIRST line. So the rest look untested even though they obviously ran.
+
+Think of it like a sentence broken across three lines. The tool ticks off line one and
+marks lines two and three as "never read", even though you read the whole sentence.
+Here is a real one from this contract, which runs in every single test:
+
+```
+1517  (try! (contract-call?              <- counted: ran 97 times
+1518    'SPV9K21...fakfun-wallet-core    <- counted: never ran   (wrong)
+1519    register-wallet                  <- counted: never ran   (wrong)
+```
+
+That call ran 97 times. Two thirds of it is reported as dead. There are 46 lines like
+that, and every one was checked individually and confirmed to be this and nothing else.
+
+**94.3% is the ceiling: the best score this file could ever get.** Not 100%. The only
+way to score higher is to reformat the contract so each instruction fits on one line,
+and reformatting means changing the deployed bytes. Not worth it, and not something we
+would do to chase a number. So the gap between 94.0% and 94.3% is the only part that
+was ever in play, and it is 2 lines.
+
+**Those last 2 lines are safety code that can never run.** They cap the cooldown at
+4032 blocks, but the cooldown is already blocked from exceeding 4032 at both places it
+can be set. It is a second lock on a door that is already locked. Correct to keep,
+impossible to test, not a bug.
+
+So: 100% of what can run, does run. The 94% is a quirk of how the tool counts, not a
+hole in the testing.
+
 ### Measured line coverage: 100% of reachable lines (94.0% raw lcov)
 
 Function counts and error codes are proxies. The real question is whether every
