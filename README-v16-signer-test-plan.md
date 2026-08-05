@@ -545,3 +545,90 @@ Reached, after two prerequisites in `game-wager-v2-4`:
 
 Nothing here is a hole in the wallet's logic. 78 further uncovered lines are
 continuation tokens lcov cannot credit (stx-labs/clarinet#2490).
+
+
+---
+
+# An integrity problem found while chasing the last branch
+
+Rapha asked about `burn-bob-faktory`: "you took the one deployed? clarinet requirements
+add? what's the issue?" Checking it turned up something worth more than the branch.
+
+**`.cache/requirements/SP29D6...burn-bob-faktory.clar` was a 60-byte STUB, not the
+deployed contract:**
+
+```clarity
+(define-public (daily-burn)
+  (if true (ok true) (err u0)))
+```
+
+The real mainnet contract is **5,041 bytes**. So every `faktory-burn-bob` test was
+passing against a fake that returns `(ok true)` unconditionally, while looking exactly
+like a test against real deployed bytes -- the cache directory is the one place where a
+hand-written file is indistinguishable from a fetched one.
+
+## Why the stub exists, and why it has to stay
+
+Deleting it and letting clarinet fetch the real contract works -- the fetch is fine, and
+the metadata is correct (`Epoch31` / `Clarity3`, batch 3, correctly after its dependency
+in batch 2). But then **nothing** deploys:
+
+```
+Contract deployment runtime error: ...fakfun-wallet-v16
+  -> use of unresolved contract 'SP29D6...burn-bob-faktory'
+```
+
+The cause is one level down. `daily-burn` transfers 1 BOB from
+`SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcity`, and **that token
+does not publish in simnet at all** -- neither it nor `burn-bob-faktory` appears in
+`getContractsInterfaces()`. With the real contract in place, v16 then fails analysis and
+the entire suite goes from 106 passing to zero.
+
+So the stub is restored, now with a comment saying exactly what it is, and the real
+5,041-byte source is kept alongside as
+`tests/cl-v16/contracts/REFERENCE-real-burn-bob-faktory.clar.txt` for whenever the token
+can be made to deploy.
+
+**What this means for coverage, stated plainly:** on the `faktory-burn-bob` path the
+wallet's dispatch, authorisation, passkey branch and gas handling ARE covered. The burn
+itself is NOT. Line `:1518` reads as uncovered for a different reason -- it is the callee
+name on its own line, an lcov continuation token (stx-labs/clarinet#2490), so it was
+never a real gap.
+
+## The other small cache files are legitimate
+
+Auditing every file under 400 bytes turned up seven others, and all seven are genuine:
+trait definitions really are that small (`extension-trait`, `dexterity-traits-v0`,
+`gas-station-trait`, `pillar-wallet-trait`, `nft-trait`, `univ2-share-fee-to-trait`) plus
+one small fee contract. `burn-bob-faktory` was the only impostor.
+
+**Worth adopting as a habit:** a size check over `.cache/requirements/` catches this
+class of problem in one command, since a stub is almost always far smaller than the
+contract it replaces.
+
+```
+for f in .cache/requirements/*.clar; do
+  s=$(wc -c < "$f"); [ "$s" -lt 400 ] && printf "%6s  %s\n" "$s" "$(basename $f)"
+done
+```
+
+# Real contracts tried instead of doubles
+
+Rapha offered two registered mainnet contracts. Both were tried; neither is in use, for
+reasons worth recording rather than repeating.
+
+- **`pepe-arbitrage-faktory-v3`** (a core-v2-whitelisted dexterity pool). It fetches, but
+  it is a real arbitrage contract across ALEX, bitflow and velar with a large dependency
+  tree. Adding it pulled in `univ2-fees-v1` and `univ2-pool-v1`, and the manifest then
+  failed to initialise at all. Reverted.
+- **`pepe-nft-marketplace`** (registered in `fakfun-nfts-core`). This one is clean --
+  9,203 bytes, only two trait dependencies, and the harness stayed green with it added.
+  It declares **no `impl-trait`**, though, so passing it as `<nftmarket-trait>` depends on
+  structural conformance rather than a declared implementation, which was not verified.
+  Left out for now; it is the better of the two to revisit.
+
+**And the point that limits the value of either:** clarinet requirements copy CODE, not
+STATE. A pool being whitelisted in core-v2 on mainnet does not carry over -- the map
+arrives empty and has to be registered in simnet regardless. Which is exactly what the
+doubles already do, via `auto-register-pool`, `register-dex` and `whitelist-marketplace`
+called as the real deployer. Real contracts would add real swap MATH, not skip setup.
