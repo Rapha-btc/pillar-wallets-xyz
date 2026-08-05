@@ -110,6 +110,12 @@ contract_id = "SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B.burn-bob-faktory"
 [[project.requirements]]
 contract_id = "SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcity"
 
-[[project.requirements]]
-contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-v16"
+# fakfun-wallet-v16 is deliberately NOT a requirement. Clarinet orders its publish
+# BEFORE juice-pool-stx-signer even though v16 depends on it, so the publish aborts
+# with "Runtime error while interpreting ...fakfun-wallet-v16" and every later call
+# reports the contract does not exist. Reordering by hand does not survive: clarinet
+# rewrites the plan on the next run. Instead the suites publish it themselves via
+# deployV16(), from contracts/fakfun-wallet-v16.clar (byte-identical to the cached
+# mainnet source) with sender SPV9K21..., so it lands at its real mainnet address
+# AFTER every dependency exists.
 

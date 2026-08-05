@@ -1,0 +1,19 @@
+import { describe, expect, it } from "vitest";
+import { Cl } from "@stacks/transactions";
+import fs from "node:fs";
+const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+const WALLET = `${D}.fakfun-wallet-v16`;
+const SRC = fs.readFileSync("contracts/fakfun-wallet-v16.clar", "utf8");
+// see tests/cl-v16/Clarinet.toml for why this is not a requirement
+export function deployV16() {
+  return simnet.deployContract("fakfun-wallet-v16", SRC, { clarityVersion: 6 }, D);
+}
+describe("v16 harness", () => {
+  it("publishes at its real mainnet address, uninitialised", () => {
+    expect(deployV16().result).toBeBool(true);
+    expect(simnet.callReadOnlyFn(WALLET, "get-owner", [], D).result)
+      .toBeOk(Cl.principal("SP000000000000000000002Q6VF78"));
+    expect(simnet.callReadOnlyFn(`${D}.juice-pool-stx-signer`, "get-admin", [], D).result)
+      .toBePrincipal(D);
+  });
+});
