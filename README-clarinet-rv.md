@@ -1,0 +1,174 @@
+# Clarinet + RV testing: juice-safe-v6 and fakfun-wallet-v16
+
+Companion to `README-v6-v16-sims.md`, which covers the stxer mainnet-fork suite.
+
+**Nothing in this repo had ever run under Clarinet.** Four separate tooling
+problems had to be fixed first, documented below so nobody rediscovers them.
+
+---
+
+## The four tooling fixes
+
+### 1. Clarity 6 needs `epoch = "4.0"`, not `"latest"`
+
+`clarinet check` on the old manifest failed outright:
+
+```
+error: syntax errors in Clarinet.toml
+Clarity 6 can not be used with latest
+```
+
+Every Clarity 6 entry needs `epoch = "4.0"` explicitly. Until this was fixed the
+manifest was unparseable, which is why neither `npm test` nor `rv` had ever loaded
+this project.
+
+### 2. Clarinet 3.19.0 is unusably slow here -- use 3.23.1
+
+3.19.0 took over ten minutes and still timed out analysing the project, even
+scoped to a single contract. 3.23.1 completes in roughly two minutes.
+
+The vendored binary is at `/usr/local/bin/clarinet` (3.19.0). Get 3.23.1 from
+`hirosystems/clarinet` releases, `clarinet-linux-x64-glibc.tar.gz`.
+
+### 3. Requirements were incomplete
+
+Two dependencies were missing from the manifest, and the earlier dependency scan
+missed them because it only matched `SP`-prefixed principals:
+
+- `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal`
+- `SP000000000000000000002Q6VF78.pox-5`
+
+`pox-5` is both a mainnet contract and a clarinet boot contract, so either route
+works. It is 136KB of Clarity and dominates analysis time.
+
+**Do not hand-write `.cache/requirements/*.json`.** Clarinet records each
+contract's ACTUAL deploy epoch, which varies per contract and is not derivable
+from its Clarity version:
+
+| clarity | epochs actually seen |
+|---|---|
+| Clarity1 | Epoch20 |
+| Clarity3 | Epoch30 |
+| Clarity4 | Epoch33, Epoch34 |
+| Clarity5 | Epoch32, Epoch34 |
+| Clarity6 | Epoch40 |
+
+Guessing produces `error: use of unresolved contract` with no explanation. Delete
+the cache and let clarinet fetch.
+
+### 4. The contract under test must be a REQUIREMENT, not a `[contracts.*]` entry
+
+This is the one that matters most.
+
+A contract listed under `[contracts.*]` deploys under the **simnet deployer**
+address. `juice-safe-v6` hardcodes its own mainnet principal for
+`register-wallet`, and `fakfun-wallet-core.set-verified-contract` is gated on the
+Faktory deployer, so a locally-deployed copy fails with:
+
+```
+Contract 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v6' does not exist
+```
+
+Listing it as a requirement instead pulls the REAL deployed bytes and seats them
+at the REAL mainnet address, so every self-reference resolves and the tests
+exercise what is actually on chain. `tests/cl-v6/Clarinet.toml` has **16
+requirements and zero local contracts**.
+
+### 5. Vitest
+
+`vitest-environment-clarinet` failed to start a worker under vitest 4.1.6 with
+`@stacks/clarinet-sdk` 3.17.0 -- a pre-existing breakage, the older
+`fakfun-wallet-v2.test.ts` failed the same way. Upgrading the SDK to 3.23.1 fixed
+it.
+
+**Simnet runs with the TESTNET chain-id, `0x80000000` = 2147483648.**
+`helpers-v10` builds the SIP-018 domain hash from the runtime chain-id, so a test
+signing with mainnet `u1` gets `err-invalid-signature u4002` on every passkey call.
+`tests/juice-safe-v6.test.ts` sets `CHAIN_ID` accordingly.
+
+---
+
+## clarinet check
+
+Run from the scoped project:
+
+```
+cd tests/cl-v6 && clarinet check      # 3.23.1
+```
+
+### juice-safe-v6: 0 errors, 18 warnings
+
+**No defects.** Of the 18 warnings, 10 are wrong or unactionable and **four would
+break the contract if acted on**:
+
+| count | warning | verdict |
+|---|---|---|
+| 6 | `unwrap-panic will abort the transaction` | **DO NOT ACT.** Clarinet suggests `try!`. That is what killed the v3/v12 deploys: `try!` must read the err value to propagate it, the err type is indeterminate at Clarity 6, and contract INIT aborts with `(err none)`. Two of the six are inside `pay-gas-accounted`, exactly where that was traced. |
+| 2 | `let binding lock-total is never used` | **FALSE POSITIVE.** Used at `(with-ft SBTC-CONTRACT "sbtc-token" lock-total)`. |
+| 2 | `function parameter token-name is never used` | **FALSE POSITIVE.** Used at `(with-ft (contract-of sip010) token-name amount)` and the `with-nft` equivalent. |
+| 2 | `single-field tuple is unnecessary` | Cosmetic. The hash builder's parameter type IS a tuple, and that helper is deployed and immutable. |
+| 5 | unused error constants | Real dead code. Removed in v7. |
+| 1 | `initial-pubkey never read` | Real. Written at `onboard`, never read; lookups go through `pubkey-to-admin`. Removed in v7. |
+
+**Clarinet 3.23.1's unused-binding analysis does not see identifiers used inside
+SIP-044 allowance clauses.** Anyone "cleaning up" those four warnings would delete
+a binding that bounds how much sBTC or which NFT can move. This is the single most
+useful thing the check surfaced.
+
+### juice-safe-v7 (reference only, NOT deployed)
+
+v6 with the six genuine dead-code items removed: `err-no-auth-id`,
+`err-no-message-hash`, `err-limit-expired`, `err-limit-not-hit`,
+`err-fatal-owner-not-admin`, plus the `initial-pubkey` data-var, its write in
+`onboard`, and the now-orphaned `PUBK` constant.
+
+48,483 -> 48,060 bytes. **0 errors, 12 warnings** -- only the false positives and
+the must-not-touch `unwrap-panic` set remain. Checkable at `tests/cl-v7/`.
+
+---
+
+## Vitest scenarios
+
+```
+npx vitest run tests/juice-safe-v6.test.ts -- --manifest tests/cl-v6/Clarinet.toml
+```
+
+### juice-safe-v6: 24 / 24 passing
+
+Against the real deployed bytes at the real mainnet address, 16 real mainnet
+dependencies, no mocks.
+
+**Init.** `onboard` fails `u6001` until `set-verified-contract` registers the
+contract; only `FAKFUN-DEPLOYER` may call it; it cannot run twice.
+
+**Onboard guards.** Refuses the contract itself as recovery, refuses the owner,
+enforces the `u144` floor and `u4032` ceiling, honours a caller-supplied cooldown
+(verified with `u500`). **Accepts the burn sentinel** -- asserted as intended
+behaviour, not flagged.
+
+**Config change spans two different factors.** signal is admin-only and
+bounds-checked; values queue publicly while the live config is untouched; a
+garbage signature from the admin key alone fails `u4002` and the queued change
+survives; a signature bound to different values fails `u4002`; the correct
+signature before the cooldown fails `u4012`; after it, all three values apply and
+the queue zeroes; a confirm with nothing queued fails `u4016`.
+
+**Max-gas.** propose is admin-only, ceilinged `u4018`, and does not move the live
+value.
+
+**Thresholds.** Under-threshold STX moves immediately and increments only the
+`stx` counter; over-threshold queues and moves nothing; a non-admin is refused.
+
+**Never its own admin.** `is-admin-calling` rejects the contract's own principal
+and accepts the owner; `recover-inactive-wallet` refuses to seat the contract.
+
+**Inactivity recovery.** Refused while active `u4009`; `is-inactive` flips after
+52,560 burn blocks; only the recovery principal may act; ownership transfers; and
+a config change resets the clock.
+
+---
+
+## Still to do
+
+- RV fuzzing on juice-safe-v6
+- clarinet check, vitest scenarios and RV for fakfun-wallet-v16

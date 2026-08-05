@@ -11,3 +11,7 @@ coverage
 costs-reports.json
 node_modules
 __pycache__/
+tests/cl-v6/.cache/
+tests/cl-v7/.cache/
+tests/cl-v6/deployments/
+tests/cl-v7/deployments/

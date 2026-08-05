@@ -5,7 +5,46 @@ authors = []
 telemetry = false
 cache_dir = "./.cache"
 
-# [contracts.counter]
+# [[project.requirements]]
+contract_id = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait"
+
+[[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
+
+[[project.requirements]]
+contract_id = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v8"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10"
+
+[[project.requirements]]
+contract_id = "SP000000000000000000002Q6VF78.pox-5"
+
+[contracts.counter]
 # path = "contracts/counter.clar"
 # epoch = "latest"
 
@@ -161,4 +200,19 @@ epoch = "4.0"
 [contracts.smart-wallet-standard-auth-helpers-v9]
 path = "contracts/smart-wallet-standard-auth-helpers-v9.clar"
 clarity_version = 6
-epoch = "latest"
+epoch = "4.0"
+
+[contracts.smart-wallet-standard-auth-helpers-v10]
+path = "contracts/smart-wallet-standard-auth-helpers-v10.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.juice-safe-v6]
+path = "contracts/juice-safe-v6.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.fakfun-wallet-v16]
+path = "contracts/fakfun-wallet-v16.clar"
+clarity_version = 6
+epoch = "4.0"
