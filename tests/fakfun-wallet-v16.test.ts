@@ -2,8 +2,13 @@
 //
 // Run:  npx vitest run tests/fakfun-wallet-v16.test.ts -- --manifest tests/cl-v16/Clarinet.toml
 //
-// v16 is pulled as a REQUIREMENT, so simnet runs the real deployed bytes at the
-// real mainnet address with real mainnet dependencies and no mocks.
+// v16 is published by deployV16() rather than pulled as a requirement, because
+// clarinet orders a v16 requirement BEFORE juice-pool-stx-signer even though v16
+// depends on it, so the publish aborts and every call reports "does not exist"
+// (reordering the plan by hand does not survive a rerun). The source here is
+// byte-identical to the cached mainnet copy and is published with sender SPV9K21...,
+// so these tests still run the real deployed bytes at the real mainnet address
+// against real mainnet dependencies, with no mocks.
 //
 // Differences from the safe that shape these tests:
 //   * onboard takes ONLY the pubkey. The admin is seated afterwards by a
@@ -15,6 +20,7 @@
 import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import {
   generateP256Keypair,
   signChallengeWithRpId,
@@ -88,7 +94,15 @@ const tConfig = (id: number, stx: number, sbtc: number, cd: number) => Cl.tuple(
 });
 
 // --- setup ---------------------------------------------------------------
+const V16_SRC = fs.readFileSync("contracts/fakfun-wallet-v16.clar", "utf8");
+// see the header: v16 cannot be a requirement, so each test publishes it itself.
+// simnet resets between tests, so this runs per test rather than once.
+function deployV16() {
+  expect(simnet.deployContract("fakfun-wallet-v16", V16_SRC,
+    { clarityVersion: 6 }, D).result).toBeBool(true);
+}
 function verifyContract() {
+  deployV16();
   return simnet.callPublicFn(CORE, "set-verified-contract",
     [Cl.contractPrincipal(D, "fakfun-wallet-v16"), Cl.none()], D);
 }
@@ -141,20 +155,23 @@ describe("fakfun-wallet-v16: init and admin seating", () => {
     simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER);
     simnet.callPublicFn(WALLET, "propose-admin-with-signature",
       [Cl.principal(OWNER), sign(tAddAdmin(1, OWNER), 1), Cl.none()], RELAYER);
+    // u4028 err-init-not-pending-admin: RANDOM is not who was proposed
     expect(simnet.callPublicFn(WALLET, "accept-admin-proposal", [], RANDOM).result)
-      .toBeErr(Cl.uint(4029));
+      .toBeErr(Cl.uint(4028));
   });
 
   it("the seating flow cannot be re-run once initialised", () => {
     seatAdmin();
+    // u4022 err-already-initialized: the seating flow is one-shot
     expect(simnet.callPublicFn(WALLET, "propose-admin-with-signature",
       [Cl.principal(RANDOM), sign(tAddAdmin(3, RANDOM), 3), Cl.none()], RELAYER).result)
-      .toBeErr(Cl.uint(4028));
+      .toBeErr(Cl.uint(4022));
   });
 });
 
 describe("fakfun-wallet-v16: no post-init passkey registration", () => {
   it("propose-admin-pubkey and confirm-admin-pubkey do not exist", () => {
+    deployV16();
     const iface = (simnet as any).getContractsInterfaces().get(WALLET);
     const names = iface.functions.map((f: any) => f.name);
     expect(names).not.toContain("propose-admin-pubkey");
@@ -166,6 +183,7 @@ describe("fakfun-wallet-v16: no post-init passkey registration", () => {
   });
 
   it("still exposes the surface it should", () => {
+    deployV16();
     const iface = (simnet as any).getContractsInterfaces().get(WALLET);
     const names = iface.functions.map((f: any) => f.name);
     for (const fn of ["onboard", "signal-config-change", "set-wallet-config",

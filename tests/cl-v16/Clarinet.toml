@@ -119,3 +119,23 @@ contract_id = "SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcit
 # mainnet source) with sender SPV9K21..., so it lands at its real mainnet address
 # AFTER every dependency exists.
 
+
+[contracts.zz-gas-station]
+path = "contracts/zz-gas-station.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-ft]
+path = "contracts/zz-ft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-extension]
+path = "contracts/zz-extension.clar"
+clarity_version = 6
+epoch = "4.0"
