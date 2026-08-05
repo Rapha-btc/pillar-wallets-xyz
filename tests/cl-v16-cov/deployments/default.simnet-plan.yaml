@@ -275,9 +275,19 @@ plan:
       path: contracts/fakfun-wallet-v16.clar
       clarity-version: 6
     - transaction-type: emulated-contract-publish
+      contract-name: zz-dex
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-dex.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
       contract-name: zz-extension
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/zz-extension.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-faktory-token
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-faktory-token.clar
       clarity-version: 6
     - transaction-type: emulated-contract-publish
       contract-name: zz-ft
@@ -298,5 +308,20 @@ plan:
       contract-name: zz-nft
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/zz-nft.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-nftmarket
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-nftmarket.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-pool
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-pool.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-pre
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-pre.clar
       clarity-version: 6
     epoch: '4.0'

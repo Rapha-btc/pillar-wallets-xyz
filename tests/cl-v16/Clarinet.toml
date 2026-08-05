@@ -120,6 +120,31 @@ contract_id = "SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcit
 # AFTER every dependency exists.
 
 
+[contracts.zz-faktory-token]
+path = "contracts/zz-faktory-token.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-pool]
+path = "contracts/zz-pool.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-dex]
+path = "contracts/zz-dex.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-pre]
+path = "contracts/zz-pre.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-nftmarket]
+path = "contracts/zz-nftmarket.clar"
+clarity_version = 6
+epoch = "4.0"
+
 [contracts.zz-gas-station-free]
 path = "contracts/zz-gas-station-free.clar"
 clarity_version = 6

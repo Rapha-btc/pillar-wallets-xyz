@@ -4,7 +4,7 @@
 >
 > | contract | clarinet | line coverage | RV |
 > |---|---|---|---|
-> | `fakfun-wallet-v16` | **75 tests** | **91.0% of in-scope lines** (70.3% raw incl. faktory) | 800 runs, 13 invariants, 0 fail |
+> | `fakfun-wallet-v16` | **106 tests**, faktory INCLUDED | **99.7% of reachable lines** (92.8% raw) | 800 runs, 13 invariants, 0 fail |
 > | `juice-pool-stx-signer` | **31 tests** | **100% of reachable lines** (99.5% raw) | 1500 runs, 10 invariants, 0 fail |
 >
 > No contract defects found in either. Corrections to the plan as written, and the
@@ -467,3 +467,81 @@ Excluded because those functions are unchanged and **already have Clarinet tests
 another repo**, not because they are untested. They still have to compile and deploy,
 which Phase 0 handled. If any of them is edited, this exclusion expires and the tests
 should be brought alongside these.
+
+
+---
+
+# Faktory brought back into scope
+
+Rapha's call: "include faktory stuff, always best to re-test all." The original
+exclusion was that those functions are unchanged and already covered in another repo --
+still true, but re-testing them here costs one suite and removes the asterisk.
+
+**Result: 106 tests, 92.8% raw, 99.7% of REACHABLE lines, and ZERO functions never
+called** -- all 8 faktory paths plus the `get-byte` private helper.
+
+## Five trait doubles were needed
+
+Each faktory path dispatches through a different trait, and no existing double fitted:
+
+| double | trait | used by |
+|---|---|---|
+| `zz-pool` | dexterity `liquidity-pool-trait` | `faktory-execute`, `faktory-execute-limit` |
+| `zz-dex` | `faktory-dex-trait-v2` | `faktory-place-order` |
+| `zz-faktory-token` | `faktory-trait-v1.sip-010-trait` | the token argument on those paths |
+| `zz-pre` | `prelaunch-faktory-trait-v1` | `faktory-process`, `-process-claim`, `-fee-airdrop` |
+| `zz-nftmarket` | `fakfun-nftmarket-trait` | `faktory-nft-execute` |
+
+**`faktory-trait-v1.sip-010-trait` is a SEPARATE trait definition from the standard
+`sip-010-trait-ft-standard`**, so `zz-ft` cannot stand in for it -- that needed its own
+token. Every double records what it was asked to do, so the assertions are "the wallet
+reached the counterparty and dispatched the right branch", not merely "it returned ok".
+
+## Three registration gates, all reachable
+
+Not obvious from the wallet alone, and each one produced a confusing error first:
+
+1. **`fakfun-core-v2` refuses an unregistered pool** with `ERR_POOL_NOT_FOUND u1003`.
+   The wallet calls core-v2's `execute`, not the pool directly. Fixed with
+   `auto-register-pool` as core-v2's own DEPLOYER.
+2. **`register-dex` registers the dex AND the prelaunch contract together**, which is
+   what unblocks `faktory-process` / `-process-claim` / `-fee-airdrop`.
+3. **`fakfun-nfts-core` refuses an unregistered marketplace** with
+   `ERR-NOT-REGISTERED u5002`. Fixed with `whitelist-marketplace`.
+
+`core-v2`'s `gated` flag is false by default, so no `approve-caller` step is needed --
+worth knowing, because if it were ever enabled the wallet would need approving there.
+
+## The finding worth acting on
+
+**The token lock does NOT freeze trading.** Of the eight faktory paths, only
+`faktory-execute-limit` carries `err-token-locked`. So a locked wallet can still swap
+through `faktory-execute`, place orders via `faktory-place-order`, buy prelaunch seats
+with `faktory-process`, and trade NFTs through `faktory-nft-execute`.
+
+The lock protects direct asset movement -- `stx-transfer`, `sip010-transfer`,
+`sip009-transfer`, `sbtc-initiate-withdrawal`, `extension-call`, and the three staking
+paths -- and nothing else. Whether that is the intended blast radius is a product
+decision; the tests now state it either way rather than leaving it to be discovered.
+
+## wager-deposit's success path
+
+Reached, after two prerequisites in `game-wager-v2-4`:
+
+1. `set-token-whitelist` for the token, callable only by that contract's own deployer
+2. `register-wallet`, which needs a SIP-018 signature over **game-wager's own domain**
+   (`{chain-id, contract, name: "game-wager", version: "2.0.0"}`) -- a different domain
+   from the wallet's -- and which then calls back into the wallet's `is-admin-pubkey`,
+   so the passkey has to belong to a live admin. It accepts both `fak.fun` and
+   `fakfun.com` as rp-id, so the same test signer works.
+
+## The last 5 uncovered lines
+
+| line | why |
+|---|---|
+| `:308`, `:451` | the `MAX-CONFIG-COOLDOWN` clamp arms. Unreachable by design, as in v6 |
+| `:926`, `:2199` | two `(match gas ... true)` arms on paths whose other arm is covered |
+| `:1518` | `faktory-burn-bob`'s `daily-burn` call. `burn-bob-faktory` rejects it in simnet, so the branch past it needs that contract's own state set up |
+
+Nothing here is a hole in the wallet's logic. 78 further uncovered lines are
+continuation tokens lcov cannot credit (stx-labs/clarinet#2490).
