@@ -130,43 +130,171 @@ the must-not-touch `unwrap-panic` set remain. Checkable at `tests/cl-v7/`.
 ## Vitest scenarios
 
 ```
-npx vitest run tests/juice-safe-v6.test.ts -- --manifest tests/cl-v6/Clarinet.toml
+npx vitest run tests/juice-safe-v6.test.ts tests/juice-safe-v6-surface.test.ts \
+  tests/juice-safe-v6-assets.test.ts tests/juice-safe-v6-staking.test.ts \
+  -- --manifest tests/cl-v6/Clarinet.toml
 ```
 
-### juice-safe-v6: 24 / 24 passing
+### juice-safe-v6: 68 passing, 0 skipped, all 25 public functions
 
-Against the real deployed bytes at the real mainnet address, 16 real mainnet
-dependencies, no mocks.
+Against the real deployed bytes at the real mainnet address, with real mainnet
+dependencies. Four suites:
+
+| suite | what it covers |
+|---|---|
+| `juice-safe-v6.test.ts` | the v6 DELTA: onboard guards, the config pair, thresholds, recovery |
+| `juice-safe-v6-surface.test.ts` | the rest of the surface: pending ops, veto, token lock, 2FA transfer, recovery rotation, max-gas confirm |
+| `juice-safe-v6-assets.test.ts` | sBTC and NFT SUCCESS paths, and the gas channel on 12 sites |
+| `juice-safe-v6-staking.test.ts` | pox-5 staking, the post-unlock state, and the full reward payout chain |
 
 **Init.** `onboard` fails `u6001` until `set-verified-contract` registers the
 contract; only `FAKFUN-DEPLOYER` may call it; it cannot run twice.
 
 **Onboard guards.** Refuses the contract itself as recovery, refuses the owner,
-enforces the `u144` floor and `u4032` ceiling, honours a caller-supplied cooldown
-(verified with `u500`). **Accepts the burn sentinel** -- asserted as intended
-behaviour, not flagged.
+enforces the `u144` floor and `u4032` ceiling, honours a caller-supplied cooldown.
+**Accepts the burn sentinel** -- asserted as intended, not flagged.
 
-**Config change spans two different factors.** signal is admin-only and
-bounds-checked; values queue publicly while the live config is untouched; a
-garbage signature from the admin key alone fails `u4002` and the queued change
-survives; a signature bound to different values fails `u4002`; the correct
-signature before the cooldown fails `u4012`; after it, all three values apply and
-the queue zeroes; a confirm with nothing queued fails `u4016`.
+**Config spans two factors.** signal admin-only and bounds-checked; values queue
+publicly while the live config is untouched; a garbage signature from the admin key
+alone fails `u4002` and the queued change survives; a signature bound to different
+values fails `u4002`; correct-but-early fails `u4012`; then all three values apply
+and the queue zeroes; nothing-queued fails `u4016`.
 
-**Max-gas.** propose is admin-only, ceilinged `u4018`, and does not move the live
-value.
+**Pending operations.** Over threshold queues; early release `u4017`; release after
+the cooldown with the balance checked; double-execute `u4014`; unknown op-id `u4013`;
+the passkey fast path skipping the cooldown. Veto by admin, by passkey, refused for
+a random caller, and blocking release `u4015`.
 
-**Thresholds.** Under-threshold STX moves immediately and increments only the
-`stx` counter; over-threshold queues and moves nothing; a non-admin is refused.
+**Token lock** blocks signed transfers `u4023` while leaving the admin path open --
+worth knowing: **a token lock is not a freeze.**
 
-**Never its own admin.** `is-admin-calling` rejects the contract's own principal
-and accepts the owner; `recover-inactive-wallet` refuses to seat the contract.
+**2FA transfer.** Factor one alone moves nothing; both factors complete it;
+nothing-proposed `u4020`; the contract refused as new owner. **Recovery rotation:**
+propose needs the passkey, confirm needs the admin, nothing-pending `u4010`.
 
-**Inactivity recovery.** Refused while active `u4009`; `is-inactive` flips after
-52,560 burn blocks; only the recovery principal may act; ownership transfers; and
-a config change resets the clock.
+**max-gas.** propose admin-only and ceilinged `u4018`; the live value does not move
+on propose; a wrong-amount signature `u4002`; correct-but-early `u4012`; then the
+value moves 1000 -> 5000.
 
----
+### sBTC without a mock
+
+Clarinet requirements copy contract CODE from mainnet, never chain STATE, so
+sbtc-token exists in simnet with zero supply and a mainnet whale holds nothing here.
+sBTC is therefore minted through the REAL protocol path:
+`sbtc-deposit.complete-deposit-wrapper`, sent as the registry's own
+`current-signer-principal` (`SM3VDXK3...` in simnet). Same call the sBTC signers
+make. Genesis simnet accounts also hold 1e9 sBTC each.
+
+Covered: `sip010-transfer` on admin and passkey paths; over-threshold queue then
+both release paths; `sbtc-initiate-withdrawal` under and over threshold, both
+releases, and a passkey-signed withdrawal; `sip009-transfer` moving a real NFT on
+both paths.
+
+Three things that look like bugs and are not:
+- `sbtc-token.get-balance` sums unlocked **plus locked**, so a withdrawal shows no
+  change there. `get-balance-available` is the one that moves.
+- `execute-pending-sbtc-withdrawal` returns the withdrawal **request id**, not a
+  bool -- and that id is what you need to reclaim a failed withdrawal.
+- `spent-this-period` resets **lazily** inside `get-current-spent`, so after mining
+  past the cooldown the raw data-var still holds the old value. Assert the absolute
+  after a period roll, not a delta.
+
+### Gas: 12 of 15 enforced sites driven with a live station
+
+`tests/cl-v6/contracts/zz-gas-station.clar` charges 20 sats. Driven on
+`stx-transfer`, `sip010-transfer`, `sip009-transfer`, `sbtc-initiate-withdrawal`,
+`veto-operation`, `toggle-token-lock`, `propose-recovery`, `set-wallet-config`,
+`confirm-max-gas-amount`, `update-stake-stx-juice` and both sBTC fast paths. Also
+asserts the footgun: **a station passed on an UNSIGNED admin call is ignored and
+charged nothing**, because gas is matched inside the `sig-auth` branch.
+
+### pox-5 staking: it works, and the earlier explanation was wrong
+
+An earlier pass skipped staking and blamed burn heights -- "pox-5 is anchored to
+mainnet ~666k, simnet starts at 6". **That was wrong.** The error was
+`ERR_SIGNER_NOT_FOUND u23`: simnet's pox-5 starts empty, so
+`juice-pool-stx-signer` had never registered. No block mining is needed;
+`mineEmptyBurnBlocks(666_000)` would not have helped.
+
+Registration goes through the real chain:
+
+```
+juice-pool-stx-signer.register-self       admin-gated
+  -> pox-5.grant-signer-key               verifies a secp256k1 signature over
+                                          get-signer-grant-message-hash
+  -> pox-5.register-signer                asserts contract-caller is the signer
+```
+
+The harness generates a secp256k1 keypair, rebuilds the SIP-018 grant hash (domain
+`{name "pox-5-signer", version "1.0.0", chain-id}`, struct
+`{topic "grant-authorization", signer-manager, auth-id}`) and signs it. This
+`@noble/curves` build returns a bare 64-byte compact signature with no recovery bit,
+so the id is found by trying 0 then 1 -- a rejected grant rolls back, so the miss
+costs nothing.
+
+Covered: the full stake -> top-up -> extend-rejected-at-max `u20` -> unstake
+lifecycle; non-admin `u4001` and zero-amount `u4026`; the no-op update; a
+passkey-signed stake; a passkey unstake via relayer; a passkey top-up paid by a gas
+station; and the post-unlock state -- after unstake plus 6,300 burn blocks,
+`get-staker-info` goes to `none`, with the two-part exit pinned (unstake truncates
+the window, only the cycle rolling clears the position).
+
+**One real simnet limit, asserted rather than hidden.** After a successful stake,
+`stx-account` reports `locked u0` while `get-staker-info` is correct. The lock, the
+`STXLockEvent` and the stacking asset-map entry all come from the NODE's PoX
+handler, which clarinet does not emulate. So **`(with-staking N)` is NOT genuinely
+enforced in simnet** -- that evidence comes from stxer, where the lock applies for
+real after stxer/stxer-sdk#7 and an under-declared allowance aborts.
+
+### The reward payout chain, and the 50k trap
+
+Full chain in clarinet: sBTC deposited to pox-5 -> `calculate-rewards`
+(permissionless, from a relayer) -> `signer.pox-claim-rewards` into the Juice pot ->
+`signer.pay-stx-stakers` with the safe's balance actually rising -> a replay of the
+same tranche paying nothing, proving the `stx-paid` guard.
+
+Getting there took three wrong diagnoses from me -- burn heights, then cycle
+alignment, then "a fresh pox-5 needs share registration I cannot reproduce". The
+actual cause was the **stake amount**.
+
+**`SIGNER_SET_MIN_USTX = u50000000000` (50k STX) is a PER-SIGNER delegation
+threshold.** `pox-5.clar:1705`:
+
+```clarity
+(if (>= new-delegated SIGNER_SET_MIN_USTX)
+    ;; record signer-shares, total-shares, add to the signer set
+    ;; not over the min yet -> record NOTHING
+```
+
+pox-5's own comment says signers below the delegation threshold do not receive
+rewards. So a 1,000 STX stake made `calculate-rewards` report
+`cycle-staked-ustx: u0`, fold every sat into the reserve, and `pox-claim-rewards`
+answer `ERR_NO_CLAIMABLE_REWARDS u32`.
+
+**THE TRAP, now a locked-in test.** A stake of `49_999_999_999` uSTX -- one microSTX
+short -- succeeds, appears healthy in `get-staker-info`, and earns NOTHING, silently
+and forever. Not a contract bug; pox-5 is behaving as documented. But anything that
+lets a user stake into the Juice signer should enforce the floor or say plainly that
+below it they earn zero. It also means the signer's AGGREGATE matters: a position
+over the floor stops earning if other stakers leave and the signer drops back under
+it mid-cycle.
+
+### Behaviours still untested, measured not guessed
+
+| behaviour | clarinet | stxer |
+|---|---|---|
+| gas fuse tripping at `u4018` | no | yes, 26/26 |
+| re-proposing max-gas to cancel a pending raise | **no** | **no** |
+| token lock gating the STAKING paths | **no** | **no** |
+| re-signalling a config change over a queued one | **no** | **no** |
+| `execute-pending-stx-transfer-now` with a gas station | no | no |
+| hostile gas-station re-entrancy | no | yes |
+| multi-tranche / hostile settle | no | yes, 39/39 |
+| `(with-staking N)` allowance enforcement | impossible | yes |
+
+Three are untested ANYWHERE: the max-gas implicit veto (re-propose lower to kill a
+pending raise -- the documented cancel mechanism, since there is no
+`veto-max-gas-amount`), token lock over the staking paths, and re-signalling config.
 
 ## RV fuzzing
 
@@ -178,127 +306,69 @@ npx rv tests/rv-v6 juice-safe-v6 invariant --runs=300
 LOCALLY, since RV must append to the source. Only the mainnet self-reference is
 rewritten to `.juice-safe-v6`; nothing else is mocked.
 
-### juice-safe-v6: 300 runs, 9 invariants, 0 failures
+### juice-safe-v6: 400 runs, 12 invariants, 0 failures
 
 | invariant | what it forbids |
 |---|---|
 | `cooldown-within-bounds` | `cooldown-period` outside `[u144, u4032]` |
 | `max-gas-within-ceiling` | `max-gas-amount` above `MAX-GAS-CEILING` |
 | `gas-fuse-holds` | `gas` spent above `max-gas-amount * 25` |
-| `contract-never-own-admin` | the contract appearing in its own `admins` map |
+| `contract-never-own-admin` | the contract in its own `admins` map |
 | `owner-not-contract` | the contract as owner |
 | `recovery-not-contract` | the contract as recovery address |
 | `pending-config-empty-or-legal` | an out-of-bounds cooldown sitting queued |
 | `pubkey-initialized-monotonic` | the onboard latch flipping back |
-| `spent-within-thresholds` | period counters running past their thresholds |
+| `spent-within-thresholds` | period counters past their thresholds |
+| `staked-not-above-funded` | a position larger than the wallet could fund |
+| `num-cycles-within-max` | `num-cycles` past the pox-5 maximum |
+| `signer-is-juice` | a position pointing at a different signer |
 
 ### The bootstrap, and why a first attempt was worthless
 
 A first 200-run session reported 0 failures over **1,164 calls and ZERO successful
 state changes**. Every path bounced: `onboard` needs `FAKFUN-DEPLOYER`, admin paths
-need the seated owner, signed paths need a real secp256r1 signature RV cannot
-forge. The invariants held over a contract that never left its initial state.
+need the seated owner, signed paths need a real secp256r1 signature RV cannot forge.
+The invariants held over a contract that never left its initial state.
 
-`tests/rv-v6/juice-safe-v6.invariants.clar` therefore also appends an **RV-only
-`rv-bootstrap`** which seats the caller as owner and admin, marks the wallet
-initialised, and points `recovery-address` at a fixed simnet wallet. It is not part
-of the deployed contract, exactly like the invariants. With it, 300 runs produced
-201 successful bootstraps and 38 successful `propose-max-gas-amount` calls.
+So the invariants file also appends an **RV-only `rv-bootstrap`** which seats the
+caller as owner and admin, marks the wallet initialised, and points
+`recovery-address` at a fixed simnet wallet. Not part of the deployed contract. With
+it, 400 runs produced 200 successful bootstraps and 37 successful
+`propose-max-gas-amount` calls.
 
-### What RV still cannot reach, honestly
+### THE LAST THREE INVARIANTS ARE CURRENTLY VACUOUS
 
-- **`signal-config-change`: 206 attempts, 0 successes.** RV generates random `u128`
-  arguments, which essentially never land inside `[u144, u4032]`. Those 206
-  rejections are the bounds check working under random input, but the path past it
-  is unexercised. Constraining the argument needs RV's `--dial` hook.
+`rv-stake-anything` got 217 attempts and **0 successes**, so
+`staked-not-above-funded`, `num-cycles-within-max` and `signer-is-juice` all pass
+through their `true` fallback -- correct assertions guarding nothing yet.
+
+Staking cannot be reached under RV, and not for a fixable reason: registering the
+Juice signer needs `juice-pool-stx-signer.register-self`, gated on **that contract's
+admin**, and pox-5's `grant-signer-key` / `register-signer` both assert
+`contract-caller` is the signer. RV only calls the contract under test, from random
+wallets, so no path exists from inside `juice-safe-v6`.
+
+**Dialers cannot bridge it either.** `rv` passes `simnet` as a PARAMETER to
+`checkInvariants` rather than exposing a global, so a dialer -- which receives only
+`{clarityValueArguments, functionCall, selectedFunction}` -- has no handle on the live
+session. Calling `initSimnet` itself would create a different one.
+
+The deployment plan is the remaining option: clarinet supports
+`emulated-contract-call` steps with an arbitrary `emulated-sender`, so the signer
+could be registered there before RV starts. A precomputed grant signature for a fixed
+key and `auth-id u1` works for this, since the domain and struct are deterministic.
+Not yet wired up.
+
+### What RV still cannot reach
+
+- **`signal-config-change`: 214 attempts, 0 successes.** RV generates random `u128`
+  arguments, which essentially never land inside `[u144, u4032]`. Those rejections
+  are the bounds check working under random input, but the path past it is
+  unexercised. Constraining the argument needs the `--dial` hook.
 - **`execute-pending-*`: 0 successes.** They need a real `op-id`; random ones miss.
-- **`recover-inactive-wallet`** reached `(err u4009)`, so it passed the
-  recovery-principal check and failed only on the inactivity clock.
 - **Every signature-gated path is unreachable.** RV cannot produce valid WebAuthn
-  signatures, so the passkey half of the two-factor design is covered by the stxer
-  suite and the vitest scenarios, not here.
-
----
-
-## fakfun-wallet-v16
-
-### clarinet check: 0 errors, 27 warnings
-
-Same verdict as the safe -- **no defects.** Most warnings are the allowance blind
-spot, now confirmed on both contracts. Every one of these is used inside a
-`with-ft` or `with-nft` clause and would remove an asset bound if deleted:
-
-| binding | the allowance that uses it |
-|---|---|
-| `BOB-BURN-AMOUNT` | `(with-ft BOB-CONTRACT "BOB" BOB-BURN-AMOUNT)` |
-| `seat-price` | `(with-ft SBTC-CONTRACT "sbtc-token" (* seat-count seat-price))` |
-| `liq-quote` | `(with-ft SBTC-CONTRACT "sbtc-token" (get dx liq-quote))` |
-| `token-name` x4 | `(with-ft (contract-of sip010) token-name amount)` and the `with-nft` twin |
-| `lock-total`, `sip010-name` x2, `nft-name`, `ft-name` | same pattern |
-
-Two v16-specific warnings are real and both are EXPECTED:
-
-- **`pubkey-cooldown-period` never modified.** This is the signature of change 7
-  landing correctly: the signal/confirm pair that used to write it is gone, so it
-  is now effectively a constant read only by `confirm-admin-with-signature` during
-  the one-time seating.
-- **Three unused error constants and `initial-pubkey`.** Genuine dead code,
-  removed in v17.
-
-### Two harness stubs were needed, and one taught us something
-
-`fakfun-wallet-v16` could not deploy as a requirement until two contracts were
-stubbed in the cache. Both are recorded here because they narrow what the clarinet
-layer proves about v16:
-
-1. **`burn-bob-faktory`** -- clarinet could not order the real one even with its
-   own dependency resolved; the BOB / faktory / xtrata graph runs deep. v16 calls
-   exactly one function on it (`daily-burn`), and `tests/rv/` already ships a
-   `mock-burn-bob-faktory` for the same reason. The real contract is exercised by
-   the stxer suite, where mainnet state is real.
-2. **`ST1NXBK3K5YYMD6FD41MVNP3JS1GABZ8TRVX023PT.nft-trait`** -- a TESTNET address
-   the xtrata contracts reference. Not fetchable from a mainnet node; the stub is
-   the verbatim SIP-009 trait, so it is semantically identical.
-
-**THE LESSON.** The first `burn-bob-faktory` stub was written
-`(define-public (daily-burn) (ok true))` and the whole check failed with:
-
-```
-error: attempted to obtain 'err' value from response, but 'err' type is indeterminate
-```
-
-That is the IDENTICAL fault that aborted the juice-safe-v3 and fakfun-wallet-v12
-deploys at contract init. A bare `(ok true)` leaves the err type unconstrained, so
-a caller's `try!` over it cannot resolve. This is exactly why every mock in
-`tests/rv/` is written `(if true (ok true) (err u0))` -- that form pins the err
-type. Reproducing the v3/v12 fault by accident, in a two-line stub, is the
-clearest demonstration of it available.
-
-### fakfun-wallet-v17 (reference only, NOT deployed)
-
-v16 with the genuine dead code removed and one function retired:
-
-- `err-no-auth-id`, `err-no-message-hash`, `err-fatal-owner-not-admin`
-- the `initial-pubkey` data-var, its write in `onboard`, and the orphaned `PUBK`
-- **`faktory-burn-bob` removed entirely**, along with `BOB-CONTRACT` and
-  `BOB-BURN-AMOUNT`
-
-71,158 -> 69,374 bytes. **0 errors, 21 warnings**, all of them the allowance false
-positives, the must-not-touch `unwrap-panic` set, the single-field tuples, and the
-expected `pubkey-cooldown-period`.
-
-Dropping `faktory-burn-bob` removed the entire BOB dependency chain, so v17 needs
-**neither stub** and clarinet resolves it from real mainnet requirements alone --
-three fewer requirements than v16. Checkable at `tests/cl-v17/`.
-
----
-
-## Reference contracts, neither deployed
-
-| contract | bytes | errors | warnings | derived from |
-|---|---|---|---|---|
-| `juice-safe-v7` | 48,060 | 0 | 12 | v6 minus 5 error constants, `initial-pubkey`, `PUBK` |
-| `fakfun-wallet-v17` | 69,374 | 0 | 21 | v16 minus 3 error constants, `initial-pubkey`, `PUBK`, `faktory-burn-bob` |
+  signatures, so the passkey half of the two-factor design is covered by stxer and
+  vitest, not here.
 
 ---
 
