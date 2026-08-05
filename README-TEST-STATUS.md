@@ -160,3 +160,101 @@ The three added most recently are the honest answer to "can you have more": an o
 both executed and vetoed (v6, v16), and a recorded claim always has a tranche behind it
 (signer). All three are real properties that could break; there was no larger pool of
 equally strong ones waiting to be written.
+
+
+---
+
+# Every invariant, in plain English
+
+38 invariant definitions across the three contracts, 9 of them doing the same job in both
+wallets. Each row says what the invariant FORBIDS -- if it ever fails, that is what went
+wrong.
+
+## The 9 shared by both wallets
+
+| invariant | forbids | why it matters |
+|---|---|---|
+| `cooldown-within-bounds` | cooldown outside `[144, 4032]` | the delay is the only thing protecting against a stolen admin key |
+| `max-gas-within-ceiling` | `max-gas-amount` above `MAX-GAS-CEILING` | caps what a hostile gas station can extract per call |
+| `gas-fuse-holds` | period gas above `max-gas-amount * 25` | caps what it can extract per period |
+| `spent-within-thresholds` | period counters past their thresholds | the queue-vs-move decision is derived from these |
+| `contract-never-own-admin` | the wallet in its own `admins` map | this is what makes gas-station re-entrancy fail |
+| `owner-not-contract` | the wallet as its own owner | same class: a self-owning wallet could authorise itself |
+| `recovery-not-contract` | the wallet as its own recovery address | recovery would be unusable and funds stranded |
+| `pending-config-empty-or-legal` | an out-of-bounds cooldown sitting queued | otherwise the confirm step applies it unchecked |
+| `pubkey-initialized-monotonic` | the onboard latch flipping back | re-onboarding would let someone seat a new passkey |
+
+## juice-safe-v6 only
+
+| invariant | forbids |
+|---|---|
+| `staked-not-above-funded` | a pox-5 position larger than the wallet could fund. Catches the top-up allowance being treated as a delta when it is a resulting TOTAL -- the easiest thing here to get backwards |
+| `num-cycles-within-max` | `num-cycles` past pox-5's own cap |
+| `signer-is-juice` | a position pointing at a different signer, which would send rewards elsewhere |
+
+## fakfun-wallet-v16 only
+
+| invariant | forbids |
+|---|---|
+| `self-never-whitelisted-extension` | the wallet whitelisting ITSELF as an extension. `extension-call` runs extensions under `(with-all-assets-unsafe)`, so that clause would be pointed at the wallet's own surface |
+| `pending-init-sane` | a pending admin proposal naming the contract |
+| `staked-not-above-funded`, `signer-is-juice` | the same two properties as v6 |
+
+## Both wallets, added last
+
+| invariant | forbids |
+|---|---|
+| `no-op-executed-and-vetoed` | an operation being BOTH executed and vetoed. If a sequence could set both flags, "vetoed" stops meaning "this can never pay out" |
+
+## juice-pool-stx-signer -- all about conservation
+
+| invariant | forbids |
+|---|---|
+| `tranche-paid-within-pot` | paying out more than came in. THE property |
+| `paid-shares-within-total` | paid shares exceeding the cycle total, which is what a double payment looks like |
+| `fees-not-above-balance` | `earned-fees` exceeding the real sBTC balance |
+| `fee-within-cap` | a fee above `MAX_FEE_BIPS` (20%) |
+| `pending-fee-legal` | an illegal fee parked in the pending slot, which `confirm-fee-bips` would apply unchecked |
+| `residue-computable` | a negative residue. It is uint subtraction, so an underflow aborts rather than reports -- calling it at all IS the assertion |
+| `fully-paid-implies-shares` | a settled tranche un-settling, which would let `sweep-tranche-dust` run twice |
+| `tranche-count-sane` | tranche accounting running away |
+| `claim-implies-tranche` | a recorded claim with no tranche behind it. The too-soon guard would arm for a cycle that has no pot, silently blocking every future claim for it |
+| `admin-not-contract` | the signer seated as its own admin |
+| `og-pays-nothing` | an OG staker being charged a fee |
+
+## The shape of it
+
+The two contract families are asking different questions. **The wallets are about
+authority and bounds** -- who may act, how much, how fast. **The signer is about
+arithmetic** -- nothing created, nothing destroyed.
+
+Two are worth singling out:
+
+- **`contract-never-own-admin`** (both wallets). An entire class of gas-station
+  re-entrancy attack fails *only* because this holds. If a hostile station could get the
+  wallet into its own `admins` map, it could re-enter and move assets as an admin.
+- **`admin-not-contract`** (signer). `set-admin` has **no guard at all** -- it will
+  happily seat the contract itself or the burn address, and nothing on chain can undo it.
+  This invariant is the only thing standing between a bad call sequence and a permanently
+  bricked contract.
+
+## And the ones that were vacuous first
+
+Worth repeating because it is the failure mode that makes a green RV run lie. v6's three
+staking invariants and the signer's five tranche invariants all PASSED initially over
+state the fuzzer could never reach -- correct assertions guarding nothing. Each was proven
+live with a temporary CANARY asserting the opposite and required to FAIL:
+
+```clarity
+;; v6: does a pox-5 position ever exist?
+(define-read-only (invariant-canary-never-staked)
+  (is-none (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info
+    current-contract)))
+
+;; signer: does a tranche pot ever exist?
+(define-read-only (invariant-canary-no-pot) (is-eq (get-stx-pot u1 u0) u0))
+```
+
+**A canary that survives is the bad outcome.** Both failed once the harness was right,
+which is the proof the real invariants are checked against real state. The canaries were
+then deleted, with the reasoning left in the invariant files.
