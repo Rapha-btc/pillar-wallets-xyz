@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import {
-  D, WALLET, OWNER, RANDOM, RELAYER, DEPLOYER, NEW_OWNER,
+  D, WD, WALLET, OWNER, RANDOM, RELAYER, DEPLOYER, NEW_OWNER,
   E, MIN_COOLDOWN, seated, deployV16, fundSTX, fundSBTC, sign, topic,
   extCV, ftCV, sbtcCV, stationCV, pendingOp, pubkeyCV, FAKFUN_DEPLOYER, CORE,
 } from "./v16-helpers";
@@ -179,7 +179,7 @@ describe("v16 new: veto-pending-init", () => {
   function proposedNotConfirmed() {
     deployV16();
     expect(simnet.callPublicFn(CORE, "set-verified-contract",
-      [Cl.contractPrincipal(D, "fakfun-wallet-v16"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+      [Cl.contractPrincipal(WD, "fakfun-wallet-v16"), Cl.none()], D).result).toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER).result)
       .toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "propose-admin-with-signature",
@@ -202,7 +202,7 @@ describe("v16 new: veto-pending-init", () => {
   it("refuses a veto when nothing is pending", () => {
     deployV16();
     simnet.callPublicFn(CORE, "set-verified-contract",
-      [Cl.contractPrincipal(D, "fakfun-wallet-v16"), Cl.none()], D);
+      [Cl.contractPrincipal(WD, "fakfun-wallet-v16"), Cl.none()], D);
     simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER);
     expect(simnet.callPublicFn(WALLET, "veto-pending-init",
       [sign(topic("veto-init", { "auth-id": Cl.uint(next()),

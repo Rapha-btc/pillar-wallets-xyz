@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
 import {
-  D, WALLET, CORE, OWNER, RANDOM, RELAYER, RECIPIENT, NEW_OWNER,
+  D, WD, WALLET, CORE, OWNER, RANDOM, RELAYER, RECIPIENT, NEW_OWNER,
   E, MIN_COOLDOWN, seated, deployV16, fundSTX, sign, topic, pubkeyCV,
   FAKFUN_DEPLOYER, strip, RP_ID, CHAIN_ID,
 } from "./v16-helpers";
@@ -35,7 +35,7 @@ describe("v16 gaps: pubkey registration", () => {
     const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
     const dom = cvHash(Cl.tuple({
       name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-      "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(D, "fakfun-wallet-v16"),
+      "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "fakfun-wallet-v16"),
     }));
     const t = topic("stx-transfer", { "auth-id": Cl.uint(500), amount: Cl.uint(1_000),
       recipient: Cl.principal(RECIPIENT), memo: Cl.none() });
@@ -112,7 +112,7 @@ describe("v16 gaps: the three-step seating, out of order", () => {
   function onboarded() {
     deployV16();
     expect(simnet.callPublicFn(CORE, "set-verified-contract",
-      [Cl.contractPrincipal(D, "fakfun-wallet-v16"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+      [Cl.contractPrincipal(WD, "fakfun-wallet-v16"), Cl.none()], D).result).toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER).result)
       .toBeOk(Cl.bool(true));
   }

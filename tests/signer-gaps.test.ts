@@ -13,7 +13,11 @@ import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 
-const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+// SIGNER_DEPLOYER lets the coverage harness (tests/cl-signer-cov) publish the signer
+// locally, since clarinet --coverage only instruments project contracts. Unset -- the
+// normal case -- it is the real mainnet deployer, which is also the admin because
+// `admin` is set to tx-sender at deploy.
+const D = process.env.SIGNER_DEPLOYER ?? "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 const SIGNER = `${D}.juice-pool-stx-signer`;
 const POX5 = "SP000000000000000000002Q6VF78.pox-5";
 const SBTC_DEPOSIT = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit";
@@ -31,6 +35,9 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const SIP018 = Buffer.from("534950303138", "hex");
 const signerCV = Cl.contractPrincipal(D, "juice-pool-stx-signer");
+const sbtcOf = (p: string): bigint => BigInt(Cl.prettyPrint(simnet.callReadOnlyFn(
+  "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token",
+  "get-balance", [Cl.principal(p)], DEPLOYER).result).replace(/\D/g, ""));
 const ro = (fn: string, args: any[] = []) => simnet.callReadOnlyFn(SIGNER, fn, args, D).result;
 
 function registerSigner() {
@@ -60,6 +67,18 @@ function fundSbtcTo(to: string, amount: number) {
      Cl.uint(amount), Cl.principal(to), Cl.bufferFromHex(hash), Cl.uint(h),
      Cl.bufferFromHex("55".repeat(32))], SBTC_SIGNER);
 }
+/** wildly uneven stakes so the small one's share of the pot floors to zero */
+function stakeVeryUneven() {
+  registerSigner();
+  simnet.transferSTX(61_000_000_000, A, DEPLOYER);
+  simnet.transferSTX(2_000_000, B, DEPLOYER);
+  simnet.callPublicFn(A, "stake", [signerCV, Cl.uint(60_000_000_000)], RELAYER);
+  simnet.callPublicFn(B, "stake", [signerCV, Cl.uint(1_000_000)], RELAYER);
+  const info = Cl.prettyPrint(simnet.callReadOnlyFn(POX5, "get-staker-info",
+    [Cl.principal(A)], D).result);
+  return BigInt((info.match(/first-reward-cycle: u(\d+)/) || [])[1]);
+}
+
 function stakeBoth() {
   registerSigner();
   simnet.transferSTX(31_000_000_000, A, DEPLOYER);
@@ -167,5 +186,74 @@ describe("signer gaps: the pox-5 passthrough read-onlys", () => {
       [Cl.uint(Number(cycle)), Cl.none()]))).toMatch(/u\d+/);
     expect(Cl.prettyPrint(ro("get-staker-entitlement",
       [Cl.principal(A), Cl.uint(Number(cycle)), Cl.none()]))).toMatch(/u\d+/);
+  });
+});
+
+// =====================================================================
+// What MEASURED line coverage exposed (98.5% -> the rest)
+// =====================================================================
+describe("signer gaps: branches only line coverage found", () => {
+  it(":228 get-stx-owed charges an OG staker no fee", () => {
+    // the OG arm of get-stx-owed's own fee calculation. pay-one has its own copy of
+    // this logic, which the rewards suite covers -- but the READ-ONLY preview has a
+    // separate branch that nothing had exercised, so the number a UI shows an OG
+    // staker was never checked against what they actually receive.
+    simnet.callPublicFn(SIGNER, "propose-fee-bips", [Cl.uint(2000)], D);
+    simnet.mineEmptyBurnBlocks(145);
+    simnet.callPublicFn(SIGNER, "confirm-fee-bips", [], D);
+    simnet.callPublicFn(SIGNER, "set-og", [Cl.principal(A), Cl.bool(true)], D);
+
+    const cycle = stakeBoth();
+    simnet.mineEmptyBurnBlocks(1100);
+    fundSbtcTo(POX5, 2_000_000);
+    simnet.mineEmptyBurnBlocks(560);
+    simnet.callPublicFn(POX5, "calculate-rewards", [Cl.list([])], RELAYER);
+    simnet.callPublicFn(SIGNER, "pox-claim-rewards",
+      [Cl.list([]), Cl.uint(Number(cycle))], RELAYER);
+
+    const owedOG = BigInt(Cl.prettyPrint(ro("get-stx-owed",
+      [Cl.uint(Number(cycle)), Cl.uint(0), Cl.principal(A)])).replace(/\D/g, ""));
+    const owedNormal = BigInt(Cl.prettyPrint(ro("get-stx-owed",
+      [Cl.uint(Number(cycle)), Cl.uint(0), Cl.principal(B)])).replace(/\D/g, ""));
+    expect(owedOG, "the OG preview is not reduced by the fee").toBeGreaterThan(owedNormal);
+
+    // and the preview matches what is actually paid
+    const before = sbtcOf(A);
+    simnet.callPublicFn(SIGNER, "pay-stx-stakers",
+      [Cl.list([Cl.principal(A)]), Cl.uint(Number(cycle)), Cl.uint(0)], RELAYER);
+    expect(sbtcOf(A) - before).toBe(owedOG);
+  });
+
+  it(":264 a staker whose net rounds to ZERO is recorded, not paid", () => {
+    // pay-one's (if (> net u0) transfer true) else-arm. Reachable when a staker's
+    // share of the pot floors to nothing: integer division, so a tiny stake against a
+    // large total gets zero. It still gets an stx-paid entry and its shares still
+    // count toward the tranche, which is what stops it being retried forever.
+    const cycle = stakeVeryUneven();
+    simnet.mineEmptyBurnBlocks(1100);
+    fundSbtcTo(POX5, 60_000);          // deliberately small, so the pot is small
+    simnet.mineEmptyBurnBlocks(560);
+    simnet.callPublicFn(POX5, "calculate-rewards", [Cl.list([])], RELAYER);
+    const claimed = simnet.callPublicFn(SIGNER, "pox-claim-rewards",
+      [Cl.list([]), Cl.uint(Number(cycle))], RELAYER);
+    expect(Cl.prettyPrint(claimed.result)).toMatch(/^\(ok /);
+
+    const owedTiny = BigInt(Cl.prettyPrint(ro("get-stx-owed",
+      [Cl.uint(Number(cycle)), Cl.uint(0), Cl.principal(B)])).replace(/\D/g, ""));
+    expect(owedTiny, "the tiny staker's share floors to zero").toBe(0n);
+
+    const before = sbtcOf(B);
+    const sharesBefore = BigInt(Cl.prettyPrint(ro("get-tranche-paid-shares",
+      [Cl.uint(Number(cycle)), Cl.uint(0)])).replace(/\D/g, ""));
+    simnet.callPublicFn(SIGNER, "pay-stx-stakers",
+      [Cl.list([Cl.principal(B)]), Cl.uint(Number(cycle)), Cl.uint(0)], RELAYER);
+
+    expect(sbtcOf(B), "nothing moved").toBe(before);
+    // but it IS recorded, so a replay cannot retry it
+    expect(ro("get-stx-paid",
+      [Cl.uint(Number(cycle)), Cl.uint(0), Cl.principal(B)])).toBeSome(Cl.uint(0));
+    expect(BigInt(Cl.prettyPrint(ro("get-tranche-paid-shares",
+      [Cl.uint(Number(cycle)), Cl.uint(0)])).replace(/\D/g, "")),
+      "its shares still count toward the tranche").toBeGreaterThan(sharesBefore);
   });
 });

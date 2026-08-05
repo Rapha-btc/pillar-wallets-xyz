@@ -27,8 +27,12 @@ import {
 } from "../lib-webauthn-test-signer.mjs";
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+// V16_DEPLOYER lets the coverage harness (tests/cl-v16-cov) publish the wallet
+// locally, since clarinet --coverage only instruments project contracts. Unset --
+// the normal case -- it is the real mainnet deployer.
+const WD = process.env.V16_DEPLOYER ?? D;
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${D}.fakfun-wallet-v16`;
+const WALLET = `${WD}.fakfun-wallet-v16`;
 const CORE = `${D}.fakfun-wallet-core`;
 const RP_ID = "fak.fun";
 // simnet runs with the TESTNET chain-id; helpers build the SIP-018 domain from the
@@ -61,7 +65,7 @@ const domainHash = () =>
     name: Cl.stringAscii("smart-wallet-standard"),
     version: Cl.stringAscii("1.0.0"),
     "chain-id": Cl.uint(CHAIN_ID),
-    wallet: Cl.contractPrincipal(D, "fakfun-wallet-v16"),
+    wallet: Cl.contractPrincipal(WD, "fakfun-wallet-v16"),
   }));
 const challenge = (topic: any) => sha256(Buffer.concat([SIP018, domainHash(), cvHash(topic)]));
 
@@ -98,13 +102,14 @@ const V16_SRC = fs.readFileSync("contracts/fakfun-wallet-v16.clar", "utf8");
 // see the header: v16 cannot be a requirement, so each test publishes it itself.
 // simnet resets between tests, so this runs per test rather than once.
 function deployV16() {
+  if (process.env.V16_DEPLOYER) return;   // already published by the coverage plan
   expect(simnet.deployContract("fakfun-wallet-v16", V16_SRC,
-    { clarityVersion: 6 }, D).result).toBeBool(true);
+    { clarityVersion: 6 }, WD).result).toBeBool(true);
 }
 function verifyContract() {
   deployV16();
   return simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(D, "fakfun-wallet-v16"), Cl.none()], D);
+    [Cl.contractPrincipal(WD, "fakfun-wallet-v16"), Cl.none()], D);
 }
 function seatAdmin() {
   expect(verifyContract().result).toBeOk(Cl.bool(true));
@@ -308,7 +313,7 @@ describe("fakfun-wallet-v16: never its own admin", () => {
   it("is-admin-calling rejects the contract's own principal", () => {
     seatAdmin();
     expect(simnet.callReadOnlyFn(WALLET, "is-admin-calling",
-      [Cl.contractPrincipal(D, "fakfun-wallet-v16")], OWNER).result)
+      [Cl.contractPrincipal(WD, "fakfun-wallet-v16")], OWNER).result)
       .toBeErr(Cl.uint(ERR_UNAUTH));
     expect(simnet.callReadOnlyFn(WALLET, "is-admin-calling", [Cl.principal(OWNER)], OWNER).result)
       .toBeOk(Cl.bool(true));
@@ -320,7 +325,7 @@ describe("fakfun-wallet-v16: never its own admin", () => {
     // recovery-address is unset on this wallet (never proposed), so the caller
     // check fires first -- the point is that it never succeeds.
     expect(simnet.callPublicFn(WALLET, "recover-inactive-wallet",
-      [Cl.contractPrincipal(D, "fakfun-wallet-v16")], OWNER).result)
+      [Cl.contractPrincipal(WD, "fakfun-wallet-v16")], OWNER).result)
       .toBeErr(Cl.uint(ERR_UNAUTH));
   });
 });

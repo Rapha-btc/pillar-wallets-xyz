@@ -2,10 +2,10 @@
 
 > **STATUS: DONE.** Both contracts have Clarinet coverage and RV fuzzing.
 >
-> | contract | clarinet | RV | error codes |
+> | contract | clarinet | line coverage | RV |
 > |---|---|---|---|
-> | `fakfun-wallet-v16` | **54 tests**, 31/31 in-scope public fns | **800 runs, 13 invariants, 0 failures** | 26/28 (2 faktory-only) |
-> | `juice-pool-stx-signer` | **30 tests**, 14/14 public, 19/19 read-only | **1500 runs, 10 invariants, 0 failures** | 10/12 (2 unreachable) |
+> | `fakfun-wallet-v16` | **75 tests** | **91.0% of in-scope lines** (70.3% raw incl. faktory) | 800 runs, 13 invariants, 0 fail |
+> | `juice-pool-stx-signer` | **31 tests** | **100% of reachable lines** (99.5% raw) | 1500 runs, 10 invariants, 0 fail |
 >
 > No contract defects found in either. Corrections to the plan as written, and the
 > findings, are recorded in the "Outcome" section at the end.
@@ -365,3 +365,105 @@ exactly, an OG and a normal staker in the SAME call (the OG keeps its full gross
     indeterminate, the same fault that aborted the v3/v12 deploys. Use `unwrap-panic`
     in any invariant that reads it.
 20. **Clarinet ignores inter-requirement dependency order** (see correction 1).
+
+
+---
+
+# Measured line coverage, and a correction to the numbers above
+
+The first pass reported "31/31 in-scope functions covered" for v16 and stopped there.
+**That metric was too loose and the claim was wrong.** It grepped test files for each
+function NAME, which counts a name appearing in a propose-only test, or in a comment.
+Measuring lines with clarinet's own `--coverage` said otherwise:
+
+- **`confirm-max-gas-amount` had NEVER been called.** The entire function, the second
+  factor of the max-gas raise, untested while scoring as covered.
+- `get-pending-max-gas` never read.
+- **the memo arm of the STX paths never executed** -- the same miss as juice-safe-v6,
+  repeated, because every test passed `none`.
+- the gas channel never paid on 12 v16 sites, and the period fuse never tripped.
+- `veto-operation`'s passkey branch never taken.
+- `update-stake-stx-juice` and `unstake` passkey branches never taken at all.
+- `recover-inactive-wallet`'s SUCCESS path never ran -- only the u4009 refusal, so the
+  one mechanism that rescues an abandoned wallet was unexercised.
+
+In-scope line coverage went **58.5% -> 75.6% -> 85.1% -> 87.3% -> 91.0%** as those were
+closed, and every non-faktory function is now actually called.
+
+## Where the numbers come from
+
+| number | meaning |
+|---|---|
+| 70.3% raw | the whole file, including the 262 instrumented lines inside `faktory-*` |
+| **91.0%** | excluding `faktory-*` and `get-byte` (a private helper only faktory uses) |
+| 61 of the 80 remaining | continuation tokens lcov cannot credit (see stx-labs/clarinet#2490) |
+| 19 | genuinely uncovered, listed below |
+
+Still uncovered in-scope, and why:
+
+- **2 lines**: the `MAX-CONFIG-COOLDOWN` clamp arms in `confirm-max-gas-amount` and
+  `set-wallet-config`. Unreachable by design -- cooldown is bounded at every entry
+  point, exactly as in v6.
+- **4 lines**: `(match gas ... true)` else-arms on four paths where the with-station
+  case is covered and the without-station case is not.
+- **13 lines**: `wager-deposit`'s success path. It asserts
+  `game-wager-v2-4.get-registered-wallet(pubkey) == this wallet`, so driving it needs
+  the wallet registered in that external contract first. Only the non-admin rejection
+  is covered. This is the one honest hole left.
+
+## The signer reached 100% of reachable lines
+
+199/200 raw. The single uncovered line is `settle-one`'s
+`err-code (merge acc { failed: true })` arm -- the `u103` path already proven
+unreachable in simnet with four probes. Measuring found two real gaps first:
+
+- `get-stx-owed`'s OG branch, so the number a UI would show an OG staker had never been
+  checked against what they actually receive. It is now asserted equal.
+- `pay-one`'s `(if (> net u0) transfer true)` else-arm: a staker whose share of the pot
+  floors to zero is still RECORDED (`stx-paid` set to 0, shares counted), which is what
+  stops it being retried forever. Reached with wildly uneven stakes.
+
+## Reproducing
+
+Coverage instruments PROJECT contracts only -- not requirements, and **not contracts
+published at runtime via `deployContract` either**, which is how the correctness suites
+publish v16. So each contract has a second harness:
+
+```
+V16_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM npx vitest run \
+  tests/fakfun-wallet-v16*.test.ts -- --manifest tests/cl-v16-cov/Clarinet.toml --coverage
+
+SIGNER_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM npx vitest run \
+  tests/signer-*.test.ts -- --manifest tests/cl-signer-cov/Clarinet.toml --coverage
+```
+
+The suites read the deployer from those variables, defaulting to the real mainnet
+principals, so correctness runs against `tests/cl-v16` and `tests/cl-signer` are
+untouched (75 and 31 passing respectively, verified after every change).
+
+- `tests/cl-v16-cov` differs from the deployed v16 by exactly **two** self-reference
+  literals, repointed at the simnet deployer.
+- `tests/cl-signer-cov` is **byte-identical** to the deployed signer: it has no
+  self-references at all.
+- `deployV16()` is a no-op when `V16_DEPLOYER` is set, since the coverage plan publishes
+  the wallet itself and a second publish would collide.
+
+## One more correction
+
+**The recovery window in v16 is deliberate, not a footgun.** `recover-inactive-wallet`
+requires `tx-sender == recovery-address`, and v16 leaves that at the burn address
+because fakfun wallets onboard a user with a passkey and nothing else -- there is no
+recovery principal to record yet. juice-safe-v6 can demand it at onboard because a safe
+is created by someone who already has an address; a consumer wallet is not.
+
+So the obligation is OPERATIONAL: the user journey has to walk the user through
+`propose-recovery` / `confirm-recovery` later, and until it does, an abandoned wallet
+cannot be rescued. Both states are asserted -- unrecoverable before designation, and
+recovering correctly after it -- so the window is measured rather than assumed away.
+
+## And on the faktory exclusion
+
+Excluded because those functions are unchanged and **already have Clarinet tests in
+another repo**, not because they are untested. They still have to compile and deploy,
+which Phase 0 handled. If any of them is edited, this exclusion expires and the tests
+should be brought alongside these.

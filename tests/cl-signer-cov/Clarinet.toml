@@ -1,0 +1,54 @@
+[project]
+name = "juice-pool-stx-signer-coverage"
+description = "juice-pool-stx-signer against real mainnet pox-5 and sBTC"
+authors = []
+telemetry = false
+cache_dir = "../../.cache"
+
+[repl.analysis]
+passes = []
+
+# real mainnet dependencies, nothing mocked
+[[project.requirements]]
+contract_id = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard"
+
+[[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit"
+
+[[project.requirements]]
+contract_id = "SP000000000000000000002Q6VF78.pox-5"
+
+# COVERAGE ONLY. clarinet --coverage instruments PROJECT contracts, never
+# requirements, so measuring line coverage means deploying the signer locally, which
+# moves it off its mainnet address and makes `admin` (tx-sender at deploy) the simnet
+# deployer. The suites read that from SIGNER_DEPLOYER, defaulting to the real mainnet
+# principal, so correctness runs against tests/cl-signer are unaffected.
+#
+# Unlike the wallets, this contract has ZERO self-references, so the source here is
+# byte-identical to the deployed bytes with nothing repointed.
+[contracts.juice-pool-stx-signer]
+path = "contracts/juice-pool-stx-signer.clar"
+clarity_version = 5
+epoch = "4.0"
+
+# burn-hash / locked-of helpers used to drive real sBTC deposits
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-staker-a]
+path = "contracts/zz-staker-a.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-staker-b]
+path = "contracts/zz-staker-b.clar"
+clarity_version = 6
+epoch = "4.0"

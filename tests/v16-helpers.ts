@@ -14,8 +14,12 @@ import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
 
 export const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+// V16_DEPLOYER lets the coverage harness (tests/cl-v16-cov) publish the wallet
+// locally, since clarinet --coverage only instruments project contracts. Unset --
+// the normal case -- it is the real mainnet deployer.
+export const WD = process.env.V16_DEPLOYER ?? D;
 export const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-export const WALLET = `${D}.fakfun-wallet-v16`;
+export const WALLET = `${WD}.fakfun-wallet-v16`;
 export const CORE = `${D}.fakfun-wallet-core`;
 export const SBTC_ID = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 export const SBTC_DEPOSIT = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit";
@@ -52,7 +56,7 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const domainHash = () => cvHash(Cl.tuple({
   name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(D, "fakfun-wallet-v16"),
+  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "fakfun-wallet-v16"),
 }));
 const challenge = (t: any) => sha256(Buffer.concat([SIP018, domainHash(), cvHash(t)]));
 export const key = generateP256Keypair();
@@ -74,15 +78,19 @@ export function sign(t: any, id: number, k = key) {
 
 const V16_SRC = fs.readFileSync("contracts/fakfun-wallet-v16.clar", "utf8");
 export function deployV16() {
+  // In the COVERAGE harness the wallet is already published by the deployment plan
+  // (it has to be a project contract to be instrumented), so publishing it again
+  // would collide. Everywhere else it must be published here -- see the header.
+  if (process.env.V16_DEPLOYER) return;
   expect(simnet.deployContract("fakfun-wallet-v16", V16_SRC,
-    { clarityVersion: 6 }, D).result).toBeBool(true);
+    { clarityVersion: 6 }, WD).result).toBeBool(true);
 }
 
 /** deploy + verify + onboard + seat OWNER as admin through the three-step flow */
 export function seated() {
   deployV16();
   expect(simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(D, "fakfun-wallet-v16"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    [Cl.contractPrincipal(WD, "fakfun-wallet-v16"), Cl.none()], D).result).toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER).result)
     .toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "propose-admin-with-signature",

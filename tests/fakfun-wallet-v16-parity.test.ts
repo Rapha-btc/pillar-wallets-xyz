@@ -14,7 +14,7 @@
 import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import {
-  D, WALLET, OWNER, RANDOM, RELAYER, RECIPIENT, NEW_OWNER, DEPLOYER,
+  D, WD, WALLET, OWNER, RANDOM, RELAYER, RECIPIENT, NEW_OWNER, DEPLOYER,
   E, MIN_COOLDOWN, STX_THRESHOLD, SBTC_THRESHOLD,
   seated, fundSTX, fundSBTC, registerSigner, sign, topic,
   sbtcCV, nftCV, stationCV, poxAddr, pendingOp, gasCounter,
@@ -207,7 +207,7 @@ describe("v16 parity: admin transfer and recovery", () => {
 describe("v16 parity: pox-5 staking", () => {
   const stakerInfo = () => Cl.prettyPrint(simnet.callReadOnlyFn(
     "SP000000000000000000002Q6VF78.pox-5", "get-staker-info",
-    [Cl.contractPrincipal(D, "fakfun-wallet-v16")], OWNER).result);
+    [Cl.contractPrincipal(WD, "fakfun-wallet-v16")], OWNER).result);
 
   it("stakes, tops up, and unstakes", () => {
     seated(); fundSTX(); registerSigner();
