@@ -291,33 +291,17 @@ describe("v6 rewards: the full payout chain, sBTC -> pox-5 -> signer -> staker",
       "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token",
       "get-balance", [Cl.principal(p)], DEPLOYER).result).replace(/\D/g, ""));
 
-  // SKIPPED with a precise finding, not a shrug.
-  //
-  // The chain runs: the deposit lands (pox-5 get-rewards goes to u2000000),
-  // calculate-rewards succeeds permissionlessly from a relayer, and the reserve cut
-  // maths is visible. What does NOT happen is share allocation:
-  //
-  //   calc -> { stx-cycle: u1, gross-accrued-rewards: u2000000,
-  //             cycle-staked-ustx: u0, accrued-rewards-per-ustx: u0,
-  //             reserve-deposit: u2000000, total-stx-staker-rewards: u1700000 }
-  //
-  // cycle-staked-ustx is u0 even though the stake succeeded and get-staker-info
-  // reads { amount-ustx: u1000000000, first-reward-cycle: u1, num-cycles: u96 }.
-  // With no shares recorded for the cycle, pox-5 folds the whole staker cut into the
-  // reserve, so pox-claim-rewards then answers ERR_NO_CLAIMABLE_REWARDS u32. Cycle
-  // timing is NOT the cause -- this reproduces with calculation-height inside
-  // reward cycle u1. A fresh pox-5 needs share registration this harness has not
-  // reproduced.
-  //
-  // PROVEN IN STXER instead, which forks mainnet where real stakers already hold
-  // shares -- simul-juice-safe-v6-lifecycle.js, 62/62: sBTC to pox-5,
-  // calculate-rewards, pox-claim-rewards into the Juice pot, then pay-stx-stakers
-  // paying the safe ALONGSIDE 8 REAL mainnet stakers, and a replay of the same
-  // tranche paying u0.
-  it.skip("pays the staked safe its sBTC share, and refuses to pay twice", () => {
-    registerSigner(); onboarded(); fundSTX();
+  it("pays the staked safe its sBTC share, and refuses to pay twice", () => {
+    // MUST clear pox-5's SIGNER_SET_MIN_USTX = u50000000000 (50k STX), which is a
+    // PER-SIGNER delegation threshold. Below it, add-staker-to-signer-for-cycle
+    // records NO shares at all -- pox-5.clar:1705, and its own comment says signers
+    // below the delegation threshold do not receive rewards. staker-info still shows
+    // the position, so a smaller stake looks fine right up until calculate-rewards
+    // reports cycle-staked-ustx u0 and folds every sat into the reserve.
+    const BIG_STAKE = 51_000_000_000; // 51k STX, just over the 50k floor
+    registerSigner(); onboarded(); fundSTX(60_000_000_000);
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(BIG_STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
 
     // The safe's shares begin at first-reward-cycle, so read it rather than guess.
     // Claiming for the cycle BEFORE it earns nothing and pox-5 answers
@@ -366,5 +350,29 @@ describe("v6 rewards: the full payout chain, sBTC -> pox-5 -> signer -> staker",
       [Cl.list([Cl.contractPrincipal(D, "juice-safe-v6")]), Cl.uint(cycle), Cl.uint(0)],
       RELAYER).result)).toMatch(/^\(ok /);
     expect(sbtcOf(WALLET) - before).toBe(paid);
+  });
+
+  it("a stake JUST UNDER the 50k signer floor records no shares at all", () => {
+    registerSigner(); onboarded(); fundSTX(60_000_000_000);
+    // one uSTX short of SIGNER_SET_MIN_USTX
+    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(49_999_999_999), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+
+    // the position is real and visible...
+    expect(stakerInfo()).toContain("amount-ustx: u49999999999");
+
+    const cycle = BigInt((stakerInfo().match(/first-reward-cycle: u(\d+)/) || [])[1]);
+    simnet.mineEmptyBurnBlocks(1100);
+    expect(fundSbtcTo(POX5, REWARD_SATS, "77").result).toBeOk(Cl.bool(true));
+    simnet.mineEmptyBurnBlocks(560);
+
+    // ...but pox-5 counts no shares for the cycle, so the whole staker cut is
+    // folded into the reserve and there is nothing to claim. This is the trap:
+    // staking "succeeds" and earns nothing, silently.
+    const calc = simnet.callPublicFn(POX5, "calculate-rewards", [Cl.list([])], RELAYER);
+    expect(Cl.prettyPrint(calc.result)).toContain("cycle-staked-ustx: u0");
+    expect(Cl.prettyPrint(calc.result)).toContain("accrued-rewards-per-ustx: u0");
+    expect(Cl.prettyPrint(simnet.callPublicFn(SIGNER, "pox-claim-rewards",
+      [Cl.list([]), Cl.uint(cycle)], RELAYER).result)).toBe("(err u32)");
   });
 });
