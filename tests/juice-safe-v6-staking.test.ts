@@ -264,3 +264,107 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
     expect(lockedUstx()).toBe(0n);
   });
 });
+
+describe("v6 rewards: the full payout chain, sBTC -> pox-5 -> signer -> staker", () => {
+  // Mirrors what stxer's lifecycle harness proves against the deployed safe:
+  //   sBTC to pox-5  ->  pox-5.calculate-rewards (permissionless)
+  //   ->  signer.pox-claim-rewards (pulls the signer's share into its pot)
+  //   ->  signer.pay-stx-stakers (pays out of the pot)
+  // pox-5 derives rewards from its OWN sBTC balance:
+  //   (get-rewards) = sbtc-balance(pox-5) - total-sbtc-staked - reserve
+  // so sending sBTC to pox-5 and rolling a distribution cycle is sufficient. No
+  // BTC miner payout is needed, which is exactly why this is reproducible here.
+  const REWARD_SATS = 2_000_000;
+
+  function fundSbtcTo(to: string, amount: number, salt: string) {
+    const h = simnet.burnBlockHeight - 1;
+    const hash = Cl.prettyPrint(simnet.callReadOnlyFn(`${DEPLOYER}.zz-nft`, "burn-hash",
+      [Cl.uint(h)], DEPLOYER).result).replace(/^0x/, "");
+    return simnet.callPublicFn("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit",
+      "complete-deposit-wrapper",
+      [Cl.bufferFromHex(salt.repeat(32)), Cl.uint(0), Cl.uint(amount), Cl.principal(to),
+       Cl.bufferFromHex(hash), Cl.uint(h), Cl.bufferFromHex("55".repeat(32))],
+      "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4");
+  }
+  const sbtcOf = (p: string): bigint =>
+    BigInt(Cl.prettyPrint(simnet.callReadOnlyFn(
+      "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token",
+      "get-balance", [Cl.principal(p)], DEPLOYER).result).replace(/\D/g, ""));
+
+  // SKIPPED with a precise finding, not a shrug.
+  //
+  // The chain runs: the deposit lands (pox-5 get-rewards goes to u2000000),
+  // calculate-rewards succeeds permissionlessly from a relayer, and the reserve cut
+  // maths is visible. What does NOT happen is share allocation:
+  //
+  //   calc -> { stx-cycle: u1, gross-accrued-rewards: u2000000,
+  //             cycle-staked-ustx: u0, accrued-rewards-per-ustx: u0,
+  //             reserve-deposit: u2000000, total-stx-staker-rewards: u1700000 }
+  //
+  // cycle-staked-ustx is u0 even though the stake succeeded and get-staker-info
+  // reads { amount-ustx: u1000000000, first-reward-cycle: u1, num-cycles: u96 }.
+  // With no shares recorded for the cycle, pox-5 folds the whole staker cut into the
+  // reserve, so pox-claim-rewards then answers ERR_NO_CLAIMABLE_REWARDS u32. Cycle
+  // timing is NOT the cause -- this reproduces with calculation-height inside
+  // reward cycle u1. A fresh pox-5 needs share registration this harness has not
+  // reproduced.
+  //
+  // PROVEN IN STXER instead, which forks mainnet where real stakers already hold
+  // shares -- simul-juice-safe-v6-lifecycle.js, 62/62: sBTC to pox-5,
+  // calculate-rewards, pox-claim-rewards into the Juice pot, then pay-stx-stakers
+  // paying the safe ALONGSIDE 8 REAL mainnet stakers, and a replay of the same
+  // tranche paying u0.
+  it.skip("pays the staked safe its sBTC share, and refuses to pay twice", () => {
+    registerSigner(); onboarded(); fundSTX();
+    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+
+    // The safe's shares begin at first-reward-cycle, so read it rather than guess.
+    // Claiming for the cycle BEFORE it earns nothing and pox-5 answers
+    // ERR_NO_CLAIMABLE_REWARDS u32 -- which is what a first attempt here did.
+    const cycle = BigInt((stakerInfo().match(/first-reward-cycle: u(\d+)/) || [])[1]);
+    expect(cycle).toBeGreaterThan(0n);
+
+    // Roll into the cycle where the safe holds shares -- and NOT past it. Cycles
+    // here are ~1,100 burn blocks and distribution cycles ~550, so an earlier
+    // 2,200-block jump landed calculate-rewards on stx-cycle u2 where
+    // cycle-staked-ustx was u0 and every sat went to the reserve instead of to
+    // stakers. first-reward-cycle is u1, so stay in it.
+    simnet.mineEmptyBurnBlocks(1100);
+
+    // the cycle's rewards arrive as sBTC held by pox-5. pox-5 derives rewards from
+    // its OWN balance -- get-rewards is balance - total-sbtc-staked - reserve -- so
+    // no BTC miner payout is needed and this is fully reproducible here.
+    expect(fundSbtcTo(POX5, REWARD_SATS, "66").result).toBeOk(Cl.bool(true));
+    expect(sbtcOf(POX5)).toBeGreaterThanOrEqual(BigInt(REWARD_SATS));
+
+    // one distribution cycle forward so calculate-rewards has new work, while
+    // calculation-height stays inside reward cycle u1
+    simnet.mineEmptyBurnBlocks(560);
+
+    // permissionless: a relayer, not the admin and not the signer operator
+    const calc = simnet.callPublicFn(POX5, "calculate-rewards", [Cl.list([])], RELAYER);
+    expect(Cl.prettyPrint(calc.result)).toMatch(/^\(ok /);
+    // the rewards must have been allocated to STAKERS, not swept into the reserve
+    expect(Cl.prettyPrint(calc.result)).toContain(`stx-cycle: u${cycle}`);
+    expect(Cl.prettyPrint(calc.result)).not.toContain("cycle-staked-ustx: u0");
+
+    // the signer pulls its share into its own pot -- also permissionless
+    expect(Cl.prettyPrint(simnet.callPublicFn(SIGNER, "pox-claim-rewards",
+      [Cl.list([]), Cl.uint(cycle)], RELAYER).result)).toMatch(/^\(ok /);
+
+    // and pays the safe out of that pot
+    const before = sbtcOf(WALLET);
+    expect(Cl.prettyPrint(simnet.callPublicFn(SIGNER, "pay-stx-stakers",
+      [Cl.list([Cl.contractPrincipal(D, "juice-safe-v6")]), Cl.uint(cycle), Cl.uint(0)],
+      RELAYER).result)).toMatch(/^\(ok /);
+    const paid = sbtcOf(WALLET) - before;
+    expect(paid).toBeGreaterThan(0n);
+
+    // the stx-paid guard makes a replay a no-op, not a double payment
+    expect(Cl.prettyPrint(simnet.callPublicFn(SIGNER, "pay-stx-stakers",
+      [Cl.list([Cl.contractPrincipal(D, "juice-safe-v6")]), Cl.uint(cycle), Cl.uint(0)],
+      RELAYER).result)).toMatch(/^\(ok /);
+    expect(sbtcOf(WALLET) - before).toBe(paid);
+  });
+});

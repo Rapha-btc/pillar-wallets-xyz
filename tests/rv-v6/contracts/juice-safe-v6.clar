@@ -1673,3 +1673,45 @@
     })
     (var-set last-activity-block burn-block-height)
     (ok true)))
+
+;; --- RV-ONLY: make staking reachable --------------------------------------
+;; NOT part of the deployed contract. pox-5 rejects every stake with
+;; ERR_SIGNER_NOT_FOUND u23 until juice-pool-stx-signer has registered, and the
+;; real registration needs a secp256k1 grant signature RV cannot produce. Without
+;; this, all three staking functions bounce and invariants 10-12 are vacuous.
+;;
+;; This does NOT weaken anything the invariants assert: it only puts the wallet in
+;; a state a real onboarded, funded, staking safe would be in.
+(define-public (rv-stake-anything (amount uint))
+  (stake-stx-juice (+ u1000000 (mod amount u1000000000)) none none))
+
+(define-public (rv-topup-anything (amount uint))
+  (update-stake-stx-juice (+ u1 (mod amount u100000000)) u0 none none))
+
+;; --- 10. a staked position is never larger than what was staked -------------
+;; pox-5 keys the staker off tx-sender, which as-contract? makes this wallet. If
+;; any random sequence could grow amount-ustx without a matching stake or top-up,
+;; the allowance maths on update-stake-stx-juice would be wrong -- and that
+;; allowance is a BALANCE, not a delta, which is the easiest thing here to get
+;; backwards.
+(define-read-only (invariant-staked-not-above-funded)
+  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
+    info (<= (get amount-ustx info) (+ (stx-get-balance current-contract)
+                                       (get locked (stx-account current-contract))))
+    true))
+
+;; --- 11. num-cycles never exceeds the pox-5 maximum ------------------------
+;; stake pins NUM-CYCLES u96 and update-stake-stx-juice can extend. pox-5 rejects
+;; an extend past its own cap, so no sequence should ever leave a position above it.
+(define-read-only (invariant-num-cycles-within-max)
+  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
+    info (<= (get num-cycles info) u97)
+    true))
+
+;; --- 12. the signer never changes under us --------------------------------
+;; Every staking call names JUICE-SIGNER. If a position could end up pointing at a
+;; different signer, rewards would flow somewhere else entirely.
+(define-read-only (invariant-signer-is-juice)
+  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
+    info (is-eq (get signer info) JUICE-SIGNER)
+    true))
