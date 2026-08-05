@@ -269,6 +269,9 @@ CORRECTLY DECLARED:            (ok { amount-ustx: u51000000000, ... })
 UNDER-DECLARED (with-staking u1): (ok { amount-ustx: u51000000000, ... })
 ```
 
+Filed upstream as **stx-labs/clarinet#2491** (stxer fixed the same gap on their side in
+stxer/stxer-sdk#7 after the same report).
+
 **`(with-staking N)` is not enforced in simnet at all** -- there is no stacking
 asset-map entry for the check to compare against, so the clause is inert. It is a
 clean A/B: the control and the violation are indistinguishable.
@@ -384,6 +387,8 @@ obviously did. The clearest proof is inside `onboard`, which every single test e
 line. All 46 are exactly this shape and split cleanly into three kinds -- 24 bare
 principal literals, 18 callee names on their own line, 4 type-literal fields
 (`max-fee: uint`). Nothing unclassified.
+
+Filed upstream as **stx-labs/clarinet#2490**.
 
 **So no, you cannot get raw lcov to 100%,** and chasing it would be a mistake: the only
 way is to reformat the deployed contract so multi-line calls sit on one line, which
