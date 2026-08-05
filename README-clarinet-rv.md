@@ -220,6 +220,95 @@ of the deployed contract, exactly like the invariants. With it, 300 runs produce
 
 ---
 
+## fakfun-wallet-v16
+
+### clarinet check: 0 errors, 27 warnings
+
+Same verdict as the safe -- **no defects.** Most warnings are the allowance blind
+spot, now confirmed on both contracts. Every one of these is used inside a
+`with-ft` or `with-nft` clause and would remove an asset bound if deleted:
+
+| binding | the allowance that uses it |
+|---|---|
+| `BOB-BURN-AMOUNT` | `(with-ft BOB-CONTRACT "BOB" BOB-BURN-AMOUNT)` |
+| `seat-price` | `(with-ft SBTC-CONTRACT "sbtc-token" (* seat-count seat-price))` |
+| `liq-quote` | `(with-ft SBTC-CONTRACT "sbtc-token" (get dx liq-quote))` |
+| `token-name` x4 | `(with-ft (contract-of sip010) token-name amount)` and the `with-nft` twin |
+| `lock-total`, `sip010-name` x2, `nft-name`, `ft-name` | same pattern |
+
+Two v16-specific warnings are real and both are EXPECTED:
+
+- **`pubkey-cooldown-period` never modified.** This is the signature of change 7
+  landing correctly: the signal/confirm pair that used to write it is gone, so it
+  is now effectively a constant read only by `confirm-admin-with-signature` during
+  the one-time seating.
+- **Three unused error constants and `initial-pubkey`.** Genuine dead code,
+  removed in v17.
+
+### Two harness stubs were needed, and one taught us something
+
+`fakfun-wallet-v16` could not deploy as a requirement until two contracts were
+stubbed in the cache. Both are recorded here because they narrow what the clarinet
+layer proves about v16:
+
+1. **`burn-bob-faktory`** -- clarinet could not order the real one even with its
+   own dependency resolved; the BOB / faktory / xtrata graph runs deep. v16 calls
+   exactly one function on it (`daily-burn`), and `tests/rv/` already ships a
+   `mock-burn-bob-faktory` for the same reason. The real contract is exercised by
+   the stxer suite, where mainnet state is real.
+2. **`ST1NXBK3K5YYMD6FD41MVNP3JS1GABZ8TRVX023PT.nft-trait`** -- a TESTNET address
+   the xtrata contracts reference. Not fetchable from a mainnet node; the stub is
+   the verbatim SIP-009 trait, so it is semantically identical.
+
+**THE LESSON.** The first `burn-bob-faktory` stub was written
+`(define-public (daily-burn) (ok true))` and the whole check failed with:
+
+```
+error: attempted to obtain 'err' value from response, but 'err' type is indeterminate
+```
+
+That is the IDENTICAL fault that aborted the juice-safe-v3 and fakfun-wallet-v12
+deploys at contract init. A bare `(ok true)` leaves the err type unconstrained, so
+a caller's `try!` over it cannot resolve. This is exactly why every mock in
+`tests/rv/` is written `(if true (ok true) (err u0))` -- that form pins the err
+type. Reproducing the v3/v12 fault by accident, in a two-line stub, is the
+clearest demonstration of it available.
+
+### fakfun-wallet-v17 (reference only, NOT deployed)
+
+v16 with the genuine dead code removed and one function retired:
+
+- `err-no-auth-id`, `err-no-message-hash`, `err-fatal-owner-not-admin`
+- the `initial-pubkey` data-var, its write in `onboard`, and the orphaned `PUBK`
+- **`faktory-burn-bob` removed entirely**, along with `BOB-CONTRACT` and
+  `BOB-BURN-AMOUNT`
+
+71,158 -> 69,374 bytes. **0 errors, 21 warnings**, all of them the allowance false
+positives, the must-not-touch `unwrap-panic` set, the single-field tuples, and the
+expected `pubkey-cooldown-period`.
+
+Dropping `faktory-burn-bob` removed the entire BOB dependency chain, so v17 needs
+**neither stub** and clarinet resolves it from real mainnet requirements alone --
+three fewer requirements than v16. Checkable at `tests/cl-v17/`.
+
+---
+
+## Reference contracts, neither deployed
+
+| contract | bytes | errors | warnings | derived from |
+|---|---|---|---|---|
+| `juice-safe-v7` | 48,060 | 0 | 12 | v6 minus 5 error constants, `initial-pubkey`, `PUBK` |
+| `fakfun-wallet-v17` | 69,374 | 0 | 21 | v16 minus 3 error constants, `initial-pubkey`, `PUBK`, `faktory-burn-bob` |
+
+---
+
 ## Still to do
 
-- clarinet check, vitest scenarios and RV for fakfun-wallet-v16
+- **vitest scenarios for fakfun-wallet-v16.** Written at
+  `tests/fakfun-wallet-v16.test.ts` (17 scenarios covering the three-step admin
+  seating, the absence of the pubkey-registration surface, the config surface,
+  max-gas, thresholds and the never-its-own-admin invariant) but NOT yet passing --
+  the requirement could not deploy until the two stubs above landed, and the run
+  has not been repeated since.
+- **RV fuzzing for fakfun-wallet-v16.**
+
