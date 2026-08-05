@@ -135,10 +135,10 @@ npx vitest run tests/juice-safe-v6.test.ts tests/juice-safe-v6-surface.test.ts \
   -- --manifest tests/cl-v6/Clarinet.toml
 ```
 
-### juice-safe-v6: 68 passing, 0 skipped, all 25 public functions
+### juice-safe-v6: 81 passing, 0 skipped, all 25 public functions
 
 Against the real deployed bytes at the real mainnet address, with real mainnet
-dependencies. Four suites:
+dependencies. Six suites:
 
 | suite | what it covers |
 |---|---|
@@ -146,6 +146,8 @@ dependencies. Four suites:
 | `juice-safe-v6-surface.test.ts` | the rest of the surface: pending ops, veto, token lock, 2FA transfer, recovery rotation, max-gas confirm |
 | `juice-safe-v6-assets.test.ts` | sBTC and NFT SUCCESS paths, and the gas channel on 12 sites |
 | `juice-safe-v6-staking.test.ts` | pox-5 staking, the post-unlock state, and the full reward payout chain |
+| `juice-safe-v6-limits.test.ts` | the guard rails: token lock on all 10 sites, the per-period gas fuse, re-propose / re-signal |
+| `juice-safe-v6-allowance.test.ts` | a TOOLING guard, not a contract test -- see "the allowance gap" below |
 
 **Init.** `onboard` fails `u6001` until `set-verified-contract` registers the
 contract; only `FAKFUN-DEPLOYER` may call it; it cannot run twice.
@@ -239,12 +241,46 @@ station; and the post-unlock state -- after unstake plus 6,300 burn blocks,
 `get-staker-info` goes to `none`, with the two-part exit pinned (unstake truncates
 the window, only the cycle rolling clears the position).
 
-**One real simnet limit, asserted rather than hidden.** After a successful stake,
-`stx-account` reports `locked u0` while `get-staker-info` is correct. The lock, the
-`STXLockEvent` and the stacking asset-map entry all come from the NODE's PoX
-handler, which clarinet does not emulate. So **`(with-staking N)` is NOT genuinely
-enforced in simnet** -- that evidence comes from stxer, where the lock applies for
-real after stxer/stxer-sdk#7 and an under-declared allowance aborts.
+### The allowance gap, now PROVEN rather than inferred
+
+This started as an inference from a symptom: after a successful stake, `stx-account`
+reports `locked u0` while `get-staker-info` is correct, because the lock, the
+`STXLockEvent` and the stacking asset-map entry all come from the NODE's PoX handler,
+which clarinet does not emulate. The conclusion drawn from that -- that
+`(with-staking N)` is not enforced in simnet -- was reasonable but unproven, so it
+got tested directly.
+
+`tests/cl-v6/contracts/zz-allowance-probe.clar` stakes a real 51,000 STX twice
+through pox-5, changing only the allowance it declares:
+
+```clarity
+(define-public (stake-underdeclared (signer <signer-mgr>) (amount uint))
+  (as-contract? ((with-staking u1))
+    (try! (contract-call? POX5 stake signer amount NUM-CYCLES burn-block-height none))))
+```
+
+Both return `(ok ...)`. The under-declared call moves 51,000 STX under an allowance of
+`u1` and simnet does not object:
+
+```
+CORRECTLY DECLARED:            (ok { amount-ustx: u51000000000, ... })
+UNDER-DECLARED (with-staking u1): (ok { amount-ustx: u51000000000, ... })
+```
+
+**`(with-staking N)` is not enforced in simnet at all** -- there is no stacking
+asset-map entry for the check to compare against, so the clause is inert. It is a
+clean A/B: the control and the violation are indistinguishable.
+
+**Why this matters beyond trivia.** This is exactly the bug class that broke
+`juice-safe-v0` on mainnet: its unstake declared `(with-staking (locked-ustx))` and
+could never succeed, returning `err u128` MAX_ALLOWANCES. A developer touching an
+allowance clause, running clarinet, and seeing green would ship that bug. Only stxer
+catches it, because there the lock applies for real (after stxer/stxer-sdk#7) and an
+under-declared allowance aborts.
+
+The probe is kept as a permanent test that asserts the CURRENT (broken) behaviour, so
+if a future clarinet starts enforcing the clause the test FAILS -- which is the signal
+that the gap closed and stxer is no longer the only witness.
 
 ### The reward payout chain, and the 50k trap
 
@@ -279,22 +315,82 @@ below it they earn zero. It also means the signer's AGGREGATE matters: a positio
 over the floor stops earning if other stakers leave and the signer drops back under
 it mid-cycle.
 
+### The guard rails, now covered (`juice-safe-v6-limits.test.ts`)
+
+**Token lock: 1 of 10 sites was verified, now all 10 are.** The other suites toggled
+the lock and asserted it blocked `stx-transfer`; the remaining nine assert sites had
+never been exercised. All nine now are: `sip010-transfer`, `sip009-transfer`,
+`sbtc-initiate-withdrawal`, the three `-now` fast paths, and the three staking paths.
+
+The important part is the SHAPE of the lock, which is uniform across all ten sites --
+the assert lives inside the `(match sig-auth ...)` Some-branch
+(`juice-safe-v6.clar:1334`):
+
+```clarity
+      sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+```
+
+So **the token lock freezes the PASSKEY and leaves the admin alone.** That is
+deliberate and coherent -- the passkey is the phishable factor, and the admin is who
+flips the switch -- but it means "token lock" is not a wallet freeze. Every test
+asserts it both ways: passkey `u4023`, same call as admin `(ok true)`. Toggling the
+lock back off restores the passkey path.
+
+For the staking paths the admin-unaffected half is worth stating plainly: a locked
+wallet can still stake, because staking locks STX inside pox-5 rather than moving it
+out of the safe.
+
+**The per-period gas fuse now trips.** `pay-gas-accounted` bounds a single call with
+`(with-ft ... max-gas-amount)` and the whole period with
+`max-gas-amount * GAS-CALLS-PER-PERIOD` (`u25`), erroring `u4018`. Tested by lowering
+`max-gas-amount` to the station's exact 20-sat fee so the period cap is 500:
+
+- 25 paid calls succeed and land the counter on exactly 500
+- the 26th returns `u4018`, and the counter is unchanged -- the failed call banks nothing
+- mining past `cooldown-period` rolls the period and the next call succeeds at 20
+
+Also pinned: with `max-gas-amount` one sat BELOW the station's fee, the call cannot
+succeed at all -- the `with-ft` clause starves the station before the period fuse is
+ever consulted. Two independent limits, in the right order.
+
+**Re-propose and re-signal are the cancel mechanism.** Both pending slots are plain
+data-vars, so a second proposal overwrites the first. There is no
+`veto-max-gas-amount`, so this IS how an admin kills a raise they no longer want:
+
+- re-proposing replaces the amount, and a signature over the abandoned amount fails `u4002`
+- re-proposing also RESTARTS the cooldown clock -- blocks elapsed under the first
+  proposal do not carry over, so a confirm right after fails `u4012`
+- `MAX-GAS-CEILING u10000` is refused at `+1` and accepted at the boundary
+- re-signalling config replaces all three queued values; the abandoned set fails
+  `u4002`, the latest applies, and `config-signaled-at` goes back to `none` --
+  the v6 clear-after-apply behaviour, asserted
+
 ### Behaviours still untested, measured not guessed
 
 | behaviour | clarinet | stxer |
 |---|---|---|
-| gas fuse tripping at `u4018` | no | yes, 26/26 |
-| re-proposing max-gas to cancel a pending raise | **no** | **no** |
-| token lock gating the STAKING paths | **no** | **no** |
-| re-signalling a config change over a queued one | **no** | **no** |
+| gas fuse tripping at `u4018` | **yes, 26th call** | yes, 26/26 |
+| single-call gas ceiling via `with-ft` | **yes** | yes |
+| re-proposing max-gas to cancel a pending raise | **yes** | no |
+| re-proposing restarts the cooldown | **yes** | no |
+| token lock on all 10 assert sites | **yes** | partial |
+| token lock gating the STAKING paths | **yes** | no |
+| re-signalling a config change over a queued one | **yes** | no |
+| `execute-pending-stx-transfer-now` while locked | **yes** | no |
 | `execute-pending-stx-transfer-now` with a gas station | no | no |
 | hostile gas-station re-entrancy | no | yes |
 | multi-tranche / hostile settle | no | yes, 39/39 |
-| `(with-staking N)` allowance enforcement | impossible | yes |
+| `(with-staking N)` allowance enforcement | **proven NOT enforced** | yes |
 
-Three are untested ANYWHERE: the max-gas implicit veto (re-propose lower to kill a
-pending raise -- the documented cancel mechanism, since there is no
-`veto-max-gas-amount`), token lock over the staking paths, and re-signalling config.
+Nothing on this list is untested everywhere any more except one gas-station variant
+(`execute-pending-stx-transfer-now` paying a station -- the `-now` path is covered
+while locked, and the station is covered on 12 other sites, so this is a combination
+of two tested things rather than an untested behaviour).
+
+The only genuine hole left is structural, not a missing test: **clarinet cannot see
+allowance violations at all** on the staking clauses, so stxer stays mandatory for any
+change touching `as-contract?` on a staking path.
 
 ## RV fuzzing
 
