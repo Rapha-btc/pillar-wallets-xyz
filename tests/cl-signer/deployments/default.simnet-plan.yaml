@@ -94,4 +94,14 @@ plan:
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/zz-nft.clar
       clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-staker-a
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-staker-a.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-staker-b
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-staker-b.clar
+      clarity-version: 6
     epoch: '4.0'

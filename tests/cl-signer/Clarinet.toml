@@ -34,3 +34,13 @@ contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer"
 path = "contracts/zz-nft.clar"
 clarity_version = 6
 epoch = "4.0"
+
+[contracts.zz-staker-a]
+path = "contracts/zz-staker-a.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-staker-b]
+path = "contracts/zz-staker-b.clar"
+clarity_version = 6
+epoch = "4.0"
