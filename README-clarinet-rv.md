@@ -135,10 +135,10 @@ npx vitest run tests/juice-safe-v6.test.ts tests/juice-safe-v6-surface.test.ts \
   -- --manifest tests/cl-v6/Clarinet.toml
 ```
 
-### juice-safe-v6: 81 passing, 0 skipped, all 25 public functions
+### juice-safe-v6: 94 passing, 0 skipped, all 25 public functions, all 20 reachable error codes
 
 Against the real deployed bytes at the real mainnet address, with real mainnet
-dependencies. Six suites:
+dependencies. Seven suites:
 
 | suite | what it covers |
 |---|---|
@@ -147,6 +147,7 @@ dependencies. Six suites:
 | `juice-safe-v6-assets.test.ts` | sBTC and NFT SUCCESS paths, and the gas channel on 12 sites |
 | `juice-safe-v6-staking.test.ts` | pox-5 staking, the post-unlock state, and the full reward payout chain |
 | `juice-safe-v6-limits.test.ts` | the guard rails: token lock on all 10 sites, the per-period gas fuse, re-propose / re-signal |
+| `juice-safe-v6-auth.test.ts` | the 2FA integrity branches: replay, passkey self-approval, pubkey registration |
 | `juice-safe-v6-allowance.test.ts` | a TOOLING guard, not a contract test -- see "the allowance gap" below |
 
 **Init.** `onboard` fails `u6001` until `set-verified-contract` registers the
@@ -314,6 +315,110 @@ lets a user stake into the Juice signer should enforce the floor or say plainly 
 below it they earn zero. It also means the signer's AGGREGATE matters: a position
 over the floor stops earning if other stakers leave and the signer drops back under
 it mid-cycle.
+
+
+### Coverage measured by error code, not by vibes
+
+"All 25 public functions have assertions" is a weak claim -- it says nothing about
+branches. So the contract was audited code by code: every `err-*` constant, every site
+that raises it, cross-referenced against every code the suites assert.
+
+**25 error constants are declared. 20 are reachable. All 20 are asserted** -- counting
+only real `toBeErr(Cl.uint(...))` assertions, not any four-digit literal that happens
+to appear in a test. (That distinction matters: `Cl.uint(9999)` in the surface suite is
+a deliberately WRONG amount inside a signature, and `Cl.uint(5000)` is a max-gas value.
+A looser extractor scores both as error coverage and reports a number that is too good.)
+
+The suites also assert two codes belonging to other contracts: `u6001` from
+`fakfun-wallet-core` (not verified) and `u20` from pox-5 (`ERR_INVALID_NUM_CYCLES`).
+
+The remaining five constants -- `u4007 err-no-auth-id`, `u4008 err-no-message-hash`,
+`u4024 err-limit-expired`, `u4025 err-limit-not-hit`, `u9999 err-fatal-owner-not-admin`
+-- appear ONLY on their own `define-constant` line and are referenced nowhere else.
+They are dead declarations, not untested branches, so there is nothing to test.
+Harmless (a few bytes of a 48,483-byte contract) and the v7 draft already drops all
+five. Worth one note: `err-fatal-owner-not-admin` reads like an invariant guard for
+"the owner fell out of the admins map", which is a state the recovery and rotation
+paths could in principle produce -- but it was never wired to anything, so the name is
+the only trace of the intent. The RV invariants cover that property instead.
+
+The audit is worth re-running after any contract change:
+
+```
+# every reachable err-* constant vs every code the suites actually assert
+python3 - <<'EOF'
+import re, glob
+src = open('contracts/juice-safe-v6.clar').read()
+consts = dict(re.findall(r'\(define-constant (err-[a-z0-9-]+)\s+\(err u(\d+)\)\)', src))
+# REACHABLE = referenced somewhere other than its own declaration
+reach = {code: name for name, code in consts.items() if src.count(name) > 1}
+asserted = set()
+for f in glob.glob('tests/juice-safe-v6*.test.ts'):
+    t = open(f).read()
+    env = dict(re.findall(r'\b([A-Z][A-Z_0-9]*)\s*=\s*(\d{4})\b', t))
+    # ONLY real error assertions -- not every 4-digit literal
+    for tok in re.findall(r'toBeErr\(\s*Cl\.uint\(\s*([A-Za-z_0-9]+)\s*\)\s*\)', t):
+        code = tok if tok.isdigit() else env.get(tok)
+        if code:
+            asserted.add(str(code))
+gap = sorted(set(reach) - asserted, key=int)
+print(f"reachable {len(reach)}, asserted {len(set(reach) & asserted)}")
+print("unasserted:", [f"u{c} {reach[c]}" for c in gap] or "none")
+EOF
+```
+
+### The 2FA integrity branches (`juice-safe-v6-auth.test.ts`, 13 tests)
+
+Four codes were missing when the audit first ran, and two of them carry the whole
+two-factor guarantee.
+
+**`u4003` -- the passkey cannot both queue and release.** Every `-now` fast path
+carries `(asserts! (not (get passkey-created op)) err-forbidden)`
+(`juice-safe-v6.clar:694`). Without it, a stolen passkey could queue an
+over-threshold transfer and immediately fast-track its own op, making the cooldown
+decorative. Asserted on all three `-now` variants, with the mirror case (an
+ADMIN-queued op IS fast-trackable) so the test is proving the flag rather than a typo.
+Also `propose-transfer-wallet` refusing `tx-sender` as the incoming admin.
+
+**`u4006` -- replay.** `consume-signature` is reached from exactly one place
+(`juice-safe-v6.clar:573`), the common passkey branch, so the guard covers every
+passkey-authorised call. The same signature bytes submitted twice pay once and then
+fail `u4006`; bumping only the `auth-id` is a fresh authorisation.
+
+**`u4004` -- a foreign passkey.** A perfectly valid WebAuthn signature over the
+correct challenge, made with a keypair that was never onboarded, is refused.
+
+### `u4005`: the orphaned passkey, and why one assertion was not enough
+
+`pubkey-to-admin` is written ONLY in `onboard` (`juice-safe-v6.clar:1495`), while the
+`admins` map is rotated by `confirm-transfer-wallet` (L1163-1164) and by recovery
+(L1301-1304). Nothing rewrites the pubkey mapping. So after any admin rotation the
+passkey still points at the OLD owner, who is no longer an admin, and
+`is-admin-pubkey` answers `u4005`.
+
+**This is the accepted consequence of there being no admin-only way to designate a new
+passkey: after a rotation the safe is single-factor under the new admin.** Not a new
+finding -- it is the known trade-off -- but it is now pinned by tests so it stays a
+decision rather than a surprise.
+
+One `u4005` on `stx-transfer` would only prove that ONE function consults
+`is-admin-pubkey`. If any passkey entry point skipped the check, an orphaned key would
+still be able to act there. So the orphan is swept across **every** passkey path:
+
+- assets: `sip010-transfer`, `sip009-transfer`, `sbtc-initiate-withdrawal`
+- all three `-now` fast paths, on ops queued by the LIVE admin (so `passkey-created`
+  is false and `u4003` cannot be what fires -- `u4005` is the only thing left)
+- `veto-operation`, `toggle-token-lock`
+- the second-factor confirms: `set-wallet-config`, `confirm-max-gas-amount`,
+  `propose-recovery`, and `confirm-transfer-wallet` (it cannot rubber-stamp a further
+  rotation away from the new admin -- `owner` is asserted unchanged afterwards)
+- all three staking paths
+
+All refuse with `u4005`. The orphan is dead everywhere, and the live admin's own path
+is asserted working in the same tests so the sweep cannot pass by breaking the wallet.
+
+Note `is-admin-pubkey` is consulted at `juice-safe-v6.clar:1189`, BEFORE the rp-id and
+signature checks -- so `u4005` takes precedence over `u4002` on these paths.
 
 ### The guard rails, now covered (`juice-safe-v6-limits.test.ts`)
 
