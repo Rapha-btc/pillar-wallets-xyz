@@ -358,6 +358,38 @@ is the two unreachable lines.
 entry points -- `signal-config-change:361` and `onboard:1506` -- so the clamp can never
 fire. Correct to keep, impossible to cover, not a defect.
 
+### Is line coverage hiding a branch? Checked, and no.
+
+Line coverage is NOT branch coverage. If an `(if c a b)` sits entirely on one line, a
+single hit marks it covered even when one arm never ran -- exactly the memo failure
+mode, but invisible. So the contract was scanned for it:
+
+- **zero** `if` forms with both arms on one line
+- **zero** one-line `match` forms
+- the one same-line short-circuit, `(and (is-eq (contract-of sip010) SBTC-CONTRACT)
+  (would-exceed-sbtc-threshold amount))` at `:770`, has all three of its states
+  exercised: sBTC over threshold (both operands, true), sBTC under (both, second
+  false), and a non-sBTC token (first false, short-circuits) via the `:780` test
+
+There is a pleasing symmetry here. The contract is formatted with every branch arm on
+its own line, which is exactly WHY raw lcov reads 94% instead of 100% -- and also
+exactly why line coverage gives branch visibility for free. The formatting that costs
+the percentage buys the confidence.
+
+### What "full coverage" does NOT mean
+
+Worth stating plainly so the number is not oversold:
+
+- **Allowance enforcement is invisible here.** Proven inert, not assumed -- see the
+  allowance gap above. stxer stays mandatory for any change touching `as-contract?` on
+  a staking path.
+- **Path coverage is not line coverage.** Every line and branch running does not mean
+  every ORDER of operations was tried. That is what RV's 1500 randomised runs and
+  stxer's hostile sequences are for, and neither is exhaustive.
+- **No real node behaviour.** Locks, `STXLockEvent`, and the stacking asset map come
+  from the node's PoX handler, which simnet does not emulate.
+- **2 lines are unreachable by design** and always will be.
+
 ### An honest correction, and why measuring beat counting
 
 A first pass classified all 54 misses as artifacts using a heuristic ("the nearest
