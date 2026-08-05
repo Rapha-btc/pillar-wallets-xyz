@@ -240,4 +240,27 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
       .toBeOk(Cl.bool(true));
     expect(gas() - before).toBe(20n);
   });
+
+  it("after unstake and the unlock cycle, pox-5 shows the position GONE", () => {
+    registerSigner(); onboarded(); fundSTX();
+    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER);
+    expect(stakerInfo()).toContain("amount-ustx: u1000000000");
+
+    expect(simnet.callPublicFn(WALLET, "unstake", [Cl.none(), Cl.none()], OWNER).result)
+      .toBeOk(Cl.bool(true));
+    // unstake truncates the lock window rather than releasing, so the position is
+    // still there with num-cycles pulled in
+    expect(stakerInfo()).toContain("amount-ustx: u1000000000");
+
+    // roll past the truncated unlock cycle
+    simnet.mineEmptyBurnBlocks(6300);
+    expect(stakerInfo()).toBe("none");
+
+    // The BALANCE half of this cannot be checked here: clarinet never applied the
+    // lock in the first place (see the note above), so there is nothing to release.
+    // stxer proves that half against the deployed safe -- simul-v6-v14-staking.js
+    // reads stx-account AFTER unlock as (locked u0, unlocked u800000000), i.e. the
+    // full 800 STX back, with staker-info none.
+    expect(lockedUstx()).toBe(0n);
+  });
 });
