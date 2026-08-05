@@ -19,6 +19,19 @@ primitives.
 
 ---
 
+## Test status
+
+**[README-TEST-STATUS.md](README-TEST-STATUS.md)** is the one-page answer: 246 vitest
+tests across `juice-safe-v6`, `fakfun-wallet-v16` and `juice-pool-stx-signer`, all green,
+100% of reachable lines on two of the three and 99.7% on the third, plus Rendezvous fuzzing
+on all three. It also states plainly what is NOT covered and why.
+
+Details: [README-clarinet-rv.md](README-clarinet-rv.md) for the safe,
+[README-v16-signer-test-plan.md](README-v16-signer-test-plan.md) for the wallet and the
+signer.
+
+---
+
 ## Why pillar-wallets
 
 Today's mobile crypto UX is broken for non-power-users:

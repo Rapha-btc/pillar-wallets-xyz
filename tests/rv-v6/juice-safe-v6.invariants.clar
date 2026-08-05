@@ -196,3 +196,16 @@
   (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
     info (is-eq (get signer info) JUICE-SIGNER)
     true))
+
+;; --- an operation is never both executed AND vetoed -------------------------
+;; execute-pending-* and veto-operation both mutate the same map. If a sequence could
+;; set both flags, "vetoed" would stop meaning "this can never pay out". Maps cannot be
+;; iterated in a read-only, so this checks the op-ids RV actually reaches.
+(define-read-only (invariant-no-op-executed-and-vetoed)
+  (fold check-op-flags (list u0 u1 u2 u3 u4) true))
+
+(define-private (check-op-flags (op-id uint) (acc bool))
+  (and acc
+    (match (map-get? pending-operations op-id)
+      op (not (and (get executed op) (get vetoed op)))
+      true)))

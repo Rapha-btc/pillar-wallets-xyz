@@ -480,3 +480,12 @@
   (if (is-tranche-fully-paid u1 u0)
     (>= (get-tranche-paid-shares u1 u0) (get-cycle-total-shares u1))
     true))
+
+;; --- a recorded claim always has a tranche behind it -----------------------
+;; pox-claim-rewards writes last-claim-dist-cycle and bumps tranche-count together. If
+;; a sequence could set the first without the second, the too-soon guard would be armed
+;; for a cycle that has no pot, silently blocking every future claim for it.
+(define-read-only (invariant-claim-implies-tranche)
+  (and
+    (match (get-last-claim-dist-cycle u1) d (> (get-tranche-count u1) u0) true)
+    (match (get-last-claim-dist-cycle u2) d (> (get-tranche-count u2) u0) true)))

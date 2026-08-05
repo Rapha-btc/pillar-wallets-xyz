@@ -1,5 +1,25 @@
 # Test status: juice-safe-v6, fakfun-wallet-v16, juice-pool-stx-signer
 
+## TLDR
+
+**All three green. 246 tests, 0 failures, 0 contract defects.**
+
+| contract | tests | reachable lines | RV |
+|---|---|---|---|
+| `juice-safe-v6` | 108 | **100%** | 13 invariants, 0 fail |
+| `fakfun-wallet-v16` | 106 | **99.7%** | 14 invariants, 0 fail |
+| `juice-pool-stx-signer` | 32 | **100%** | 11 invariants, 0 fail |
+
+**Full coverage: yes on v6 and the signer. v16 is 99.7%, not 100%** -- one real gap: the
+actual BOB burn in `faktory-burn-bob`, because `built-on-bitcoin-stxcity` will not publish
+in simnet so burn-bob runs against a stub. The wallet's dispatch, auth, passkey branch and
+gas handling on that path ARE covered.
+
+Everything else outstanding is unreachable-by-design and listed line by line below.
+
+One standing caveat: **clarinet cannot see `(with-staking N)` violations**, so stxer stays
+mandatory for any `as-contract?` change on a staking path.
+
 One page, re-verified end to end. Details live in `README-clarinet-rv.md` (v6) and
 `README-v16-signer-test-plan.md` (v16 + signer).
 
@@ -7,9 +27,9 @@ One page, re-verified end to end. Details live in `README-clarinet-rv.md` (v6) a
 
 | contract | vitest | reachable-line coverage | raw lcov | RV |
 |---|---|---|---|---|
-| `juice-safe-v6` | **108** | **100%** | 94.0% (1074/1077 incl. artifacts) | 1500 runs, 12 invariants, 0 fail, 0 skipped fns |
-| `fakfun-wallet-v16` | **106** | **99.7%** | 92.8% | 800 runs, 13 invariants, 0 fail |
-| `juice-pool-stx-signer` | **32** | **100%** | 99.5% | 1500 runs, 10 invariants, 0 fail, 0 skipped fns |
+| `juice-safe-v6` | **108** | **100%** | 94.0% | 1500 runs, 13 invariants, 0 fail, 0 skipped fns |
+| `fakfun-wallet-v16` | **106** | **99.7%** | 92.8% | 800 runs, 14 invariants, 0 fail |
+| `juice-pool-stx-signer` | **32** | **100%** | 99.5% | 1500 runs, 11 invariants, 0 fail, 0 skipped fns |
 
 **246 vitest tests. Zero failures. Zero functions never called on any of the three.**
 Every suite runs the real deployed bytes at the real mainnet address against real
@@ -85,3 +105,58 @@ A third is worth filing: clarinet ignores inter-requirement dependency order. It
 publishes `fakfun-wallet-v16` before `juice-pool-stx-signer`, which v16 depends on, and
 hand-reordering the plan does not survive a rerun. Worked around by publishing v16 from
 the suites via `deployV16()`.
+
+
+---
+
+# Why only ~13 RV invariants per contract
+
+Fair question, and the count is not a coverage number -- it is a different unit.
+
+**An invariant is not a test.** A test asserts one call does one thing. An invariant
+asserts a property of STATE that must hold after **every possible sequence** of calls.
+So 13 invariants over 1500 randomised runs is not 13 assertions -- each one was checked
+120-175 times against a different state the fuzzer had wandered into. The three
+contracts together ran ~38 invariants against several thousand random call sequences.
+
+**The count is bounded by what state can say, not by effort.** `juice-safe-v6` has about
+15 state vars and maps. The statements that are true after *any* sequence fall into four
+families, and once you have written them you are done:
+
+| family | v6 examples |
+|---|---|
+| bounds | cooldown inside `[144, 4032]`, max-gas under the ceiling, gas under the period fuse, period counters under their thresholds |
+| identity | the contract is never its own admin, owner, or recovery address |
+| latches | the onboard flag never flips back |
+| consistency | a queued config is empty or legal, a staked position never exceeds what could fund it, a position always names the Juice signer, an op is never both executed and vetoed |
+
+There is no fifth family hiding. Adding a fourteenth invariant to v6 would mean either
+restating one of these or writing something that cannot fail.
+
+**Most of a wallet's behaviour is not an invariant at all.** "The passkey cannot
+fast-track an op it queued itself" is a rule about a CALL, not a property of state.
+Same for "the memo arm uses `stx-transfer-memo?`", "an orphaned passkey is refused on
+every entry point", "the fee is skimmed from the gross". Those are the 246 vitest tests.
+The division is deliberate: **RV proves no sequence can corrupt state; vitest proves each
+call does the right thing.** Neither substitutes for the other.
+
+**Two hard limits shrink the set further.**
+
+1. RV cannot forge WebAuthn signatures, so every passkey-gated path returns `u4002` and
+   any state only reachable through a passkey is out of RV's reach entirely.
+2. Read-only invariants take a stateless snapshot, so genuine monotonicity ("this counter
+   never decreases") is not expressible unless the property is latch-like. That is why
+   `pubkey-initialized-monotonic` works -- once true it stays true -- while
+   "operation-nonce only grows" cannot be written at all.
+
+**Quality beats quantity here, and a bad invariant is worse than none.** It either passes
+vacuously or is too weak to ever fail, and in both cases it makes a green run look
+stronger than it is. That failure mode is real: v6's three staking invariants and the
+signer's five tranche invariants were both vacuous at first, passing over state the fuzzer
+could never reach. Each was proven live with a temporary CANARY asserting the opposite and
+required to FAIL. A canary that survives is the bad outcome.
+
+The three added most recently are the honest answer to "can you have more": an op is never
+both executed and vetoed (v6, v16), and a recorded claim always has a tranche behind it
+(signer). All three are real properties that could break; there was no larger pool of
+equally strong ones waiting to be written.
