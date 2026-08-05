@@ -120,11 +120,6 @@ plan:
       path: ../../.cache/requirements/SP2ZNGJ85ENDY6QRHQ5P2D4FXKGZWCKTB2T0Z55KS.dexterity-traits-v0.clar
       clarity-version: 3
     - transaction-type: emulated-contract-publish
-      contract-name: burn-bob-faktory
-      emulated-sender: SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B
-      path: ../../.cache/requirements/SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B.burn-bob-faktory.clar
-      clarity-version: 3
-    - transaction-type: emulated-contract-publish
       contract-name: built-on-bitcoin-stxcity
       emulated-sender: SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G
       path: ../../.cache/requirements/SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcity.clar
@@ -147,6 +142,11 @@ plan:
       emulated-sender: SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2
       path: ../../.cache/requirements/SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2.faktory-trait-v1.clar
       clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: burn-bob-faktory
+      emulated-sender: SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B
+      path: ../../.cache/requirements/SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B.burn-bob-faktory.clar
+      clarity-version: 3
     epoch: '3.1'
   - id: 4
     transactions:
