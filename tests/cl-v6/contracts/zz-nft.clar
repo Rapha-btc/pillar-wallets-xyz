@@ -24,3 +24,7 @@
 ;; the JS pretty-printer cannot render.
 (define-read-only (burn-hash (h uint))
   (unwrap-panic (get-burn-block-info? header-hash h)))
+
+;; test util: the locked half of stx-account, as a plain uint.
+(define-read-only (locked-of (who principal))
+  (get locked (stx-account who)))

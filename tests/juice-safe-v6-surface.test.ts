@@ -87,67 +87,9 @@ const pendingOp = (id: number) =>
 const sbtcCV = Cl.contractPrincipal("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4", "sbtc-token");
 
 // =======================================================================
-describe("v6 surface: pox-5 staking", () => {
-  // NOT RUNNABLE IN SIMNET, and the reason is pox-5, not the wallet.
-  // pox-5's stake asserts (is-eq first-reward-cycle specified-reward-cycle) and
-  // returns ERR_INVALID_START_BURN_HEIGHT u23 when they differ. Its cycle
-  // arithmetic is anchored to MAINNET burn heights (~666k); simnet starts at burn
-  // height 6, so burn-height-to-reward-cycle cannot agree with
-  // current-pox-reward-cycle and every stake is u23. Mining 666,000 burn blocks is
-  // not practical.
-  //
-  // The staking happy path is covered by stxer instead, which forks mainnet at a
-  // real burn height: simul-v6-v14-staking.js, 8/8, including (with-pox) unstake
-  // and the full unlock. See README-v6-v16-sims.md.
-  // The auth rejections below DO run here, because they fail before pox-5 is
-  // reached.
-  it.skip("stakes, tops up, extends, then unstakes via the admin key", () => {
-    onboarded(); fundSTX();
-
-    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(1_000_000_000), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
-
-    const info = simnet.callReadOnlyFn("SP000000000000000000002Q6VF78.pox-5",
-      "get-staker-info", [Cl.contractPrincipal(D, "juice-safe-v6")], OWNER).result;
-    expect(Cl.prettyPrint(info)).toContain("amount-ustx");
-
-    expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(100_000_000), Cl.uint(0), Cl.none(), Cl.none()], OWNER).result)
-      .toBeOk(Cl.bool(true));
-
-    expect(simnet.callPublicFn(WALLET, "unstake", [Cl.none(), Cl.none()], OWNER).result)
-      .toBeOk(Cl.bool(true));
-  });
-
-  it("rejects staking from a non-admin and a zero amount", () => {
-    onboarded(); fundSTX();
-    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(1_000_000_000), Cl.none(), Cl.none()], RANDOM).result).toBeErr(Cl.uint(E_UNAUTH));
-    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ZERO));
-  });
-
-  it.skip("rejects a no-op update and accepts a passkey-signed stake", () => {
-    onboarded(); fundSTX();
-    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(1_000_000_000),
-       Cl.some(sign(topic("stake-stx-juice-pox5",
-         { "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(1_000_000_000) }), 1)),
-       Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
-    expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(0), Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ZERO));
-  });
-
-  it.skip("unstake works by passkey through a relayer, and rejects a random caller", () => {
-    onboarded(); fundSTX();
-    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(1_000_000_000), Cl.none(), Cl.none()], OWNER);
-    expect(simnet.callPublicFn(WALLET, "unstake", [Cl.none(), Cl.none()], RANDOM).result)
-      .toBeErr(Cl.uint(E_UNAUTH));
-    expect(simnet.callPublicFn(WALLET, "unstake",
-      [Cl.some(sign(topic("unstake-stx-juice", { "auth-id": Cl.uint(2) }), 2)), Cl.none()],
-      RELAYER).result).toBeOk(Cl.bool(true));
-  });
-});
+// pox-5 staking moved to tests/juice-safe-v6-staking.test.ts, where the Juice
+// signer is registered through the real pox-5 grant path first. The earlier skips
+// here blamed burn heights; the actual cause was ERR_SIGNER_NOT_FOUND u23.
 
 describe("v6 surface: pending STX operations", () => {
   it("queues over threshold, refuses early release, then releases to the owner", () => {
