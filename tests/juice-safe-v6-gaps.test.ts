@@ -251,3 +251,90 @@ describe("v6 gaps: the two read-only getters nothing read", () => {
       .toBeBool(true);
   });
 });
+
+// =====================================================================
+// The SIX branches that were genuinely unexecuted, not lcov artifacts
+// =====================================================================
+describe("v6 gaps: branches measured coverage caught that error codes could not", () => {
+  const ftCV = Cl.contractPrincipal(DEPLOYER, "zz-ft");
+  const freeStationCV = Cl.contractPrincipal(DEPLOYER, "zz-gas-station-free");
+  let id = 800;
+
+  it(":336 toggle-token-lock via PASSKEY with NO gas station", () => {
+    // every earlier token-lock test used the ADMIN path, so the (match gas ... true)
+    // None-arm inside the passkey branch had never run
+    onboarded();
+    expect(simnet.callPublicFn(WALLET, "toggle-token-lock",
+      [Cl.bool(true), Cl.some(sign(topic("toggle-token-lock",
+        { "auth-id": Cl.uint(++id), enabled: Cl.bool(true) }), id)), Cl.none()],
+      RELAYER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callReadOnlyFn(WALLET, "get-token-lock-enabled", [], OWNER).result)
+      .toBeBool(true);
+  });
+
+  it(":1409 update-stake via PASSKEY with NO gas station", () => {
+    // the staking suite always passed a station on this path
+    onboarded(); fundSTX(); registerSigner();
+    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(1_000_000_000), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
+      [Cl.uint(50_000_000), Cl.uint(0),
+       Cl.some(sign(topic("update-stake-stx-juice", { "auth-id": Cl.uint(++id),
+         "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0) }), id)),
+       Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
+  });
+
+  it(":780 sip010-transfer of a NON-sBTC token skips the sBTC accounting", () => {
+    // every earlier sip010 test moved sbtc-token, so the else-arm of
+    // (if (is-eq (contract-of sip010) SBTC-CONTRACT) (add-spent-sbtc amount) true)
+    // had never run. The sBTC period counter must NOT move for a foreign token.
+    onboarded();
+    simnet.callPublicFn(`${DEPLOYER}.zz-ft`, "mint", [Cl.uint(1_000_000), Cl.principal(WALLET)], DEPLOYER);
+    const sbtcSpent = () => Cl.prettyPrint(simnet.getDataVar(WALLET, "spent-this-period"))
+      .match(/sbtc: u(\d+)/)![1];
+    const before = sbtcSpent();
+    expect(simnet.callPublicFn(WALLET, "sip010-transfer",
+      [Cl.uint(5_000), Cl.principal(RECIPIENT), Cl.none(), ftCV,
+       Cl.stringAscii("zz-ft"), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(sbtcSpent(), "a foreign token must not touch the sBTC counter").toBe(before);
+    expect(Cl.prettyPrint(simnet.callReadOnlyFn(`${DEPLOYER}.zz-ft`, "get-balance",
+      [Cl.principal(RECIPIENT)], OWNER).result)).toContain("u5000");
+  });
+
+  it(":172 a gas station that charges ZERO is accounted as zero", () => {
+    // pay-gas-accounted measures its own balance delta, so a station that moves no
+    // sBTC must land on the (fee u0) arm rather than underflowing.
+    onboarded(); fundSTX(); fundSBTC();
+    const g0 = gasCounter();
+    expect(simnet.callPublicFn(WALLET, "stx-transfer",
+      [Cl.uint(1_000), Cl.principal(RECIPIENT), Cl.none(),
+       Cl.some(sign(topic("stx-transfer", { "auth-id": Cl.uint(++id), amount: Cl.uint(1_000),
+         recipient: Cl.principal(RECIPIENT), memo: Cl.none() }), id)),
+       Cl.some(freeStationCV)], RELAYER).result).toBeOk(Cl.bool(true));
+    expect(gasCounter() - g0).toBe(0n);
+  });
+
+  it(":316 toggle-token-lock is refused before onboard, while owner is the sentinel", () => {
+    // owner starts as the burn address, and this assert runs BEFORE any auth check
+    expect(simnet.callPublicFn(WALLET, "toggle-token-lock",
+      [Cl.bool(true), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(4001));
+  });
+
+  it(":1196 authenticator-data with the user-verified bit CLEAR is refused", () => {
+    // WebAuthn flags byte sits at offset 32 of authenticatorData: 0x05 = UP|UV.
+    // Clearing UV (0x04) leaves 0x01. is-user-verified is checked BEFORE the
+    // signature itself, so this fails on the UV branch, not on the crypto.
+    onboarded(); fundSTX();
+    const t = topic("stx-transfer", { "auth-id": Cl.uint(900), amount: Cl.uint(1_000),
+      recipient: Cl.principal(RECIPIENT), memo: Cl.none() });
+    const good = sign(t, 900) as any;
+    const adHex = Cl.prettyPrint(good.value["authenticator-data"]).replace(/^0x/, "");
+    const ad = Buffer.from(adHex, "hex");
+    expect(ad[32]).toBe(0x05);            // UP|UV as the signer built it
+    ad[32] = 0x01;                        // drop UV, keep UP
+    const tampered = Cl.tuple({ ...good.value, "authenticator-data": Cl.bufferFromHex(ad.toString("hex")) });
+    expect(simnet.callPublicFn(WALLET, "stx-transfer",
+      [Cl.uint(1_000), Cl.principal(RECIPIENT), Cl.none(), Cl.some(tampered), Cl.none()],
+      RELAYER).result).toBeErr(Cl.uint(4002));
+  });
+});

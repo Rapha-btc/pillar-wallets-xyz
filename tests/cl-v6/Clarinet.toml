@@ -70,3 +70,13 @@ epoch = "4.0"
 path = "contracts/zz-allowance-probe.clar"
 clarity_version = 6
 epoch = "4.0"
+
+[contracts.zz-ft]
+path = "contracts/zz-ft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-station-free]
+path = "contracts/zz-gas-station-free.clar"
+clarity_version = 6
+epoch = "4.0"

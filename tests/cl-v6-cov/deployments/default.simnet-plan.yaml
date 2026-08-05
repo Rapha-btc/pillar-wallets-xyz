@@ -156,9 +156,19 @@ plan:
       path: contracts/zz-allowance-probe.clar
       clarity-version: 6
     - transaction-type: emulated-contract-publish
+      contract-name: zz-ft
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-ft.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
       contract-name: zz-gas-station
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/zz-gas-station.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-gas-station-free
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-gas-station-free.clar
       clarity-version: 6
     - transaction-type: emulated-contract-publish
       contract-name: zz-nft

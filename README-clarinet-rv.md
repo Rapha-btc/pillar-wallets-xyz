@@ -135,7 +135,7 @@ npx vitest run tests/juice-safe-v6.test.ts tests/juice-safe-v6-surface.test.ts \
   -- --manifest tests/cl-v6/Clarinet.toml
 ```
 
-### juice-safe-v6: 102 passing, 0 skipped, all 25 public functions, all 20 reachable error codes, 100% effective line coverage
+### juice-safe-v6: 108 passing, 0 skipped, all 25 public functions, all 20 reachable error codes, 100% of reachable lines
 
 Against the real deployed bytes at the real mainnet address, with real mainnet
 dependencies. Eight suites:
@@ -318,44 +318,84 @@ over the floor stops earning if other stakers leave and the signer drops back un
 it mid-cycle.
 
 
-### Measured line coverage: 100% effective, and how to reproduce it
+### Measured line coverage: 100% of reachable lines (94.0% raw lcov)
 
 Function counts and error codes are proxies. The real question is whether every
 expression executed, so it was measured with clarinet's own `--coverage`.
 
-**Result: every executable expression in `juice-safe-v6` runs. 0 functions uncalled.**
+| number | meaning |
+|---|---|
+| **753 / 753 = 100%** | of REACHABLE lines -- the number that matters |
+| 753 / 801 = 94.0% | raw lcov |
+| 755 / 801 = 94.3% | the CEILING raw lcov can ever reach for this file |
+| 2 lines | unreachable by design |
+| 46 lines | continuation tokens lcov can never credit |
 
-Raw lcov reads `747/801 = 93.3%`, and the 54 "uncovered" lines are ALL continuation
-lines of multi-line expressions whose opening line was hit. lcov instruments each line
-of a multi-line call but only credits the opening one. The clearest proof is inside
-`onboard`, which every single test executes:
+**What "continuation" means.** lcov counts LINES, but Clarity expressions are often
+spread over several. When a call is split up, clarinet credits only the line where the
+expression OPENS and reports the argument lines as never run -- even though they
+obviously did. The clearest proof is inside `onboard`, which every single test executes:
 
 ```
 1517  (try! (contract-call?              <- 97 hits
-1518    'SPV9K21...fakfun-wallet-core    <- 0 hits
-1519    register-wallet                  <- 0 hits
+1518    'SPV9K21...fakfun-wallet-core    <- 0 hits   (the contract being called)
+1519    register-wallet                  <- 0 hits   (the function being called)
 ```
 
-A script classifies all 54 and finds zero that are not of this shape, so the number to
-quote is 100% effective, with 93.3% as the raw lcov figure.
+`register-wallet` ran 97 times. It reads as 0 because the callee name sits on its own
+line. All 46 are exactly this shape and split cleanly into three kinds -- 24 bare
+principal literals, 18 callee names on their own line, 4 type-literal fields
+(`max-fee: uint`). Nothing unclassified.
 
-**What measuring actually found.** Getting to 93.3% from 91.6% required three real
-gaps that error-code coverage had completely missed:
+**So no, you cannot get raw lcov to 100%,** and chasing it would be a mistake: the only
+way is to reformat the deployed contract so multi-line calls sit on one line, which
+changes the bytes. 94.3% is the arithmetic ceiling; we are 0.3% under it, and that 0.3%
+is the two unreachable lines.
 
-1. **The memo branch had never executed.** Every test passed `Cl.none()` for `memo`,
-   so `(stx-transfer-memo? ...)` never ran -- only the plain `(stx-transfer? ...)`
-   arm. A different native, on three sites (`:643`, `:670`, `:720`). This is the
-   clearest argument for measuring coverage instead of counting functions: every STX
-   path was "covered" and one of its two arms had never run.
-2. **Gas payment on five sites nothing had paid on**, including the contract's only
-   `GAS-EXEMPT` call (`confirm-transfer-wallet`, `:1156`) -- deliberate, so a spent gas
-   budget cannot lock a wallet out of an admin rotation.
-3. **Two read-only getters nothing ever read** (`get-pending-max-gas`,
-   `get-token-lock-enabled`).
+**The 2 unreachable lines are deliberate belt-and-braces.** Both are the true-arm of
+`(if (> wallet-cooldown MAX-CONFIG-COOLDOWN) MAX-CONFIG-COOLDOWN wallet-cooldown)`
+(`:263`, `:406`). `cooldown-period` is bounded to `<= MAX-CONFIG-COOLDOWN` at BOTH
+entry points -- `signal-config-change:361` and `onboard:1506` -- so the clamp can never
+fire. Correct to keep, impossible to cover, not a defect.
 
-**Reproducing it.** `--coverage` only instruments PROJECT contracts, never
-requirements -- and `tests/cl-v6` deploys the wallet as a REQUIREMENT precisely to keep
-its real mainnet address. So coverage needs a second harness, `tests/cl-v6-cov`:
+### An honest correction, and why measuring beat counting
+
+A first pass classified all 54 misses as artifacts using a heuristic ("the nearest
+preceding instrumented line is covered"). That was wrong. Inspecting them one by one
+found **six genuinely unexecuted branches** that both the error-code audit and the
+function audit had scored as fully covered:
+
+| line | branch that had never run |
+|---|---|
+| `:336` | `toggle-token-lock` via PASSKEY with NO gas station -- every earlier test used the admin path |
+| `:1409` | `update-stake-stx-juice` via passkey with no station -- the staking suite always passed one |
+| `:780` | `sip010-transfer` of a NON-sBTC token, so the sBTC period counter is correctly skipped |
+| `:172` | a gas station that charges ZERO, landing on the `(fee u0)` arm instead of underflowing |
+| `:316` | `toggle-token-lock` before onboard, while `owner` is still the burn sentinel |
+| `:1196` | `authenticator-data` with the user-verified bit CLEAR |
+
+Two are worth dwelling on.
+
+**The memo branch (`:643`, `:670`, `:720`) is the strongest argument for measuring.**
+Every test passed `Cl.none()` for `memo`, so `(stx-transfer-memo? ...)` -- a DIFFERENT
+native from `(stx-transfer? ...)` -- had never executed. All three STX paths counted as
+covered while one of their two arms had never run once, and no error-code audit could
+ever have noticed, because both arms return `(ok true)`.
+
+**`:1196` needed a tampered signature, not a random one.** The WebAuthn flags byte sits
+at offset 32 of `authenticatorData`; `0x05` is UP|UV. Clearing UV leaves `0x01`.
+`is-user-verified` is checked BEFORE the signature itself (`:1192` before `:1198`), so
+the call fails on the UV branch rather than on the crypto -- which is what makes the
+branch reachable at all.
+
+Two new test-only contracts were needed: `zz-gas-station-free.clar` (charges nothing)
+and `zz-ft.clar` (a non-sBTC SIP-010).
+
+### Reproducing the measurement
+
+`--coverage` only instruments PROJECT contracts, never requirements -- and
+`tests/cl-v6` deploys the wallet as a REQUIREMENT precisely to keep its real mainnet
+address. So coverage needs a second harness, `tests/cl-v6-cov`:
 
 ```
 V6_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM npx vitest run \
@@ -374,15 +414,41 @@ Three things make that work:
 - clarinet REGENERATES the deployment plan and forces `emulated-sender` to the simnet
   deployer for project contracts. Trying to keep the mainnet address by hand-editing
   the plan does not survive: it silently reverts and all 24 tests fail with
-  `Contract ... does not exist`. Hence the separate harness rather than a flag.
+  `Contract ... does not exist`. Hence a separate harness rather than a flag.
 
 **Correctness runs still use `tests/cl-v6` against the real deployed bytes at the real
-mainnet address.** The coverage harness is for measurement only; treat its one-line
-difference as the price of instrumentation.
+mainnet address** (108 passing). The coverage harness is for measurement only.
 
-Also worth recording: `.cache/requirements/SPV9K21....juice-safe-v6.clar`, fetched from
-mainnet, is byte-identical to `contracts/juice-safe-v6.clar`. That is an independent
-confirmation that the repo source is what is deployed.
+Classify the misses -- and FAIL if any is unclassified, which is the signal that a real
+branch has appeared rather than a formatting artifact:
+
+```
+python3 - <<'EOF'
+import collections, re
+DA = collections.Counter(); cur = None
+for line in open('lcov.info'):
+    line = line.strip()
+    if line.startswith('SF:'): cur = line[3:]
+    elif cur and cur.endswith('/juice-safe-v6.clar') and line.startswith('DA:'):
+        ln, c = line[3:].split(','); DA[int(ln)] += int(c)
+src = open('contracts/juice-safe-v6.clar').read().split('\n')
+miss = sorted(l for l, v in DA.items() if v == 0)
+# the only two lines unreachable by design: the MAX-CONFIG-COOLDOWN clamp arms
+UNREACHABLE = {263, 406}
+buckets = collections.defaultdict(list)
+for l in miss:
+    t = src[l-1].strip()
+    if l in UNREACHABLE:                    buckets['unreachable-by-design'].append(l)
+    elif t.startswith("'"):                 buckets['bare principal literal'].append(l)
+    elif re.match(r'^(build-|log-|register-wallet)', t): buckets['callee name'].append(l)
+    elif re.match(r'^[a-z-]+: ', t):        buckets['type-literal field'].append(l)
+    else:                                   buckets['UNCLASSIFIED'].append(l)
+hit = len(DA) - len(miss)
+print(f"raw {hit}/{len(DA)} = {100*hit/len(DA):.1f}%   reachable {hit}/{hit} = 100%")
+for k, v in sorted(buckets.items(), key=lambda x: -len(x[1])): print(f"  {len(v):3}  {k}")
+for l in buckets['UNCLASSIFIED']: print(f"  REAL GAP? {l}: {src[l-1].strip()[:80]}")
+EOF
+```
 
 ### Coverage measured by error code, not by vibes
 

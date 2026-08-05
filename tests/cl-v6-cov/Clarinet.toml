@@ -74,6 +74,16 @@ epoch = "4.0"
 # byte-identical to the deployed contract EXCEPT the single self-reference literal
 # on line 1520 (the register-wallet canonical argument), repointed at the simnet
 # deployer. Correctness runs still use tests/cl-v6 against the real address.
+[contracts.zz-ft]
+path = "contracts/zz-ft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-station-free]
+path = "contracts/zz-gas-station-free.clar"
+clarity_version = 6
+epoch = "4.0"
+
 [contracts.juice-safe-v6]
 path = "contracts/juice-safe-v6.clar"
 clarity_version = 6
