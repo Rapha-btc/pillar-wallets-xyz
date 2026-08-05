@@ -19,8 +19,12 @@ import crypto from "node:crypto";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+// V6_DEPLOYER lets the coverage harness (tests/cl-v6-cov) deploy the wallet
+// locally, since clarinet --coverage only instruments project contracts.
+// Unset -- the normal case -- it is the real mainnet deployer.
+const WD = process.env.V6_DEPLOYER ?? D;
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${D}.juice-safe-v6`;
+const WALLET = `${WD}.juice-safe-v6`;
 const CORE = `${D}.fakfun-wallet-core`;
 const SBTC_ID = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 const RP_ID = "juiceofbtc.com";
@@ -51,7 +55,7 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const domainHash = () => cvHash(Cl.tuple({
   name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(D, "juice-safe-v6"),
+  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "juice-safe-v6"),
 }));
 const challenge = (t: any) => sha256(Buffer.concat([SIP018, domainHash(), cvHash(t)]));
 const key = generateP256Keypair();
@@ -74,7 +78,7 @@ const sign = (t: any, id: number) => sigAuth(id, signChallengeWithRpId(challenge
 // --- setup --------------------------------------------------------------
 function onboarded(cooldown = MIN_COOLDOWN) {
   expect(simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(D, "juice-safe-v6"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    [Cl.contractPrincipal(WD, "juice-safe-v6"), Cl.none()], D).result).toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "onboard",
     [pubkeyCV, Cl.principal(OWNER), Cl.principal(RECOVERY),
      Cl.uint(STX_THRESHOLD), Cl.uint(SBTC_THRESHOLD), Cl.uint(cooldown)],
@@ -218,11 +222,11 @@ describe("v6 surface: 2FA ownership transfer", () => {
         { "auth-id": Cl.uint(7), "new-admin": Cl.principal(NEW_OWNER) }), 7), Cl.none()],
       RELAYER).result).toBeErr(Cl.uint(E_NO_PENDING_TRANSFER));
     expect(simnet.callPublicFn(WALLET, "propose-transfer-wallet",
-      [Cl.contractPrincipal(D, "juice-safe-v6")], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.contractPrincipal(WD, "juice-safe-v6")], OWNER).result).toBeOk(Cl.bool(true));
     // the guard fires at the write, not the proposal
     expect(simnet.callPublicFn(WALLET, "confirm-transfer-wallet",
       [sign(topic("confirm-transfer",
-        { "auth-id": Cl.uint(8), "new-admin": Cl.contractPrincipal(D, "juice-safe-v6") }), 8),
+        { "auth-id": Cl.uint(8), "new-admin": Cl.contractPrincipal(WD, "juice-safe-v6") }), 8),
        Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_UNAUTH));
   });
 });
@@ -248,9 +252,9 @@ describe("v6 surface: recovery address rotation", () => {
     expect(simnet.callPublicFn(WALLET, "confirm-recovery", [], OWNER).result)
       .toBeErr(Cl.uint(E_NO_PENDING_RECOVERY));
     expect(simnet.callPublicFn(WALLET, "propose-recovery",
-      [Cl.contractPrincipal(D, "juice-safe-v6"),
+      [Cl.contractPrincipal(WD, "juice-safe-v6"),
        sign(topic("propose-recovery",
-         { "auth-id": Cl.uint(10), "new-recovery": Cl.contractPrincipal(D, "juice-safe-v6") }), 10),
+         { "auth-id": Cl.uint(10), "new-recovery": Cl.contractPrincipal(WD, "juice-safe-v6") }), 10),
        Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_UNAUTH));
   });
 });

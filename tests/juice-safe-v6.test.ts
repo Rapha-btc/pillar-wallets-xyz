@@ -18,8 +18,12 @@ import {
 } from "../lib-webauthn-test-signer.mjs";
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+// V6_DEPLOYER lets the coverage harness (tests/cl-v6-cov) deploy the wallet
+// locally, since clarinet --coverage only instruments project contracts.
+// Unset -- the normal case -- it is the real mainnet deployer.
+const WD = process.env.V6_DEPLOYER ?? D;
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${D}.juice-safe-v6`;
+const WALLET = `${WD}.juice-safe-v6`;
 const CORE = `${D}.fakfun-wallet-core`;
 const HELPERS_V10 = `${D}.smart-wallet-standard-auth-helpers-v10`;
 const BURN = "SP000000000000000000002Q6VF78";
@@ -58,7 +62,7 @@ const domainHash = () =>
       // helpers-v10 builds the domain from the runtime chain-id, so the test
       // must match the network it is executing on or every signature is u4002.
       "chain-id": Cl.uint(CHAIN_ID),
-      wallet: Cl.contractPrincipal(D, "juice-safe-v6"),
+      wallet: Cl.contractPrincipal(WD, "juice-safe-v6"),
     }),
   );
 const challenge = (topic: any) =>
@@ -95,7 +99,7 @@ const signConfig = (id: number, stx: number, sbtc: number, cd: number) =>
 function verifyContract() {
   return simnet.callPublicFn(
     CORE, "set-verified-contract",
-    [Cl.contractPrincipal(D, "juice-safe-v6"), Cl.none()], D,
+    [Cl.contractPrincipal(WD, "juice-safe-v6"), Cl.none()], D,
   );
 }
 function onboard(recovery: string, cooldown: number, owner = OWNER) {
@@ -144,7 +148,7 @@ describe("juice-safe-v6: onboard guards", () => {
     expect(verifyContract().result).toBeOk(Cl.bool(true));
     const r = simnet.callPublicFn(
       WALLET, "onboard",
-      [pubkeyCV, Cl.principal(OWNER), Cl.contractPrincipal(D, "juice-safe-v6"),
+      [pubkeyCV, Cl.principal(OWNER), Cl.contractPrincipal(WD, "juice-safe-v6"),
        Cl.uint(STX_THRESHOLD), Cl.uint(SBTC_THRESHOLD), Cl.uint(MIN_COOLDOWN)],
       FAKFUN_DEPLOYER,
     );
@@ -353,7 +357,7 @@ describe("juice-safe-v6: the contract is never its own admin", () => {
   it("is-admin-calling rejects the contract's own principal", () => {
     onboarded();
     expect(simnet.callReadOnlyFn(WALLET, "is-admin-calling",
-      [Cl.contractPrincipal(D, "juice-safe-v6")], OWNER).result)
+      [Cl.contractPrincipal(WD, "juice-safe-v6")], OWNER).result)
       .toBeErr(Cl.uint(ERR_UNAUTH));
     expect(simnet.callReadOnlyFn(WALLET, "is-admin-calling", [Cl.principal(OWNER)], OWNER).result)
       .toBeOk(Cl.bool(true));
@@ -363,7 +367,7 @@ describe("juice-safe-v6: the contract is never its own admin", () => {
     onboarded();
     simnet.mineEmptyBurnBlocks(52_560 + 10);
     expect(simnet.callPublicFn(WALLET, "recover-inactive-wallet",
-      [Cl.contractPrincipal(D, "juice-safe-v6")], RECOVERY).result)
+      [Cl.contractPrincipal(WD, "juice-safe-v6")], RECOVERY).result)
       .toBeErr(Cl.uint(ERR_UNAUTH));
   });
 });

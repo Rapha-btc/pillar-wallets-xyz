@@ -135,10 +135,10 @@ npx vitest run tests/juice-safe-v6.test.ts tests/juice-safe-v6-surface.test.ts \
   -- --manifest tests/cl-v6/Clarinet.toml
 ```
 
-### juice-safe-v6: 94 passing, 0 skipped, all 25 public functions, all 20 reachable error codes
+### juice-safe-v6: 102 passing, 0 skipped, all 25 public functions, all 20 reachable error codes, 100% effective line coverage
 
 Against the real deployed bytes at the real mainnet address, with real mainnet
-dependencies. Seven suites:
+dependencies. Eight suites:
 
 | suite | what it covers |
 |---|---|
@@ -148,6 +148,7 @@ dependencies. Seven suites:
 | `juice-safe-v6-staking.test.ts` | pox-5 staking, the post-unlock state, and the full reward payout chain |
 | `juice-safe-v6-limits.test.ts` | the guard rails: token lock on all 10 sites, the per-period gas fuse, re-propose / re-signal |
 | `juice-safe-v6-auth.test.ts` | the 2FA integrity branches: replay, passkey self-approval, pubkey registration |
+| `juice-safe-v6-gaps.test.ts` | what MEASURED line coverage exposed: the memo branch, gas on the last sites, two unread getters |
 | `juice-safe-v6-allowance.test.ts` | a TOOLING guard, not a contract test -- see "the allowance gap" below |
 
 **Init.** `onboard` fails `u6001` until `set-verified-contract` registers the
@@ -316,6 +317,72 @@ below it they earn zero. It also means the signer's AGGREGATE matters: a positio
 over the floor stops earning if other stakers leave and the signer drops back under
 it mid-cycle.
 
+
+### Measured line coverage: 100% effective, and how to reproduce it
+
+Function counts and error codes are proxies. The real question is whether every
+expression executed, so it was measured with clarinet's own `--coverage`.
+
+**Result: every executable expression in `juice-safe-v6` runs. 0 functions uncalled.**
+
+Raw lcov reads `747/801 = 93.3%`, and the 54 "uncovered" lines are ALL continuation
+lines of multi-line expressions whose opening line was hit. lcov instruments each line
+of a multi-line call but only credits the opening one. The clearest proof is inside
+`onboard`, which every single test executes:
+
+```
+1517  (try! (contract-call?              <- 97 hits
+1518    'SPV9K21...fakfun-wallet-core    <- 0 hits
+1519    register-wallet                  <- 0 hits
+```
+
+A script classifies all 54 and finds zero that are not of this shape, so the number to
+quote is 100% effective, with 93.3% as the raw lcov figure.
+
+**What measuring actually found.** Getting to 93.3% from 91.6% required three real
+gaps that error-code coverage had completely missed:
+
+1. **The memo branch had never executed.** Every test passed `Cl.none()` for `memo`,
+   so `(stx-transfer-memo? ...)` never ran -- only the plain `(stx-transfer? ...)`
+   arm. A different native, on three sites (`:643`, `:670`, `:720`). This is the
+   clearest argument for measuring coverage instead of counting functions: every STX
+   path was "covered" and one of its two arms had never run.
+2. **Gas payment on five sites nothing had paid on**, including the contract's only
+   `GAS-EXEMPT` call (`confirm-transfer-wallet`, `:1156`) -- deliberate, so a spent gas
+   budget cannot lock a wallet out of an admin rotation.
+3. **Two read-only getters nothing ever read** (`get-pending-max-gas`,
+   `get-token-lock-enabled`).
+
+**Reproducing it.** `--coverage` only instruments PROJECT contracts, never
+requirements -- and `tests/cl-v6` deploys the wallet as a REQUIREMENT precisely to keep
+its real mainnet address. So coverage needs a second harness, `tests/cl-v6-cov`:
+
+```
+V6_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM npx vitest run \
+  tests/juice-safe-v6*.test.ts -- --manifest tests/cl-v6-cov/Clarinet.toml --coverage
+```
+
+Three things make that work:
+
+- the suites read the wallet's deployer from `V6_DEPLOYER`, defaulting to the real
+  mainnet principal, so normal runs are byte-for-byte unaffected
+- `tests/cl-v6-cov/contracts/juice-safe-v6.clar` is identical to the deployed contract
+  EXCEPT the single self-reference literal on line 1520 (the `register-wallet`
+  canonical argument), repointed at the simnet deployer. Without that, `onboard`
+  fails: `set-verified-contract` stores the hash under the local principal while
+  `register-wallet` looks it up under the mainnet one.
+- clarinet REGENERATES the deployment plan and forces `emulated-sender` to the simnet
+  deployer for project contracts. Trying to keep the mainnet address by hand-editing
+  the plan does not survive: it silently reverts and all 24 tests fail with
+  `Contract ... does not exist`. Hence the separate harness rather than a flag.
+
+**Correctness runs still use `tests/cl-v6` against the real deployed bytes at the real
+mainnet address.** The coverage harness is for measurement only; treat its one-line
+difference as the price of instrumentation.
+
+Also worth recording: `.cache/requirements/SPV9K21....juice-safe-v6.clar`, fetched from
+mainnet, is byte-identical to `contracts/juice-safe-v6.clar`. That is an independent
+confirmation that the repo source is what is deployed.
 
 ### Coverage measured by error code, not by vibes
 
