@@ -55,3 +55,13 @@ contract_id = "SP000000000000000000002Q6VF78.pox-5"
 
 [[project.requirements]]
 contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v6"
+
+[contracts.zz-gas-station]
+path = "contracts/zz-gas-station.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
