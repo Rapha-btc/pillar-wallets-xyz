@@ -1,0 +1,53 @@
+[project]
+name = "juice-pool-stx-signer-rv"
+description = "Rendezvous fuzzing of juice-pool-stx-signer against real pox-5 and sBTC"
+authors = []
+telemetry = false
+cache_dir = "../../.cache"
+
+[repl.analysis]
+passes = []
+
+# real mainnet dependencies, nothing mocked
+[[project.requirements]]
+contract_id = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard"
+
+[[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit"
+
+[[project.requirements]]
+contract_id = "SP000000000000000000002Q6VF78.pox-5"
+
+# NOT a requirement here: rv appends invariants to the contract under test, so it
+# must be a project contract. That means it deploys under the SIMNET deployer, and
+# `admin` -- which is set to tx-sender at deploy -- becomes ST1PQHQ... instead of
+# SPV9K21... rv-bootstrap reseats it on the random caller anyway.
+
+# burn-hash / locked-of helpers used to drive real sBTC deposits
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-staker-a]
+path = "contracts/zz-staker-a.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-staker-b]
+path = "contracts/zz-staker-b.clar"
+clarity_version = 6
+epoch = "4.0"
+
+# BUILD ARTIFACT: contract + invariants, produced by ./build.sh. Nothing regenerates
+# it, so editing the invariants alone leaves a stale target.
+[contracts.juice-pool-stx-signer]
+path = "contracts/juice-pool-stx-signer.clar"
+clarity_version = 5
+epoch = "4.0"
