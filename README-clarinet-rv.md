@@ -503,11 +503,15 @@ change touching `as-contract?` on a staking path.
 npx rv tests/rv-v6 juice-safe-v6 invariant --runs=300
 ```
 
+```
+./tests/rv-v6/build.sh   # REQUIRED first -- see the build-artifact note below
+```
+
 `tests/rv-v6/` keeps the 15 dependency requirements real and deploys the wallet
 LOCALLY, since RV must append to the source. Only the mainnet self-reference is
 rewritten to `.juice-safe-v6`; nothing else is mocked.
 
-### juice-safe-v6: 400 runs, 12 invariants, 0 failures
+### juice-safe-v6: 1500 runs, 12 invariants, all 25 public functions, 0 failures
 
 | invariant | what it forbids |
 |---|---|
@@ -537,39 +541,115 @@ caller as owner and admin, marks the wallet initialised, and points
 it, 400 runs produced 200 successful bootstraps and 37 successful
 `propose-max-gas-amount` calls.
 
-### THE LAST THREE INVARIANTS ARE CURRENTLY VACUOUS
+### The three staking invariants were vacuous. They are now live.
 
-`rv-stake-anything` got 217 attempts and **0 successes**, so
-`staked-not-above-funded`, `num-cycles-within-max` and `signer-is-juice` all pass
-through their `true` fallback -- correct assertions guarding nothing yet.
+`rv-stake-anything` used to get 217 attempts and **0 successes**, so
+`staked-not-above-funded`, `num-cycles-within-max` and `signer-is-juice` all passed
+through their `true` fallback -- correct assertions guarding nothing. Three separate
+blockers had to come off, and each one was found by measuring rather than guessing.
 
-Staking cannot be reached under RV, and not for a fixable reason: registering the
-Juice signer needs `juice-pool-stx-signer.register-self`, gated on **that contract's
-admin**, and pox-5's `grant-signer-key` / `register-signer` both assert
-`contract-caller` is the signer. RV only calls the contract under test, from random
-wallets, so no path exists from inside `juice-safe-v6`.
+**1. The signer was never registered.** pox-5 answers `ERR_SIGNER_NOT_FOUND u23` until
+`juice-pool-stx-signer` has registered, and that needs a secp256k1 grant signature RV
+cannot forge. Fixed in the DEPLOYMENT PLAN, which supports `emulated-contract-call`
+with an arbitrary `emulated-sender`, so the grant runs before RV starts. The signature
+is deterministic (fixed key, `auth-id u1`, simnet chain-id `2147483648`), so it can be
+precomputed and hardcoded. The recovery byte is **`01`** -- `00` returns `err u14`, and
+noble does not expose the recovery id, so it was found by trying both.
 
-**Dialers cannot bridge it either.** `rv` passes `simnet` as a PARAMETER to
-`checkInvariants` rather than exposing a global, so a dialer -- which receives only
-`{clarityValueArguments, functionCall, selectedFunction}` -- has no handle on the live
-session. Calling `initSimnet` itself would create a different one.
+**2. The wallet was not whitelisted in `fakfun-wallet-core`.** This was the real
+blocker and it was NOT visible as an invariant failure -- it aborted the run with a
+runtime error:
 
-The deployment plan is the remaining option: clarinet supports
-`emulated-contract-call` steps with an arbitrary `emulated-sender`, so the signer
-could be registered there before RV starts. A precomputed grant signature for a fixed
-key and `auth-id u1` works for this, since the domain and struct are deterministic.
-Not yet wired up.
+```
+( asserts! ( is-whitelisted contract-caller ) err-not-authorized )
+Error: EarlyReturn(AssertionFailed(... UInt(6001)))
+```
+
+RV deploys the wallet locally as `ST1PQHQ...juice-safe-v6`, not the mainnet address, so
+core had never heard of it. Note `is-whitelisted` reads the `whitelisted-wallets` map,
+NOT `verified-contracts` -- so `set-verified-contract` does nothing for it and a first
+attempt using that changed nothing. The setter is `whitelist-wallet`, added as a
+second `emulated-contract-call`. `u6001` aborts went 23 -> 0.
+
+**3. A contract with no STX cannot stake.** Genesis funds WALLETS, not contracts, so
+every stake bounced on the balance. Added an RV-only `rv-fund` that pulls from the
+random caller (each holds 100,000 STX at genesis).
+
+**How we know they are live now, rather than assuming it.** A temporary CANARY
+invariant asserted the opposite of what we wanted -- that no pox-5 position ever
+exists -- and RV was asked to break it. A canary that SURVIVES is the bad outcome. It
+survived all three broken configurations and only failed after the third fix:
+
+```
+[FAIL] juice-safe-v6 invariant-canary-never-staked  false
+```
+
+That is the proof. `rv-stake-anything` now returns `(ok true)`, and the three staking
+invariants are checked against real positions. The canary was then deleted.
+
+### RV was only driving 9 of 25 public functions
+
+The single largest coverage gap in the whole RV setup, and it was sitting in a warning
+block that was easy to scroll past:
+
+```
+Warning: The following SUT functions reference traits without eligible
+implementations and will be skipped:
+  - stx-transfer, sip010-transfer, sip009-transfer, stake-stx-juice, unstake,
+    update-stake-stx-juice, toggle-token-lock, veto-operation, set-wallet-config,
+    confirm-max-gas-amount, confirm-transfer-wallet, propose-recovery,
+    sbtc-initiate-withdrawal, and all three -now variants   [16 total]
+```
+
+Every one of those takes `(optional <gas-trait>)`, and the RV project had no contract
+implementing `gas-station-trait`. **RV silently skipped 16 of 25 functions and still
+reported a clean run.** Fixed by adding local trait implementations as PROJECT
+contracts (requirements do not count as eligible impls):
+
+| added | unlocks |
+|---|---|
+| `zz-gas-station.clar` | the 16 functions taking `(optional <gas-trait>)` |
+| `zz-nft.clar` | `sip009-transfer` |
+| `zz-ft.clar` | `sip010-transfer` (sbtc-token is only a requirement) |
+
+Skipped functions: **16 -> 0.** All 25 public functions are now driven.
+
+### `tests/rv-v6/contracts/juice-safe-v6.clar` is a BUILD ARTIFACT
+
+It is the deployed contract with the invariants appended, because rv reads invariants
+from the contract under test. **Nothing regenerates it.** Editing
+`juice-safe-v6.invariants.clar` alone leaves the artifact stale and the new invariants
+silently absent -- which is exactly what happened here: two runs quietly used the
+pre-edit file, and the only clue was a byte count 899 short of
+`contract + invariants`. Deleting the artifact does not help either; rv then dies with
+an unhandled rejection.
+
+So always build first:
+
+```
+./tests/rv-v6/build.sh          # cat contract + invariants -> contracts/juice-safe-v6.clar
+npx rv tests/rv-v6 juice-safe-v6 invariant --runs 1500
+```
+
+The script prints the byte count and the invariant count so a stale run is obvious.
+
+### Current result: 1500 runs, 12 invariants, all 25 functions, 0 failures
+
+Each invariant was checked 108-146 times, and `rv-stake-anything` succeeded 16 times,
+so the staking invariants ran against live pox-5 positions.
 
 ### What RV still cannot reach
 
-- **`signal-config-change`: 214 attempts, 0 successes.** RV generates random `u128`
-  arguments, which essentially never land inside `[u144, u4032]`. Those rejections
-  are the bounds check working under random input, but the path past it is
-  unexercised. Constraining the argument needs the `--dial` hook.
-- **`execute-pending-*`: 0 successes.** They need a real `op-id`; random ones miss.
+- **`signal-config-change` lands almost never.** RV generates random `u128`
+  arguments, which essentially never fall inside `[u144, u4032]`. Those rejections
+  are the bounds check working under random input, but the path past it is thin.
+  Constraining the argument needs the `--dial` hook.
+- **`execute-pending-*` needs a real `op-id`;** random ones miss.
 - **Every signature-gated path is unreachable.** RV cannot produce valid WebAuthn
-  signatures, so the passkey half of the two-factor design is covered by stxer and
-  vitest, not here.
+  signatures -- the random `sig-auth` tuples all return `u4002`. So the passkey half
+  of the two-factor design is covered by vitest and stxer, not here. This is a
+  property of RV, not a gap in the contract: `juice-safe-v6-auth.test.ts` drives
+  those paths with real signatures.
 
 ---
 

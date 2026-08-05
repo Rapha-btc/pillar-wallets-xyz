@@ -1517,7 +1517,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        .juice-safe-v6
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v6
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
@@ -1535,7 +1535,6 @@
     (ok true)
   )
 )
-
 
 ;; RENDEZVOUS INVARIANTS for juice-safe-v6
 ;;
@@ -1687,6 +1686,26 @@
 
 (define-public (rv-topup-anything (amount uint))
   (update-stake-stx-juice (+ u1 (mod amount u100000000)) u0 none none))
+
+;; RV-ONLY: a contract with no STX cannot stake. Genesis funds WALLETS, not
+;; contracts, so without this every rv-stake-anything bounces on the balance and
+;; invariants 10-12 stay vacuous for a second, quieter reason. Pulls from the
+;; random caller, which holds 100,000 STX at genesis.
+(define-public (rv-fund (amount uint))
+  (stx-transfer? (+ u2000000000 (mod amount u2000000000)) tx-sender current-contract))
+
+;; NOTE on how invariants 10-12 were proven LIVE rather than vacuous.
+;; A temporary canary invariant asserting the OPPOSITE -- that no pox-5 position ever
+;; exists -- was added and RV was asked to break it:
+;;
+;;   (define-read-only (invariant-canary-never-staked)
+;;     (is-none (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info
+;;       current-contract)))
+;;
+;; It PASSED (survived) until three things were fixed, and only then FAILED, which is
+;; the outcome that matters: staking is genuinely reachable, so the three staking
+;; invariants below are checked against real positions. See README-clarinet-rv.md.
+;; The canary was deleted afterwards; re-add it if the harness setup ever changes.
 
 ;; --- 10. a staked position is never larger than what was staked -------------
 ;; pox-5 keys the staker off tx-sender, which as-contract? makes this wallet. If

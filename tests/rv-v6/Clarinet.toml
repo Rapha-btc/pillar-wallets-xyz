@@ -53,6 +53,24 @@ contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal"
 [[project.requirements]]
 contract_id = "SP000000000000000000002Q6VF78.pox-5"
 
+# Trait implementations. Without an eligible impl of gas-station-trait, RV skips
+# every function taking (optional <gas-trait>) -- that is 16 of the 25 public
+# functions, so the fuzz run only ever drove 9 of them.
+[contracts.zz-gas-station]
+path = "contracts/zz-gas-station.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-ft]
+path = "contracts/zz-ft.clar"
+clarity_version = 6
+epoch = "4.0"
+
 [contracts.juice-safe-v6]
 path = "contracts/juice-safe-v6.clar"
 clarity_version = 6
