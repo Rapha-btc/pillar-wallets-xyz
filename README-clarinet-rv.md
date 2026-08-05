@@ -168,7 +168,58 @@ a config change resets the clock.
 
 ---
 
+## RV fuzzing
+
+```
+npx rv tests/rv-v6 juice-safe-v6 invariant --runs=300
+```
+
+`tests/rv-v6/` keeps the 15 dependency requirements real and deploys the wallet
+LOCALLY, since RV must append to the source. Only the mainnet self-reference is
+rewritten to `.juice-safe-v6`; nothing else is mocked.
+
+### juice-safe-v6: 300 runs, 9 invariants, 0 failures
+
+| invariant | what it forbids |
+|---|---|
+| `cooldown-within-bounds` | `cooldown-period` outside `[u144, u4032]` |
+| `max-gas-within-ceiling` | `max-gas-amount` above `MAX-GAS-CEILING` |
+| `gas-fuse-holds` | `gas` spent above `max-gas-amount * 25` |
+| `contract-never-own-admin` | the contract appearing in its own `admins` map |
+| `owner-not-contract` | the contract as owner |
+| `recovery-not-contract` | the contract as recovery address |
+| `pending-config-empty-or-legal` | an out-of-bounds cooldown sitting queued |
+| `pubkey-initialized-monotonic` | the onboard latch flipping back |
+| `spent-within-thresholds` | period counters running past their thresholds |
+
+### The bootstrap, and why a first attempt was worthless
+
+A first 200-run session reported 0 failures over **1,164 calls and ZERO successful
+state changes**. Every path bounced: `onboard` needs `FAKFUN-DEPLOYER`, admin paths
+need the seated owner, signed paths need a real secp256r1 signature RV cannot
+forge. The invariants held over a contract that never left its initial state.
+
+`tests/rv-v6/juice-safe-v6.invariants.clar` therefore also appends an **RV-only
+`rv-bootstrap`** which seats the caller as owner and admin, marks the wallet
+initialised, and points `recovery-address` at a fixed simnet wallet. It is not part
+of the deployed contract, exactly like the invariants. With it, 300 runs produced
+201 successful bootstraps and 38 successful `propose-max-gas-amount` calls.
+
+### What RV still cannot reach, honestly
+
+- **`signal-config-change`: 206 attempts, 0 successes.** RV generates random `u128`
+  arguments, which essentially never land inside `[u144, u4032]`. Those 206
+  rejections are the bounds check working under random input, but the path past it
+  is unexercised. Constraining the argument needs RV's `--dial` hook.
+- **`execute-pending-*`: 0 successes.** They need a real `op-id`; random ones miss.
+- **`recover-inactive-wallet`** reached `(err u4009)`, so it passed the
+  recovery-principal check and failed only on the inactivity clock.
+- **Every signature-gated path is unreachable.** RV cannot produce valid WebAuthn
+  signatures, so the passkey half of the two-factor design is covered by the stxer
+  suite and the vitest scenarios, not here.
+
+---
+
 ## Still to do
 
-- RV fuzzing on juice-safe-v6
 - clarinet check, vitest scenarios and RV for fakfun-wallet-v16
