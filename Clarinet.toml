@@ -216,3 +216,8 @@ epoch = "4.0"
 path = "contracts/fakfun-wallet-v16.clar"
 clarity_version = 6
 epoch = "4.0"
+
+[contracts.juice-safe-v7]
+path = "contracts/juice-safe-v7.clar"
+clarity_version = 6
+epoch = "4.0"

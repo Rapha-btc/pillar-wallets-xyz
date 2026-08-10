@@ -7,7 +7,7 @@ problems had to be fixed first, documented below so nobody rediscovers them.
 
 ---
 
-## The four tooling fixes
+## The tooling fixes
 
 ### 1. Clarity 6 needs `epoch = "4.0"`, not `"latest"`
 
@@ -85,6 +85,40 @@ it.
 `helpers-v10` builds the SIP-018 domain hash from the runtime chain-id, so a test
 signing with mainnet `u1` gets `err-invalid-signature u4002` on every passkey call.
 `tests/juice-safe-v6.test.ts` sets `CHAIN_ID` accordingly.
+
+**Every suite needs its manifest argument.** A bare `npx vitest run` loads the
+root `Clarinet.toml`, and the failure mode is misleading -- vitest reports
+`Failed to start forks worker` with no underlying cause, which reads like a
+tooling breakage rather than a wrong manifest. Always:
+
+```
+npx vitest run tests/juice-safe-v6-auth.test.ts -- --manifest tests/cl-v6/Clarinet.toml
+```
+
+### 6. RV: `update-context` must be `define-private`
+
+`rv` 1.0.1 initialises the Clarity context with `simnet.callPrivateFn(...,
+"update-context", ...)` (`invariant.ts:729`). An invariants file that declares it
+as `define-public` -- the older convention -- fails the whole run with an
+unhandled rejection:
+
+```
+UnhandledPromiseRejection: ... "update-context is not a private function"
+```
+
+Upstream confirms the requirement (rendezvous `docs/chapter_6.md:459`, and every
+contract under `example/contracts/`). Declaring it public has a second cost:
+`rv` treats public functions as system-under-test, so `update-context` was being
+fuzzed as if it were wallet functionality.
+
+`tests/rv-v6/juice-safe-v6.invariants.clar` is fixed. **The other four suites are
+not** -- `tests/rv/`, `tests/rv-v16/`, `tests/rv-mm/`, `tests/rv-signer/` all
+still declare it `define-public` and will fail the same way. One-word fix each,
+then re-run the relevant `build.sh`.
+
+Remember that `tests/rv-*/contracts/*.clar` are **build artifacts**. Editing an
+invariants file alone leaves the artifact stale and the change silently absent
+from the run. Always `bash tests/rv-v6/build.sh` first.
 
 ---
 
@@ -203,14 +237,39 @@ Three things that look like bugs and are not:
   past the cooldown the raw data-var still holds the old value. Assert the absolute
   after a period roll, not a delta.
 
-### Gas: 12 of 15 enforced sites driven with a live station
+### Gas: all 16 sites driven with a live station
 
-`tests/cl-v6/contracts/zz-gas-station.clar` charges 20 sats. Driven on
-`stx-transfer`, `sip010-transfer`, `sip009-transfer`, `sbtc-initiate-withdrawal`,
-`veto-operation`, `toggle-token-lock`, `propose-recovery`, `set-wallet-config`,
-`confirm-max-gas-amount`, `update-stake-stx-juice` and both sBTC fast paths. Also
-asserts the footgun: **a station passed on an UNSIGNED admin call is ignored and
-charged nothing**, because gas is matched inside the `sig-auth` branch.
+`tests/cl-v6/contracts/zz-gas-station.clar` charges 20 sats. `pay-gas-accounted`
+has 16 call sites -- 15 `GAS-ENFORCED` plus the single `GAS-EXEMPT` one at
+`juice-safe-v6.clar:1156` in `confirm-transfer-wallet` -- and every one is driven:
+
+| Line | Function | | Line | Function |
+| ---: | --- | --- | ---: | --- |
+| 283 | `confirm-max-gas-amount` | | 1012 | `execute-pending-sbtc-withdrawal-now` |
+| 335 | `toggle-token-lock` | | 1080 | `sip009-transfer` |
+| 428 | `set-wallet-config` | | 1156 | `confirm-transfer-wallet` **(EXEMPT)** |
+| 525 | `veto-operation` | | 1267 | `propose-recovery` |
+| 622 | `stx-transfer` | | 1349 | `stake-stx-juice` |
+| 710 | `execute-pending-stx-transfer-now` | | 1408 | `update-stake-stx-juice` |
+| 764 | `sip010-transfer` | | 1462 | `unstake` |
+| 854 | `execute-pending-sbtc-transfer-now` | | | |
+| 909 | `sbtc-initiate-withdrawal` | | | |
+
+An earlier revision of this file said "12 of 15". That predated the
+`v6 gaps: gas on the sites nothing had ever paid on` block in
+`juice-safe-v6-gaps.test.ts`, which added `sbtc-initiate-withdrawal`, both sBTC
+`-now` paths, `confirm-transfer-wallet`, `stake-stx-juice` and `unstake`. The STX
+fast path (`:710`) is covered at `juice-safe-v6-gaps.test.ts:153`, together with
+the memo arm at `:720`.
+
+Two behaviours also pinned here:
+
+* **The footgun** -- a station passed on an UNSIGNED admin call is ignored and
+  charged nothing, because gas is matched inside the `sig-auth` branch.
+* **`GAS-EXEMPT` bounds what it skips.** It skips only the *period ceiling*
+  check. `add-spent-gas` still records the fee and the `with-ft` allowance still
+  caps that single call at `max-gas-amount`, so the exempt site means "can pay
+  when the period budget is spent", not "unmetered".
 
 ### pox-5 staking: it works, and the earlier explanation was wrong
 

@@ -33,7 +33,10 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          g (try! (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+            (try! (contract-call? g pay-gas))
+          ))
           true
         )
       )
@@ -121,7 +124,10 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (pay-gas-accounted g GAS-ENFORCED))
+      g (try! (as-contract?
+        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+        (try! (contract-call? g pay-gas))
+      ))
       true
     )
     (map-set pending-operations op-id (merge op { executed: true }))
@@ -175,7 +181,10 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          g (try! (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+            (try! (contract-call? g pay-gas))
+          ))
           true
         )
       )
@@ -265,7 +274,10 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (pay-gas-accounted g GAS-ENFORCED))
+      g (try! (as-contract?
+        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+        (try! (contract-call? g pay-gas))
+      ))
       true
     )
     (map-set pending-operations op-id (merge op { executed: true }))
@@ -320,7 +332,10 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          g (try! (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+            (try! (contract-call? g pay-gas))
+          ))
           true
         )
       )
@@ -423,7 +438,10 @@
       client-data-suffix: (get client-data-suffix sig-auth),
     })))
     (match gas
-      g (try! (pay-gas-accounted g GAS-ENFORCED))
+      g (try! (as-contract?
+        ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+        (try! (contract-call? g pay-gas))
+      ))
       true
     )
     (let (
@@ -491,7 +509,10 @@
           client-data-suffix: (get client-data-suffix sig-auth-details),
         })))
         (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          g (try! (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+            (try! (contract-call? g pay-gas))
+          ))
           true
         )
       )

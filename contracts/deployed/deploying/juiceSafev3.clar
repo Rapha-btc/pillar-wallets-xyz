@@ -1,4 +1,5 @@
 (use-trait gas-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait.gas-station-trait)
+(use-trait dual-stacking-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.xbtc-sbtc-swap-v2.enroll-trait)
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
@@ -23,7 +24,6 @@
 (define-constant err-cooldown-not-passed (err u4017))
 (define-constant err-threshold-exceeded (err u4018))
 (define-constant err-cooldown-too-long (err u4019))
-(define-constant err-cooldown-too-short (err u4031))
 (define-constant err-no-pending-transfer (err u4020))
 
 (define-constant err-token-locked (err u4023))
@@ -37,8 +37,6 @@
 (define-constant MAX-GAS-CEILING u10000)
 
 (define-constant MAX-CONFIG-COOLDOWN u4032)
-
-(define-constant MIN-COOLDOWN u144)
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
 (define-constant FAKFUN-DEPLOYER 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK)
@@ -154,19 +152,13 @@
     (g <gas-trait>)
     (enforce bool)
   )
-  (let ((before (unwrap-panic (contract-call?
-      'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token get-balance
-      current-contract
-    ))))
+  (let ((before (try! (contract-call? SBTC-CONTRACT get-balance current-contract))))
     (try! (as-contract?
       ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
       (try! (contract-call? g pay-gas))
     ))
     (let (
-        (after (unwrap-panic (contract-call?
-          'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token get-balance
-          current-contract
-        )))
+        (after (try! (contract-call? SBTC-CONTRACT get-balance current-contract)))
         (fee (if (> before after)
           (- before after)
           u0
@@ -212,20 +204,6 @@
   proposed-at: u0,
 })
 
-(define-data-var pending-config {
-  stx-threshold: uint,
-  sbtc-threshold: uint,
-  cooldown-period: uint,
-} {
-  stx-threshold: u0,
-  sbtc-threshold: u0,
-  cooldown-period: u0,
-})
-
-(define-read-only (get-pending-config)
-  (var-get pending-config)
-)
-
 (define-read-only (get-pending-max-gas)
   (var-get pending-max-gas)
 )
@@ -244,17 +222,7 @@
   )
 )
 
-(define-public (confirm-max-gas-amount
-    (sig-auth {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    })
-    (gas (optional <gas-trait>))
-  )
+(define-public (confirm-max-gas-amount)
   (let (
       (pending (var-get pending-max-gas))
       (config (var-get wallet-config))
@@ -264,25 +232,7 @@
         wallet-cooldown
       ))
     )
-
-    (try! (is-authorized (some {
-      message-hash: (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10
-        build-confirm-max-gas-amount-hash {
-        auth-id: (get auth-id sig-auth),
-        amount: (get amount pending),
-      }),
-      pubkey: (get pubkey sig-auth),
-      signature: (get signature sig-auth),
-      authenticator-data: (get authenticator-data sig-auth),
-      client-data-prefix: (get client-data-prefix sig-auth),
-      client-data-suffix: (get client-data-suffix sig-auth),
-    })))
-
-    (match gas
-      g (try! (pay-gas-accounted g GAS-ENFORCED))
-      true
-    )
+    (try! (is-admin-calling tx-sender))
     (asserts! (not (is-eq (get proposed-at pending) u0)) err-not-signaled)
     (asserts! (>= burn-block-height (+ (get proposed-at pending) effective))
       err-in-cooldown
@@ -349,33 +299,12 @@
   )
 )
 
-(define-public (signal-config-change
-    (new-stx-threshold uint)
-    (new-sbtc-threshold uint)
-    (new-cooldown-period uint)
-  )
+(define-public (signal-config-change)
   (let ((config (var-get wallet-config)))
     (try! (is-authorized none))
-
-    (asserts! (>= new-cooldown-period MIN-COOLDOWN) err-cooldown-too-short)
-    (asserts! (<= new-cooldown-period MAX-CONFIG-COOLDOWN) err-cooldown-too-long)
-    (var-set pending-config {
-      stx-threshold: new-stx-threshold,
-      sbtc-threshold: new-sbtc-threshold,
-      cooldown-period: new-cooldown-period,
-    })
     (var-set wallet-config
       (merge config { config-signaled-at: (some burn-block-height) })
     )
-    (update-activity)
-
-    (print {
-      event: "signal-config-change",
-      stx-threshold: new-stx-threshold,
-      sbtc-threshold: new-sbtc-threshold,
-      cooldown-period: new-cooldown-period,
-      signaled-at: burn-block-height,
-    })
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-signal-config-change
     ))
@@ -384,22 +313,12 @@
 )
 
 (define-public (set-wallet-config
-    (sig-auth {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    })
-    (gas (optional <gas-trait>))
+    (new-stx-threshold uint)
+    (new-sbtc-threshold uint)
+    (new-cooldown-period uint)
   )
   (let (
       (config (var-get wallet-config))
-      (pending (var-get pending-config))
-      (new-stx-threshold (get stx-threshold pending))
-      (new-sbtc-threshold (get sbtc-threshold pending))
-      (new-cooldown-period (get cooldown-period pending))
       (signaled-at (default-to u0 (get config-signaled-at config)))
       (wallet-cooldown (get cooldown-period config))
       (effective-config-cooldown (if (> wallet-cooldown MAX-CONFIG-COOLDOWN)
@@ -407,27 +326,7 @@
         wallet-cooldown
       ))
     )
-
-    (try! (is-authorized (some {
-      message-hash: (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10
-        build-set-wallet-config-hash {
-        auth-id: (get auth-id sig-auth),
-        stx-threshold: new-stx-threshold,
-        sbtc-threshold: new-sbtc-threshold,
-        cooldown-period: new-cooldown-period,
-      }),
-      pubkey: (get pubkey sig-auth),
-      signature: (get signature sig-auth),
-      authenticator-data: (get authenticator-data sig-auth),
-      client-data-prefix: (get client-data-prefix sig-auth),
-      client-data-suffix: (get client-data-suffix sig-auth),
-    })))
-
-    (match gas
-      g (try! (pay-gas-accounted g GAS-ENFORCED))
-      true
-    )
+    (try! (is-authorized none))
     (asserts! (not (is-eq signaled-at u0)) err-not-signaled)
     (asserts! (>= burn-block-height (+ signaled-at effective-config-cooldown))
       err-in-cooldown
@@ -437,19 +336,6 @@
       sbtc-threshold: new-sbtc-threshold,
       cooldown-period: new-cooldown-period,
       config-signaled-at: none,
-    })
-
-    (var-set pending-config {
-      stx-threshold: u0,
-      sbtc-threshold: u0,
-      cooldown-period: u0,
-    })
-    (update-activity)
-    (print {
-      event: "set-wallet-config",
-      stx-threshold: new-stx-threshold,
-      sbtc-threshold: new-sbtc-threshold,
-      cooldown-period: new-cooldown-period,
     })
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-wallet-config-set new-stx-threshold new-sbtc-threshold u0
@@ -530,8 +416,6 @@
     )
     (asserts! (not (get executed op)) err-already-executed)
     (map-set pending-operations op-id (merge op { vetoed: true }))
-
-    (update-activity)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-operation-vetoed op-id
     ))
@@ -1158,8 +1042,6 @@
     )
     (try! (ft-mint? ect u1 current-contract))
     (try! (ft-burn? ect u1 current-contract))
-
-    (asserts! (not (is-eq pending current-contract)) err-unauthorised)
     (map-set admins pending true)
     (map-delete admins (var-get owner))
     (var-set owner pending)
@@ -1267,8 +1149,6 @@
       g (try! (pay-gas-accounted g GAS-ENFORCED))
       true
     )
-
-    (asserts! (not (is-eq new-recovery current-contract)) err-unauthorised)
     (var-set pending-recovery new-recovery)
     (update-activity)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
@@ -1299,8 +1179,6 @@
     (asserts! (is-inactive) err-inactive-required)
     (asserts! (is-eq tx-sender (var-get recovery-address)) err-unauthorised)
     (map-delete admins (var-get owner))
-
-    (asserts! (not (is-eq new-admin current-contract)) err-unauthorised)
     (map-set admins new-admin true)
     (var-set owner new-admin)
     (var-set last-activity-block burn-block-height)
@@ -1308,6 +1186,48 @@
       log-recover-inactive-wallet new-admin tx-sender
     ))
     (ok true)
+  )
+)
+
+(define-public (enroll-dual-stacking
+    (dual-stacking <dual-stacking-trait>)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (try! (is-authorized (some {
+        message-hash: (contract-call?
+          'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+          build-enroll-dual-stacking-hash { auth-id: (get auth-id sig-auth-details) }
+        ),
+        pubkey: (get pubkey sig-auth-details),
+        signature: (get signature sig-auth-details),
+        authenticator-data: (get authenticator-data sig-auth-details),
+        client-data-prefix: (get client-data-prefix sig-auth-details),
+        client-data-suffix: (get client-data-suffix sig-auth-details),
+      })))
+      (if (is-eq tx-sender FAKFUN-DEPLOYER)
+        true
+        (try! (is-authorized none))
+      )
+    )
+    (match gas
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
+      true
+    )
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+      log-enroll-dual-stacking (contract-of dual-stacking)
+    ))
+    (as-contract? () (try! (contract-call? dual-stacking enroll none)))
   )
 )
 
@@ -1358,7 +1278,7 @@
       log-stake-stx-stacking-dao amount-ustx
     ))
 
-    (try! (as-contract? ((with-staking amount-ustx))
+    (try! (as-contract? ((with-stacking amount-ustx))
       (try! (contract-call? POX5 stake
         JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height none
       ))
@@ -1417,7 +1337,7 @@
       log-stake-stx-stacking-dao amount-increase
     ))
 
-    (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
+    (try! (as-contract? ((with-stacking (+ (locked-ustx) amount-increase)))
       (try! (contract-call? POX5 stake-update
         JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase none
       ))
@@ -1470,7 +1390,7 @@
       log-revoke-fast-pool
     ))
 
-    (try! (as-contract? ((with-pox))
+    (try! (as-contract? ((with-all-assets-unsafe))
       (try! (contract-call? POX5 unstake JUICE-SIGNER))
     ))
     (print { event: "unstake" })
@@ -1483,10 +1403,9 @@
 (define-public (onboard
     (pubkey (buff 33))
     (new-owner principal)
-    (recovery principal)
+    (recovery (optional principal))
     (stx-threshold uint)
     (sbtc-threshold uint)
-    (cooldown-period uint)
   )
   (begin
     (asserts! (is-eq tx-sender FAKFUN-DEPLOYER) err-unauthorised)
@@ -1494,21 +1413,16 @@
     (var-set initial-pubkey pubkey)
     (map-set pubkey-to-admin pubkey new-owner)
     (map-delete admins 'SP000000000000000000002Q6VF78)
-
-    (asserts! (not (is-eq new-owner current-contract)) err-unauthorised)
     (map-set admins new-owner true)
     (var-set owner new-owner)
-
-    (asserts! (not (is-eq recovery current-contract)) err-unauthorised)
-    (asserts! (not (is-eq recovery new-owner)) err-unauthorised)
-
-    (asserts! (>= cooldown-period MIN-COOLDOWN) err-cooldown-too-short)
-    (asserts! (<= cooldown-period MAX-CONFIG-COOLDOWN) err-cooldown-too-long)
-    (var-set recovery-address recovery)
+    (match recovery
+      r (var-set recovery-address r)
+      true
+    )
     (var-set wallet-config {
       stx-threshold: stx-threshold,
       sbtc-threshold: sbtc-threshold,
-      cooldown-period: cooldown-period,
+      cooldown-period: u144,
       config-signaled-at: none,
     })
     (var-set pubkey-initialized true)
@@ -1517,17 +1431,20 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v6
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v3
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-admin-added new-owner
     ))
+    (match recovery
+      r (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+        log-confirm-recovery r
+      ))
+      true
+    )
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-confirm-recovery recovery
-    ))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-wallet-config-set stx-threshold sbtc-threshold u0 cooldown-period
+      log-wallet-config-set stx-threshold sbtc-threshold u0 u144
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
       log-wallet-initialized pubkey
@@ -1535,215 +1452,3 @@
     (ok true)
   )
 )
-
-;; RENDEZVOUS INVARIANTS for juice-safe-v6
-;;
-;; Scope, stated honestly. The safe is auth-heavy: nearly every state mutation
-;; needs either an admin tx-sender or a valid secp256r1 / WebAuthn signature. RV
-;; cannot forge signatures, so signed paths bounce on u4002 and admin paths bounce
-;; on u4001 for random senders. The leverage is therefore NOT in reaching deep
-;; states, it is in proving that no reachable sequence of random calls from random
-;; principals can ever break these properties.
-;;
-;; Each invariant below is a bound the contract must hold at ALL times, including
-;; before onboard, mid-config-change, and after any failed call. Several encode
-;; guarantees this generation introduced.
-
-(define-map context (string-ascii 100) { called: uint })
-
-(define-private (update-context (function-name (string-ascii 100)) (called uint))
-  (ok (map-set context function-name { called: called })))
-
-;; --- 1. cooldown-period stays inside its bounds, always --------------------
-;; v6 added MIN-COOLDOWN u144 and reused MAX-CONFIG-COOLDOWN u4032 as a ceiling,
-;; enforced at onboard AND at signal-config-change. If any path can land a value
-;; outside that window, the delay that protects against a stolen admin key can be
-;; collapsed to nothing or inflated until pending operations freeze forever.
-
-(define-read-only (invariant-cooldown-within-bounds)
-  (let ((cd (get cooldown-period (var-get wallet-config))))
-    (and (>= cd MIN-COOLDOWN) (<= cd MAX-CONFIG-COOLDOWN))))
-
-;; --- 2. max-gas-amount never exceeds its ceiling ---------------------------
-;; propose-max-gas-amount asserts MAX-GAS-CEILING at propose time and
-;; confirm-max-gas-amount applies whatever is pending. If a pending value could
-;; be swapped after the assert, a relayer's per-call skim would be unbounded.
-
-(define-read-only (invariant-max-gas-within-ceiling)
-  (<= (var-get max-gas-amount) MAX-GAS-CEILING))
-
-;; --- 3. the gas fuse is never exceeded -------------------------------------
-;; The whole point of the v3/v4 gas work: gas spent in a period must never pass
-;; max-gas-amount * GAS-CALLS-PER-PERIOD. pay-gas-accounted checks BEFORE adding,
-;; so the counter should never be observed above the cap.
-
-(define-read-only (invariant-gas-fuse-holds)
-  (<= (get gas (var-get spent-this-period))
-      (* (var-get max-gas-amount) GAS-CALLS-PER-PERIOD)))
-
-;; --- 4. the contract is NEVER its own admin --------------------------------
-;; as-contract? rebinds tx-sender to this contract. If the contract ever appeared
-;; in its own admins map, a caller-supplied gas station could re-enter with
-;; sig-auth none and pass is-admin-calling, draining the wallet on a relay
-;; compromise alone. Guarded at all three admins writes; this proves no random
-;; sequence defeats those guards.
-
-(define-read-only (invariant-contract-never-own-admin)
-  (is-none (map-get? admins current-contract)))
-
-;; --- 5. the owner is never the contract itself -----------------------------
-(define-read-only (invariant-owner-not-contract)
-  (not (is-eq (var-get owner) current-contract)))
-
-;; --- 6. the recovery address is never the contract itself ------------------
-;; recover-inactive-wallet gates on tx-sender == recovery-address, and
-;; as-contract? makes tx-sender this contract, so a contract-valued recovery
-;; address would be a path a gas station could reach.
-
-(define-read-only (invariant-recovery-not-contract)
-  (not (is-eq (var-get recovery-address) current-contract)))
-
-;; --- 7. a queued config change is either empty or in bounds ----------------
-;; signal-config-change validates the cooldown before queueing and
-;; set-wallet-config zeroes the queue after applying. So pending-config is either
-;; all-zero (nothing queued) or carries a legal cooldown. An out-of-bounds value
-;; sitting in the queue would mean the bounds check can be bypassed.
-
-(define-read-only (invariant-pending-config-empty-or-legal)
-  (let ((p (var-get pending-config)))
-    (or
-      (and (is-eq (get stx-threshold p) u0)
-           (is-eq (get sbtc-threshold p) u0)
-           (is-eq (get cooldown-period p) u0))
-      (and (>= (get cooldown-period p) MIN-COOLDOWN)
-           (<= (get cooldown-period p) MAX-CONFIG-COOLDOWN)))))
-
-;; --- 8. pubkey-initialized is a one-way latch ------------------------------
-;; onboard is the only writer and must never be re-runnable. If this could flip
-;; back, a second onboard could reseat the owner and the passkey.
-
-(define-read-only (invariant-pubkey-initialized-monotonic)
-  (let ((pi (var-get pubkey-initialized)))
-    (or (is-eq pi false) (is-eq pi true))))
-
-;; --- 9. spent counters never exceed their thresholds unaccountably ---------
-;; stx and sbtc are per-period counters gated by would-exceed-*-threshold. An
-;; over-threshold transfer queues instead of moving, so the counters should never
-;; run away past the configured thresholds within a period.
-
-(define-read-only (invariant-spent-within-thresholds)
-  (let ((s (var-get spent-this-period))
-        (c (var-get wallet-config)))
-    (and (<= (get stx s) (get stx-threshold c))
-         (<= (get sbtc s) (get sbtc-threshold c)))))
-
-;; --- RV-ONLY BOOTSTRAP -----------------------------------------------------
-;; NOT part of the deployed contract. Appended only into the RV build, exactly
-;; like the invariants above.
-;;
-;; WHY IT EXISTS. Without it every RV call bounces: onboard needs tx-sender ==
-;; FAKFUN-DEPLOYER, every admin path needs the seated owner, and every signed path
-;; needs a real secp256r1 signature RV cannot forge. A 200-run session produced
-;; 1,164 calls and ZERO state changes, so the invariants held over a contract that
-;; never left its initial state -- true but nearly worthless.
-;;
-;; This seats the CALLER as owner and admin and marks the wallet initialised, so
-;; RV's random wallets become authorised and actually drive signal-config-change,
-;; propose-max-gas-amount, propose-transfer-wallet, the execute-pending-* paths and
-;; recover-inactive-wallet. It deliberately bypasses onboard's auth; it does not
-;; bypass anything the invariants assert.
-;;
-;; recovery-address is seated to a FIXED simnet wallet (wallet_9) rather than the
-;; caller, both because onboard forbids recovery == owner and so RV can reach
-;; recover-inactive-wallet as that principal.
-
-(define-public (rv-bootstrap)
-  (begin
-    (map-delete admins 'SP000000000000000000002Q6VF78)
-    (map-set admins tx-sender true)
-    (var-set owner tx-sender)
-    (var-set recovery-address 'ST2REHHS5J3CERCRBEPMGH7921Q6PYKAADT7JP2VB)
-    (var-set pubkey-initialized true)
-    (var-set wallet-config {
-      stx-threshold: u100000000,
-      sbtc-threshold: u100000,
-      cooldown-period: MIN-COOLDOWN,
-      config-signaled-at: none,
-    })
-    (var-set last-activity-block burn-block-height)
-    (ok true)))
-
-;; --- RV-ONLY: make staking reachable --------------------------------------
-;; NOT part of the deployed contract. pox-5 rejects every stake with
-;; ERR_SIGNER_NOT_FOUND u23 until juice-pool-stx-signer has registered, and the
-;; real registration needs a secp256k1 grant signature RV cannot produce. Without
-;; this, all three staking functions bounce and invariants 10-12 are vacuous.
-;;
-;; This does NOT weaken anything the invariants assert: it only puts the wallet in
-;; a state a real onboarded, funded, staking safe would be in.
-(define-public (rv-stake-anything (amount uint))
-  (stake-stx-juice (+ u1000000 (mod amount u1000000000)) none none))
-
-(define-public (rv-topup-anything (amount uint))
-  (update-stake-stx-juice (+ u1 (mod amount u100000000)) u0 none none))
-
-;; RV-ONLY: a contract with no STX cannot stake. Genesis funds WALLETS, not
-;; contracts, so without this every rv-stake-anything bounces on the balance and
-;; invariants 10-12 stay vacuous for a second, quieter reason. Pulls from the
-;; random caller, which holds 100,000 STX at genesis.
-(define-public (rv-fund (amount uint))
-  (stx-transfer? (+ u2000000000 (mod amount u2000000000)) tx-sender current-contract))
-
-;; NOTE on how invariants 10-12 were proven LIVE rather than vacuous.
-;; A temporary canary invariant asserting the OPPOSITE -- that no pox-5 position ever
-;; exists -- was added and RV was asked to break it:
-;;
-;;   (define-read-only (invariant-canary-never-staked)
-;;     (is-none (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info
-;;       current-contract)))
-;;
-;; It PASSED (survived) until three things were fixed, and only then FAILED, which is
-;; the outcome that matters: staking is genuinely reachable, so the three staking
-;; invariants below are checked against real positions. See README-clarinet-rv.md.
-;; The canary was deleted afterwards; re-add it if the harness setup ever changes.
-
-;; --- 10. a staked position is never larger than what was staked -------------
-;; pox-5 keys the staker off tx-sender, which as-contract? makes this wallet. If
-;; any random sequence could grow amount-ustx without a matching stake or top-up,
-;; the allowance maths on update-stake-stx-juice would be wrong -- and that
-;; allowance is a BALANCE, not a delta, which is the easiest thing here to get
-;; backwards.
-(define-read-only (invariant-staked-not-above-funded)
-  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
-    info (<= (get amount-ustx info) (+ (stx-get-balance current-contract)
-                                       (get locked (stx-account current-contract))))
-    true))
-
-;; --- 11. num-cycles never exceeds the pox-5 maximum ------------------------
-;; stake pins NUM-CYCLES u96 and update-stake-stx-juice can extend. pox-5 rejects
-;; an extend past its own cap, so no sequence should ever leave a position above it.
-(define-read-only (invariant-num-cycles-within-max)
-  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
-    info (<= (get num-cycles info) u97)
-    true))
-
-;; --- 12. the signer never changes under us --------------------------------
-;; Every staking call names JUICE-SIGNER. If a position could end up pointing at a
-;; different signer, rewards would flow somewhere else entirely.
-(define-read-only (invariant-signer-is-juice)
-  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
-    info (is-eq (get signer info) JUICE-SIGNER)
-    true))
-
-;; --- an operation is never both executed AND vetoed -------------------------
-;; execute-pending-* and veto-operation both mutate the same map. If a sequence could
-;; set both flags, "vetoed" would stop meaning "this can never pay out". Maps cannot be
-;; iterated in a read-only, so this checks the op-ids RV actually reaches.
-(define-read-only (invariant-no-op-executed-and-vetoed)
-  (fold check-op-flags (list u0 u1 u2 u3 u4) true))
-
-(define-private (check-op-flags (op-id uint) (acc bool))
-  (and acc
-    (match (map-get? pending-operations op-id)
-      op (not (and (get executed op) (get vetoed op)))
-      true)))

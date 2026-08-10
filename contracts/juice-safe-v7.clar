@@ -62,6 +62,41 @@
   (buff 33)
 )
 
+;; One WebAuthn assertion may authorize exactly ONE operation.
+;;
+;; used-pubkey-authorizations above keys on the OPERATION hash, which stops the
+;; same operation being replayed but not one signature being spent across
+;; several different operations. clarity-5-webauthn-v3 verifies
+;;   sha256(prefix || base64url-32(message-hash) || suffix)
+;; against the signature, with prefix and suffix supplied by the CALLER and no
+;; check of where the challenge field actually begins or ends. So the check is
+;; "does this hash appear somewhere in the signed clientDataJSON", not "is this
+;; hash the challenge".
+;;
+;; A frontend can therefore ask the browser to sign one long challenge holding
+;; several 43-byte operation hashes end to end. One user-verification gesture,
+;; one signature — then the caller slides the prefix/suffix split to point at a
+;; different hash on each submission. Every one reconstructs the identical
+;; signed bytes, so all verify, and each lands on its own fresh key in the map
+;; above. The user approved once; N operations executed.
+;;
+;; Keying a second map on the assertion itself makes the gesture the unit of
+;; authorization, which is what the passkey factor is supposed to mean.
+;; authenticator-data and signature together are unique per assertion: the
+;; signature covers a counter and a fresh clientDataJSON, and a repeat of the
+;; exact pair IS the same assertion.
+;;
+;; This does not repair the underlying substring match — an attacker can still
+;; craft the long challenge — it makes it cashable exactly once, which removes
+;; the gain. Exact challenge-boundary verification belongs in the WebAuthn
+;; helper, and origin/type/crossOrigin remain unvalidated (only the rp-id hash
+;; and the UV flag are checked), so a compromised qualifying subdomain still
+;; produces assertions this contract accepts.
+(define-map used-assertions
+  (buff 32)
+  bool
+)
+
 (define-data-var wallet-config {
   stx-threshold: uint,
   sbtc-threshold: uint,
@@ -1206,14 +1241,22 @@
     (client-data-prefix (buff 128))
     (client-data-suffix (buff 512))
   )
-  (begin
+  (let ((assertion-id (sha256 (concat authenticator-data signature))))
     (try! (verify-signature message-hash pubkey signature authenticator-data
       client-data-prefix client-data-suffix
     ))
+    ;; The operation may not be repeated ...
     (asserts! (is-none (map-get? used-pubkey-authorizations message-hash))
       err-signature-replay
     )
+    ;; ... and the assertion that authorized it may not be spent again on a
+    ;; DIFFERENT operation. Checked before either write, so a transaction that
+    ;; fails here leaves both maps untouched.
+    (asserts! (is-none (map-get? used-assertions assertion-id))
+      err-signature-replay
+    )
     (map-set used-pubkey-authorizations message-hash pubkey)
+    (map-set used-assertions assertion-id true)
     (ok true)
   )
 )

@@ -1,0 +1,12 @@
+{
+  "walletPrincipal": "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.rafshitoshi-wallet",
+  "rpId": "fak.fun",
+  "note": "Sign with the rafshitoshi-wallet passkey. payload=310B, expected-hash=0x736237fab04532b2356aa739cdbc981f89429f43f1092a21fe42b49ba4c642b2",
+  "operations": [
+    {
+      "authId": 0,
+      "label": "execute-pending-whitelist (op-id 0, ext=SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.tweet-inscription)",
+      "challengeHex": "0x426c430a786038521bf40477c4429054569fd575267df0a26aef7606432c087a"
+    }
+  ]
+}

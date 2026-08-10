@@ -13,7 +13,7 @@
 
 (define-map context (string-ascii 100) { called: uint })
 
-(define-public (update-context (function-name (string-ascii 100)) (called uint))
+(define-private (update-context (function-name (string-ascii 100)) (called uint))
   (ok (map-set context function-name { called: called })))
 
 ;; --- 1. cooldown-period stays inside its bounds, always --------------------
