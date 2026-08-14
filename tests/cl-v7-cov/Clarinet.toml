@@ -53,9 +53,6 @@ contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal"
 [[project.requirements]]
 contract_id = "SP000000000000000000002Q6VF78.pox-5"
 
-[[project.requirements]]
-contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v7"
-
 [contracts.zz-gas-station]
 path = "contracts/zz-gas-station.clar"
 clarity_version = 6
@@ -71,6 +68,12 @@ path = "contracts/zz-allowance-probe.clar"
 clarity_version = 6
 epoch = "4.0"
 
+# COVERAGE ONLY. clarinet --coverage instruments PROJECT contracts, never
+# requirements, so measuring line coverage means deploying the wallet locally --
+# which moves it off its mainnet address. contracts/juice-safe-v7.clar here is
+# byte-identical to the deployed contract EXCEPT the single self-reference literal
+# on line 1520 (the register-wallet canonical argument), repointed at the simnet
+# deployer. Correctness runs still use tests/cl-v6 against the real address.
 [contracts.zz-ft]
 path = "contracts/zz-ft.clar"
 clarity_version = 6
@@ -78,5 +81,10 @@ epoch = "4.0"
 
 [contracts.zz-gas-station-free]
 path = "contracts/zz-gas-station-free.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.juice-safe-v7]
+path = "contracts/juice-safe-v7.clar"
 clarity_version = 6
 epoch = "4.0"

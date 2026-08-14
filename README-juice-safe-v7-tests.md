@@ -82,6 +82,29 @@ worker there, and the same failure hits the known-good v6 suites, so it is an
 environment limitation, not a test defect. They are mechanical mirrors of the
 green v6 suites and should be run on a normal dev machine.
 
+## 4. Line-coverage harness (mirrors cl-v6 / cl-v6-cov)
+
+`clarinet --coverage` only instruments PROJECT contracts, not requirements, so
+coverage over the wallet needs it deployed as a LOCAL contract. `tests/cl-v7`
+and `tests/cl-v7-cov` are minimal manifests that do exactly that: the
+comment-free DEPLOYED `juice-safe-v7` source as a local contract, the real
+mainnet deps as requirements (clarity-5-webauthn-v4, fakfun-wallet-core-v2,
+helpers, pox-5, sbtc-token), plus the `zz-*` mock stations/tokens the suites
+drive. The v7 test files honor `V7_DEPLOYER` so they target the locally-deployed
+wallet.
+
+Run coverage locally (any suite, or all):
+
+```
+V7_DEPLOYER=<local deployer addr> \
+  npx vitest run tests/juice-safe-v7-*.test.ts -- \
+    --manifest tests/cl-v7-cov/Clarinet.toml --coverage --costs
+```
+
+The local `contracts/juice-safe-v7.clar` in these harnesses is the byte-for-byte
+comment-free source deployed on mainnet, so the coverage percentages are over
+the deployed bytes (same approach as cl-v6-cov).
+
 ## Manifest wiring
 
 `Clarinet.toml` gains `clarity-5-webauthn-v4` and `fakfun-wallet-core-v2` as
