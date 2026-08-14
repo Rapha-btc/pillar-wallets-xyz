@@ -86,11 +86,25 @@ export function deployV17() {
     { clarityVersion: 6 }, WD).result).toBeBool(true);
 }
 
+/** Verify the wallet against core-v2. Works whether the wallet is a real in-test
+ * deploy (WD, non-coverage) or a locally-instrumented project contract (coverage,
+ * WD = simnet deployer): compute the WD wallet's hash and register it for the
+ * principal that register-wallet hardcodes (D.fakfun-wallet-v17), so onboard's
+ * register-wallet finds a matching verified hash. Passing the hash explicitly
+ * also avoids core's `unwrap-panic (contract-hash? ...)` none-branch, which some
+ * clarinet-sdk versions trip on an instrumented contract. */
+export function verifyWallet() {
+  const hr = simnet.callReadOnlyFn(CORE, "get-contract-hash",
+    [Cl.contractPrincipal(WD, "fakfun-wallet-v17")], D);
+  const hashCV = (hr.result as any).value; // (ok <buff 32>) -> <buff 32>
+  return simnet.callPublicFn(CORE, "set-verified-contract",
+    [Cl.contractPrincipal(D, "fakfun-wallet-v17"), Cl.some(hashCV)], D);
+}
+
 /** deploy + verify + onboard + seat OWNER as admin through the three-step flow */
 export function seated() {
   deployV17();
-  expect(simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(WD, "fakfun-wallet-v17"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+  expect(verifyWallet().result).toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER).result)
     .toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "propose-admin-with-signature",

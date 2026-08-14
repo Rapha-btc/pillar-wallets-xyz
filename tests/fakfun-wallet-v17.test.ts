@@ -108,8 +108,10 @@ function deployV17() {
 }
 function verifyContract() {
   deployV17();
+  const hr = simnet.callReadOnlyFn(CORE, "get-contract-hash",
+    [Cl.contractPrincipal(WD, "fakfun-wallet-v17")], D);
   return simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(WD, "fakfun-wallet-v17"), Cl.none()], D);
+    [Cl.contractPrincipal(D, "fakfun-wallet-v17"), Cl.some((hr.result as any).value)], D);
 }
 function seatAdmin() {
   expect(verifyContract().result).toBeOk(Cl.bool(true));

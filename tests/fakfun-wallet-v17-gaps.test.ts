@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
 import {
+  verifyWallet,
   D, WD, WALLET, CORE, OWNER, RANDOM, RELAYER, RECIPIENT, NEW_OWNER,
   E, MIN_COOLDOWN, seated, deployV17, fundSTX, sign, topic, pubkeyCV,
   FAKFUN_DEPLOYER, strip, RP_ID, CHAIN_ID,
@@ -111,8 +112,7 @@ describe("v16 gaps: nothing-pending and wrong-order guards", () => {
 describe("v16 gaps: the three-step seating, out of order", () => {
   function onboarded() {
     deployV17();
-    expect(simnet.callPublicFn(CORE, "set-verified-contract",
-      [Cl.contractPrincipal(WD, "fakfun-wallet-v17"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    expect(verifyWallet().result).toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER).result)
       .toBeOk(Cl.bool(true));
   }

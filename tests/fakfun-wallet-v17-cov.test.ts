@@ -18,7 +18,7 @@ import { Cl } from "@stacks/transactions";
 import {
   D, WD, WALLET, CORE, OWNER, RANDOM, RELAYER, RECIPIENT, DEPLOYER, registerSigner,
   E, MIN_COOLDOWN, STX_THRESHOLD, SBTC_THRESHOLD,
-  seated, deployV17, fundSTX, fundSBTC, sign, topic, pubkeyCV, FAKFUN_DEPLOYER,
+  seated, deployV17, verifyWallet, fundSTX, fundSBTC, sign, topic, pubkeyCV, FAKFUN_DEPLOYER,
   sbtcCV, stationCV, gasCounter,
 } from "./v17-helpers";
 
@@ -345,8 +345,7 @@ describe("v16 cov: the rest of the gas channel", () => {
 
   it("the three-step seating pays on every step that accepts a station", () => {
     deployV17();
-    expect(simnet.callPublicFn(CORE, "set-verified-contract",
-      [Cl.contractPrincipal(WD, "fakfun-wallet-v17"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    expect(verifyWallet().result).toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "onboard", [pubkeyCV], FAKFUN_DEPLOYER).result)
       .toBeOk(Cl.bool(true));
     fundSBTC();

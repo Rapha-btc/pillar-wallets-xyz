@@ -45,14 +45,24 @@ npx rv tests/rv-v17 fakfun-wallet-v17 invariant --runs 100
 Result: **OK, invariants passed after 100 runs.** (`update-context` made public
 for the installed rendezvous, as in rv-v7.)
 
-## Coverage harnesses
+## Coverage harnesses - RUN and GREEN (92.8%)
 
 `tests/cl-v17`, `tests/cl-v17-cov`, `tests/cl-v17-lint` mirror the v16 trio, with
 the comment-free deployed `fakfun-wallet-v17` source and deps swapped to
-clarity-5-webauthn-v4 + fakfun-wallet-core-v2. `tests/fakfun-wallet-v17-cov.test.ts`
-runs the suite with local instrumentation for `--coverage`.
+clarity-5-webauthn-v4 + fakfun-wallet-core-v2.
 
-Same clarinet-sdk caveat as v7: the coverage harness needs `contract-hash?` to
-read a locally-emulated contract's hash; some clarinet-sdk versions return
-`none` there and both v16 and v17 coverage error identically on it. Run coverage
-on the machine/clarinet-sdk where the v16 coverage worked.
+The clarinet-sdk 3.23.1 in the sandbox returns an error from `contract-hash?` on
+a locally-instrumented contract, which used to break the coverage harness (it hit
+`set-verified-contract(..., none)`'s `unwrap-panic`). Fixed with `verifyWallet()`
+in `v17-helpers.ts`: run the instrumented wallet under the REAL simnet deployer
+(where `contract-hash?` works) and register its hash EXPLICITLY for the principal
+register-wallet hardcodes. Run:
+
+```
+V17_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM \
+  npx vitest run tests/fakfun-wallet-v17*.test.ts tests/v17-smoke.test.ts -- \
+    --manifest tests/cl-v17-cov/Clarinet.toml --coverage
+```
+
+Result: **104 pass, 1 skipped** (the in-test-publish smoke test, N/A under
+instrumentation), **fakfun-wallet-v17 line coverage 1056/1138 = 92.8%**.
