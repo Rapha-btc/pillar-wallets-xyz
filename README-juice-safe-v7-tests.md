@@ -117,6 +117,23 @@ The local `contracts/juice-safe-v7.clar` in these harnesses is the byte-for-byte
 comment-free source deployed on mainnet, so the coverage percentages are over
 the deployed bytes (same approach as cl-v6-cov).
 
+clarinet-sdk version note: the coverage harness needs `contract-hash?` to read a
+locally-emulated contract's hash (in `core.set-verified-contract(..., none)`).
+Some clarinet-sdk versions return `none` there, which makes BOTH cl-v6-cov and
+cl-v7-cov fail identically with an `unwrap-panic` on `contract-hash?` - it is a
+clarinet-sdk-version thing, not a v7 change (verified: v6 coverage hits the exact
+same error on the same box). Run coverage on the machine/clarinet-sdk where the
+v6 coverage worked; v7 behaves identically there.
+
+## stxer coverage parity with v6
+
+v7's sims cover >= v6's. The one v6 file without a v7 twin,
+`simul-juice-safe-v6.js`, is just the stake -> top-up -> unstake -> unlock
+round-trip, which is fully inside the v7 lifecycle sim (its "LOCK LIFECYCLE
+1/4..4/4" block). Recovery matches; v7 additionally ships two webauthn security
+sims (deployed 11/11 + in-sim-deploy regression 15/15) versus v6's single
+multiplex sim.
+
 ## Manifest wiring
 
 `Clarinet.toml` gains `clarity-5-webauthn-v4` and `fakfun-wallet-core-v2` as
