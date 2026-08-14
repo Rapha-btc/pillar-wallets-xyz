@@ -75,7 +75,7 @@
 ;;
 ;; A frontend can therefore ask the browser to sign one long challenge holding
 ;; several 43-byte operation hashes end to end. One user-verification gesture,
-;; one signature — then the caller slides the prefix/suffix split to point at a
+;; one signature - then the caller slides the prefix/suffix split to point at a
 ;; different hash on each submission. Every one reconstructs the identical
 ;; signed bytes, so all verify, and each lands on its own fresh key in the map
 ;; above. The user approved once; N operations executed.
@@ -86,8 +86,8 @@
 ;; signature covers a counter and a fresh clientDataJSON, and a repeat of the
 ;; exact pair IS the same assertion.
 ;;
-;; This does not repair the underlying substring match — an attacker can still
-;; craft the long challenge — it makes it cashable exactly once, which removes
+;; This does not repair the underlying substring match - an attacker can still
+;; craft the long challenge - it makes it cashable exactly once, which removes
 ;; the gain. Exact challenge-boundary verification belongs in the WebAuthn
 ;; helper, and origin/type/crossOrigin remain unvalidated (only the rp-id hash
 ;; and the UV flag are checked), so a compromised qualifying subdomain still
@@ -1209,7 +1209,7 @@
     (client-data-suffix (buff 512))
   )
   (let ((auth-rp-id (unwrap!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         get-rp-id-hash authenticator-data
       )
       err-invalid-signature
@@ -1218,13 +1218,13 @@
 
     (asserts! (is-eq auth-rp-id RP-ID-HASH-JUICEOFBTC-COM) err-invalid-signature)
     (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         is-user-verified authenticator-data
       )
       err-invalid-signature
     )
     (ok (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         verify-webauthn-signature pubkey message-hash authenticator-data
         client-data-prefix client-data-suffix signature
       )

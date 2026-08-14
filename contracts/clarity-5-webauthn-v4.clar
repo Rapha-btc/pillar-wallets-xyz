@@ -4,6 +4,22 @@
 (define-constant ERR_BAD_RP_ID (err u201))
 (define-constant ERR_USER_NOT_PRESENT (err u202))
 
+;; H-01 fix: fixed-template challenge anchoring (WebAuthn L3 fixed-template form).
+;; The signed clientDataJSON is reconstructed as
+;;   client-data-prefix || base64url-32(challenge) || client-data-suffix
+;; with prefix/suffix supplied by the caller. v3 proved only that the hash
+;; appears SOMEWHERE in the signed bytes, so one signature over a long challenge
+;; holding several 43-char hashes verified once per hash. We now require the
+;; inserted hash to be the WHOLE `challenge` JSON field:
+;;   - the prefix must be EXACTLY the canonical opener, through the opening quote
+;;     of the challenge value. This also pins type = "webauthn.get".
+;;   - the suffix must BEGIN with the closing quote  " .
+;; base64url has no '"', so those quotes are hard walls and exactly one 32-byte
+;; hash fits between them. Every real assertion emits this exact 36-byte prefix.
+(define-constant CANONICAL-PREFIX 0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22)
+;;                                = {"type":"webauthn.get","challenge":"
+(define-constant DQUOTE 0x22) ;; the closing  "
+
 (define-constant B64_ALPHABET 0x4142434445464748494a4b4c4d4e4f505152535455565758595a6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435363738392d5f)
 
 (define-read-only (b64-char (sextet uint))
@@ -86,6 +102,21 @@
   )
 )
 
+;; True only when the inserted hash is exactly the `challenge` field value:
+;; the prefix is the exact canonical template (also pinning type = webauthn.get)
+;; and the suffix starts with the closing  " . No arbitrary bytes can sit before
+;; or after the hash inside the challenge string, so the challenge member equals
+;; base64url-32(message-hash) in its entirety.
+(define-read-only (challenge-is-anchored
+    (client-data-prefix (buff 128))
+    (client-data-suffix (buff 512))
+  )
+  (and
+    (is-eq client-data-prefix CANONICAL-PREFIX)
+    (is-eq (element-at? client-data-suffix u0) (some DQUOTE))
+  )
+)
+
 (define-read-only (compute-client-data-hash
     (challenge (buff 32))
     (client-data-prefix (buff 128))
@@ -113,11 +144,15 @@
     (client-data-suffix (buff 512))
     (signature (buff 64))
   )
-  (secp256r1-verify
-    (compute-signed-digest challenge authenticator-data client-data-prefix
-      client-data-suffix
+  (and
+    ;; H-01: reject any split where the hash is not the whole challenge field.
+    (challenge-is-anchored client-data-prefix client-data-suffix)
+    (secp256r1-verify
+      (compute-signed-digest challenge authenticator-data client-data-prefix
+        client-data-suffix
+      )
+      signature public-key
     )
-    signature public-key
   )
 )
 
