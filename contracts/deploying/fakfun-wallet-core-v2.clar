@@ -1,27 +1,14 @@
-
-;; fakfun-wallet-core-v2
-;; The verified-contract registry + whitelist decide which wallet code is
-;; "canonical". In v1 these were gated on a single deployer EOA constant. Here
-;; they are gated on a settable `admin` data-var: it starts as the deployer and
-;; can be handed off (2-step, timelocked propose/confirm) to a multisig -- an
-;; SM... standard-multisig principal. The multisig lives one layer up; this
-;; contract only checks
-;; tx-sender == admin. register-wallet and every log-* are unchanged.
-
 (define-constant err-not-authorized (err u6001))
 (define-constant err-invalid-contract-hash (err u6002))
 (define-constant err-in-cooldown (err u6003))
 (define-constant err-no-pending-admin (err u6004))
 
-(define-constant ADMIN-COOLDOWN u144) ;; burn blocks (~1 day) timelock on admin handoff
+(define-constant ADMIN-COOLDOWN u144)
 
 (define-map whitelisted-wallets principal bool)
 (define-data-var open-access bool false)
 (define-map verified-contracts principal (buff 32))
 
-;; Admin starts as the deployer; hand off to a multisig SM... address later via
-;; a 2-step, timelocked transfer: propose -> wait 144 burn blocks -> the new
-;; admin confirms (accepts).
 (define-data-var contract-admin principal tx-sender)
 (define-data-var pending-admin (optional principal) none)
 (define-data-var admin-proposed-at uint u0)
@@ -39,7 +26,6 @@
 (define-read-only (get-contract-hash (contract principal))
   (contract-hash? contract))
 
-;; Step 1: current admin proposes a new admin. Starts the timelock.
 (define-public (propose-admin (new-admin principal))
   (begin
     (asserts! (is-eq tx-sender (var-get contract-admin)) err-not-authorized)
@@ -48,9 +34,6 @@
     (print { event: "admin-proposed", pending-admin: new-admin, proposed-at: burn-block-height })
     (ok true)))
 
-;; Step 2: after the cooldown, the PENDING admin accepts. Requiring the new admin
-;; to confirm proves it controls the key (no bricking to a dead address) and
-;; enforces the 144-block delay.
 (define-public (confirm-admin)
   (let ((pending (unwrap! (var-get pending-admin) err-no-pending-admin)))
     (asserts! (is-eq tx-sender pending) err-not-authorized)
@@ -61,7 +44,6 @@
     (print { event: "admin-confirmed", admin: pending })
     (ok true)))
 
-;; Current admin can abort a pending handoff before it is confirmed.
 (define-public (cancel-admin-transfer)
   (begin
     (asserts! (is-eq tx-sender (var-get contract-admin)) err-not-authorized)

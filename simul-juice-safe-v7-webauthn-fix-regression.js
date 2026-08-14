@@ -35,7 +35,7 @@ const SINK3 = "SP1JAG6TV2XRYFGJN7CAAN6Z3CEW2YMZWMHJAJV91";
 const HONEST_SINK = "SP3TA7SMY7APYR9SFKDT0527NC0GWR84S3AHEM0NE";
 
 const WALLET = `${DEPLOYER}.juice-safe-v7`;
-const WALLET_CORE = `${DEPLOYER}.fakfun-wallet-core`;
+const WALLET_CORE = `${DEPLOYER}.fakfun-wallet-core-v2`;
 const STACKS_NODE_API = "http://77.42.3.101/stacks-api";
 const RP_ID = "juiceofbtc.com";
 
@@ -46,8 +46,11 @@ const COOLDOWN = 144;
 const DRAIN1 = 10_000_000, DRAIN2 = 20_000_000, DRAIN3 = 30_000_000;
 const HONEST_AMT = 15_000_000;
 
-const V4_SRC = fs.readFileSync("./contracts/clarity-5-webauthn-v4.clar", "utf8");
-const V7_SRC = fs.readFileSync("./contracts/juice-safe-v7.clar", "utf8");
+// comment-free deploy sources (exactly what the fakdao-be templates ship)
+const V4_SRC = fs.readFileSync("./contracts/deploying/clarity-5-webauthn-v4.clar", "utf8");
+const CORE_V2_SRC = fs.readFileSync("./contracts/deploying/fakfun-wallet-core-v2.clar", "utf8");
+const V7_SRC = fs.readFileSync("./contracts/deploying/juice-safe-v7.clar", "utf8");
+const V17_SRC = fs.readFileSync("./contracts/deploying/fakfun-wallet-v17.clar", "utf8");
 
 // -- SIP-018 stx-transfer hash (helpers-v7); domain wallet = the v7 safe --------
 const SIP = Buffer.from("534950303138", "hex");
@@ -129,11 +132,15 @@ async function main() {
   const okre = /^\(ok/;
 
   // -- deploy the FIXED library, then the repointed safe ----------------------
-  const CLARITY6 = 6; // SDK enum stops at 5; v6/v7 are Clarity 6 (SIP-044 as-contract?)
+  const CLARITY6 = 6; // SDK enum stops at 5; these are Clarity 6 (SIP-044 as-contract?)
   b.withSender(DEPLOYER).addContractDeploy({ contract_name: "clarity-5-webauthn-v4", source_code: V4_SRC, clarity_version: CLARITY6 });
-  plan.push({ kind: "tx", label: "deploy clarity-5-webauthn-v4 (fixed)", expect: null });
+  plan.push({ kind: "tx", label: "deploy clarity-5-webauthn-v4 (comment-free)", expect: null });
+  b.withSender(DEPLOYER).addContractDeploy({ contract_name: "fakfun-wallet-core-v2", source_code: CORE_V2_SRC, clarity_version: CLARITY6 });
+  plan.push({ kind: "tx", label: "deploy fakfun-wallet-core-v2 (comment-free)", expect: null });
   b.withSender(DEPLOYER).addContractDeploy({ contract_name: "juice-safe-v7", source_code: V7_SRC, clarity_version: CLARITY6 });
-  plan.push({ kind: "tx", label: "deploy juice-safe-v7 (-> v4)", expect: null });
+  plan.push({ kind: "tx", label: "deploy juice-safe-v7 (-> v4 + core-v2)", expect: null });
+  b.withSender(DEPLOYER).addContractDeploy({ contract_name: "fakfun-wallet-v17", source_code: V17_SRC, clarity_version: CLARITY6 });
+  plan.push({ kind: "tx", label: "deploy fakfun-wallet-v17 (-> v4 + core-v2) [compile check]", expect: null });
 
   // -- setup ------------------------------------------------------------------
   call("set-verified-contract(juice-safe-v7)", DEPLOYER, WALLET_CORE, "set-verified-contract", [principalCV(WALLET), noneCV()], okre);
