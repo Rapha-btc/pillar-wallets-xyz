@@ -30,12 +30,12 @@
     "@stacks/transactions": "^7.2.0",
     "@types/node": "^24.4.0",
     "chokidar-cli": "^3.0.0",
-    "stxer": "^0.8.0",
-    "vitest": "^4.0.7"
+    "stxer": "^0.8.0"
   },
   "devDependencies": {
     "@stacks/clarinet-sdk": "^3.23.1",
     "@stacks/rendezvous": "^1.0.0-rc.1",
+    "vitest": "~4.0.7",
     "vitest-environment-clarinet": "^3.0.2"
   }
 }

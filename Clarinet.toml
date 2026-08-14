@@ -12,6 +12,9 @@ contract_id = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait"
 contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
 
 [[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.extension-trait"
+
+[[project.requirements]]
 contract_id = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard"
 
 [[project.requirements]]

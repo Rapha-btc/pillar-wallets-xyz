@@ -74,13 +74,25 @@ tests/juice-safe-v7-gaps.test.ts       tests/juice-safe-v7-limits.test.ts
 tests/juice-safe-v7-staking.test.ts    tests/juice-safe-v7-surface.test.ts
 ```
 
-Run locally with `npm test` (or `npx vitest run tests/juice-safe-v7-*.test.ts`).
+Run against the minimal manifest (juice-safe-v7 as a requirement = the deployed
+bytes):
 
-Environment note: these were NOT executed in the CI sandbox used to prepare
-this change - vitest's `forks` pool (required by clarinet-sdk) cannot spawn a
-worker there, and the same failure hits the known-good v6 suites, so it is an
-environment limitation, not a test defect. They are mechanical mirrors of the
-green v6 suites and should be run on a normal dev machine.
+```
+npx vitest run tests/juice-safe-v7-*.test.ts tests/juice-safe-v7.test.ts -- \
+  --manifest tests/cl-v7/Clarinet.toml
+```
+
+Result: **108 / 108 pass, all 8 suites** - including the u4006 replay test, so
+the v4 anchoring + used-assertions + core-v2 + log-stake-stx changes carried
+over cleanly.
+
+IMPORTANT - vitest version: clarinet-sdk's vitest worker does NOT boot on vitest
+**4.1.x** (both forks and threads fail with "Failed to start worker"). Pin
+vitest to the **4.0.x** line (`~4.0.7`); vitest maintains a `V3` dist-tag
+(3.2.7) for the same reason. This repo now pins `~4.0.7`.
+
+The main `Clarinet.toml` also gained the `SP2PABAF9...extension-trait`
+requirement (used by fakfun-wallet-v14..v17) so the manifest resolves.
 
 ## 4. Line-coverage harness (mirrors cl-v6 / cl-v6-cov)
 
