@@ -1,5 +1,5 @@
 [project]
-name = "fakfun-wallet-v17-clarinet"
+name = "fakfun-wallet-v17-coverage"
 description = "Minimal manifest: the DEPLOYED fakfun-wallet-v17 against real mainnet requirements"
 authors = []
 telemetry = false
@@ -168,5 +168,19 @@ epoch = "4.0"
 
 [contracts.zz-extension]
 path = "contracts/zz-extension.clar"
+clarity_version = 6
+epoch = "4.0"
+
+# COVERAGE ONLY. clarinet --coverage instruments PROJECT contracts, never requirements,
+# and never contracts published at runtime via deployContract either -- verified. So
+# measuring line coverage means listing v16 here, which deploys it under the SIMNET
+# deployer. The suites read that from V16_DEPLOYER, defaulting to the real mainnet
+# principal, so correctness runs against tests/cl-v16 are unaffected.
+#
+# contracts/fakfun-wallet-v17.clar here differs from the deployed bytes by exactly the
+# two self-reference literals (the register-wallet canonical argument in onboard and
+# the SIP-018 domain wallet), repointed at the simnet deployer.
+[contracts.fakfun-wallet-v17]
+path = "contracts/fakfun-wallet-v17.clar"
 clarity_version = 6
 epoch = "4.0"

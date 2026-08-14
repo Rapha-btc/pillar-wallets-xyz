@@ -1,0 +1,327 @@
+id: 0
+name: Simulated deployment, used as a default for `clarinet console`, `clarinet test` and `clarinet check`
+network: simnet
+genesis:
+  wallets:
+  - name: deployer
+    address: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: faucet
+    address: STNHKEPYEPJ8ET55ZZ0M5A34J0R3N5FM2CMMMAZ6
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_1
+    address: ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_2
+    address: ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_3
+    address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_4
+    address: ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_5
+    address: ST2REHHS5J3CERCRBEPMGH7921Q6PYKAADT7JP2VB
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_6
+    address: ST3AM1A56AK2C1XAFJ4115ZSV26EB49BVQ10MGCS0
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_7
+    address: ST3PF13W7Z0RRM42A8VZRVFQ75SV1K26RXEP8YGKJ
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  - name: wallet_8
+    address: ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP
+    balance: '100000000000000'
+    sbtc-balance: '1000000000'
+  contracts:
+  - genesis
+  - lockup
+  - bns
+  - cost-voting
+  - costs
+  - pox
+  - costs-2
+  - pox-2
+  - costs-3
+  - pox-3
+  - pox-4
+  - signers
+  - signers-voting
+  - costs-4
+  - pox-5
+plan:
+  batches:
+  - id: 0
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: nft-trait
+      emulated-sender: SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9
+      path: ../../.cache/requirements/SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.clar
+      clarity-version: 1
+    - transaction-type: emulated-contract-publish
+      contract-name: sip-010-trait-ft-standard
+      emulated-sender: SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE
+      path: ../../.cache/requirements/SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.clar
+      clarity-version: 1
+    - transaction-type: emulated-contract-publish
+      contract-name: extension-trait
+      emulated-sender: SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9
+      path: ../../.cache/requirements/SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.extension-trait.clar
+      clarity-version: 1
+    - transaction-type: emulated-contract-publish
+      contract-name: nft-trait
+      emulated-sender: ST1NXBK3K5YYMD6FD41MVNP3JS1GABZ8TRVX023PT
+      path: ../../.cache/requirements/ST1NXBK3K5YYMD6FD41MVNP3JS1GABZ8TRVX023PT.nft-trait.clar
+      clarity-version: 1
+    epoch: '2.0'
+  - id: 1
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: sip-010-trait-ft-standard-v-1-1
+      emulated-sender: SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR
+      path: ../../.cache/requirements/SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR.sip-010-trait-ft-standard-v-1-1.clar
+      clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: token-stx-v-1-2
+      emulated-sender: SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR
+      path: ../../.cache/requirements/SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR.token-stx-v-1-2.clar
+      clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: xyk-pool-trait-v-1-2
+      emulated-sender: SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR
+      path: ../../.cache/requirements/SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR.xyk-pool-trait-v-1-2.clar
+      clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: xyk-core-v-1-2
+      emulated-sender: SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR
+      path: ../../.cache/requirements/SM1793C4R5PZ4NS4VQ4WMP7SKKYVH8JZEWSZ9HCCR.xyk-core-v-1-2.clar
+      clarity-version: 2
+    epoch: '2.5'
+  - id: 2
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: sbtc-deposit
+      emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
+      path: ../../.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: sbtc-withdrawal
+      emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
+      path: ../../.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: dexterity-traits-v0
+      emulated-sender: SP2ZNGJ85ENDY6QRHQ5P2D4FXKGZWCKTB2T0Z55KS
+      path: ../../.cache/requirements/SP2ZNGJ85ENDY6QRHQ5P2D4FXKGZWCKTB2T0Z55KS.dexterity-traits-v0.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: built-on-bitcoin-stxcity
+      emulated-sender: SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G
+      path: ../../.cache/requirements/SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcity.clar
+      clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: xyk-pool-stx-bob-v-1-1
+      emulated-sender: SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G
+      path: ../../.cache/requirements/SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.xyk-pool-stx-bob-v-1-1.clar
+      clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: built-on-bitcoin-stxcity-dex
+      emulated-sender: SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G
+      path: ../../.cache/requirements/SP2VG7S0R4Z8PYNYCAQ04HCBX1MH75VT11VXCWQ6G.built-on-bitcoin-stxcity-dex.clar
+      clarity-version: 2
+    epoch: '3.0'
+  - id: 3
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: faktory-trait-v1
+      emulated-sender: SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2
+      path: ../../.cache/requirements/SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2.faktory-trait-v1.clar
+      clarity-version: 2
+    - transaction-type: emulated-contract-publish
+      contract-name: burn-bob-faktory
+      emulated-sender: SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B
+      path: ../../.cache/requirements/SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B.burn-bob-faktory.clar
+      clarity-version: 3
+    epoch: '3.1'
+  - id: 4
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: prelaunch-faktory-trait
+      emulated-sender: SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B
+      path: ../../.cache/requirements/SP29D6YMDNAKN1P045T6Z817RTE1AC0JAA99WAX2B.prelaunch-faktory-trait.clar
+      clarity-version: 3
+    epoch: '3.2'
+  - id: 5
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: faktory-dex-trait-v2
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.faktory-dex-trait-v2.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: fakfun-core-v2
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: fakfun-nftmarket-trait
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nftmarket-trait.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: fakfun-nfts-core
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nfts-core.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
+      contract-name: gas-station-trait
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: prelaunch-faktory-trait-v1
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.prelaunch-faktory-trait-v1.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: xtrata-v1-1-1
+      emulated-sender: SP3JNSEXAZP4BDSHV0DN3M8R3P0MY0EEBQQZX743X
+      path: ../../.cache/requirements/SP3JNSEXAZP4BDSHV0DN3M8R3P0MY0EEBQQZX743X.xtrata-v1-1-1.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: xtrata-v2-1-0
+      emulated-sender: SP3JNSEXAZP4BDSHV0DN3M8R3P0MY0EEBQQZX743X
+      path: ../../.cache/requirements/SP3JNSEXAZP4BDSHV0DN3M8R3P0MY0EEBQQZX743X.xtrata-v2-1-0.clar
+      clarity-version: 3
+    epoch: '3.3'
+  - id: 6
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: clarity-5-webauthn-v3
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3.clar
+      clarity-version: 5
+    - transaction-type: emulated-contract-publish
+      contract-name: mm-safe-auth-helpers-v1
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1.clar
+      clarity-version: 5
+    - transaction-type: emulated-contract-publish
+      contract-name: smart-wallet-standard-auth-helpers-v7
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
+      contract-name: smart-wallet-standard-auth-helpers-v8
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v8.clar
+      clarity-version: 5
+    - transaction-type: emulated-contract-publish
+      contract-name: xtrata-v3-2-3
+      emulated-sender: SP3JNSEXAZP4BDSHV0DN3M8R3P0MY0EEBQQZX743X
+      path: ../../.cache/requirements/SP3JNSEXAZP4BDSHV0DN3M8R3P0MY0EEBQQZX743X.xtrata-v3-2-3.clar
+      clarity-version: 3
+    - transaction-type: emulated-contract-publish
+      contract-name: xtrata-inscribe
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.xtrata-inscribe.clar
+      clarity-version: 5
+    - transaction-type: emulated-contract-publish
+      contract-name: pillar-wallet-trait
+      emulated-sender: SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK
+      path: ../../.cache/requirements/SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
+      contract-name: game-wager-v2-4
+      emulated-sender: SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK
+      path: ../../.cache/requirements/SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2-4.clar
+      clarity-version: 5
+    epoch: '3.4'
+  - id: 7
+    transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: clarity-5-webauthn-v4
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: fakfun-wallet-core-v2
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: juice-pool-stx-signer
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer.clar
+      clarity-version: 5
+    - transaction-type: emulated-contract-publish
+      contract-name: juice-safe-auth-helpers-v1
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1.clar
+      clarity-version: 5
+    - transaction-type: emulated-contract-publish
+      contract-name: smart-wallet-standard-auth-helpers-v10
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-dex
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-dex.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-extension
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-extension.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-faktory-token
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-faktory-token.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-ft
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-ft.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-gas-station
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-gas-station.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-gas-station-free
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-gas-station-free.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-nft
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-nft.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-nftmarket
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-nftmarket.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-pool
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-pool.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: zz-pre
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/zz-pre.clar
+      clarity-version: 6
+    epoch: '4.0'

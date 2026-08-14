@@ -103,6 +103,15 @@
   (buff 33)
 )
 
+;; H-01: one WebAuthn assertion authorizes exactly ONE operation. The map above
+;; keys on the OPERATION hash (stops replaying the same op). This second map keys
+;; on the ASSERTION itself (authenticator-data + signature) so one signed gesture
+;; cannot be spent across several different operations.
+(define-map used-assertions
+  (buff 32)
+  bool
+)
+
 (define-data-var wallet-config {
   stx-threshold: uint,
   sbtc-threshold: uint,
@@ -380,7 +389,7 @@
     )
     (var-set token-lock-enabled enabled)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-token-lock-toggled enabled
     ))
     (ok true)
@@ -414,7 +423,7 @@
       cooldown-period: new-cooldown-period,
       signaled-at: burn-block-height,
     })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-signal-config-change
     ))
     (ok true)
@@ -489,7 +498,7 @@
       sbtc-threshold: new-sbtc-threshold,
       cooldown-period: new-cooldown-period,
     })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-config-set new-stx-threshold new-sbtc-threshold u0
       new-cooldown-period
     ))
@@ -521,7 +530,7 @@
       vetoed: false,
     })
     (var-set operation-nonce (+ op-id u1))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-pending-operation op-id op-type amount recipient token extension
       payload (+ burn-block-height (get cooldown-period config))
     ))
@@ -568,7 +577,7 @@
     (map-set pending-operations op-id (merge op { vetoed: true }))
 
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-operation-vetoed op-id
     ))
     (ok true)
@@ -670,7 +679,7 @@
     (map-set whitelisted-extensions
       (unwrap! (get extension op) err-invalid-operation) true
     )
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-extension-whitelisted (unwrap-panic (get extension op))
     ))
     (ok true)
@@ -712,7 +721,7 @@
       )
       (try! (is-authorized none))
     )
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-extension-removed extension
     ))
     (ok (map-delete whitelisted-extensions extension))
@@ -772,7 +781,7 @@
       (begin
         (add-spent-stx amount)
         (try! (contract-call?
-          'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+          'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
           log-stx-transfer amount recipient memo
         ))
         (as-contract? ((with-stx amount))
@@ -798,7 +807,7 @@
     )
     (try! (is-authorized none))
     (map-set pending-operations op-id (merge op { executed: true }))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-stx-transfer (get amount op) (get recipient op) memo
     ))
     (as-contract? ((with-stx (get amount op)))
@@ -853,7 +862,7 @@
     )
     (try! (ft-mint? ect u1 current-contract))
     (try! (ft-burn? ect u1 current-contract))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-extension-call (contract-of extension) payload
     ))
     (as-contract? ((with-all-assets-unsafe))
@@ -919,7 +928,7 @@
           true
         )
         (try! (contract-call?
-          'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+          'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
           log-sip010-transfer (contract-of sip010) amount recipient memo
         ))
         (as-contract? ((with-ft (contract-of sip010) token-name amount))
@@ -943,7 +952,7 @@
     )
     (try! (is-authorized none))
     (map-set pending-operations op-id (merge op { executed: true }))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op)
       memo
     ))
@@ -1103,7 +1112,7 @@
       )
       (try! (is-authorized none))
     )
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-sip009-transfer nft-id recipient (contract-of sip009)
     ))
     (as-contract? ((with-nft (contract-of sip009) token-name (list nft-id)))
@@ -1592,7 +1601,7 @@
     (asserts! (not (is-eq new-admin tx-sender)) err-forbidden)
     (var-set pending-transfer new-admin)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-propose-transfer-wallet new-admin
     ))
     (ok true)
@@ -1640,7 +1649,7 @@
     (var-set owner pending)
     (var-set pending-transfer 'SP000000000000000000002Q6VF78)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-transferred pending
     ))
     (ok true)
@@ -1656,7 +1665,7 @@
     (client-data-suffix (buff 512))
   )
   (let ((auth-rp-id (unwrap!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         get-rp-id-hash authenticator-data
       )
       err-invalid-signature
@@ -1670,13 +1679,13 @@
       err-invalid-signature
     )
     (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         is-user-verified authenticator-data
       )
       err-invalid-signature
     )
     (ok (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v3
+      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         verify-webauthn-signature pubkey message-hash authenticator-data
         client-data-prefix client-data-suffix signature
       )
@@ -1693,14 +1702,18 @@
     (client-data-prefix (buff 128))
     (client-data-suffix (buff 512))
   )
-  (begin
+  (let ((assertion-id (sha256 (concat authenticator-data signature))))
     (try! (verify-signature message-hash pubkey signature authenticator-data
       client-data-prefix client-data-suffix
     ))
     (asserts! (is-none (map-get? used-pubkey-authorizations message-hash))
       err-signature-replay
     )
+    (asserts! (is-none (map-get? used-assertions assertion-id))
+      err-signature-replay
+    )
     (map-set used-pubkey-authorizations message-hash pubkey)
+    (map-set used-assertions assertion-id true)
     (ok true)
   )
 )
@@ -1824,7 +1837,7 @@
       proposed-at: u0,
       accepted: false,
     })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-admin-added new-a
     ))
     (ok true)
@@ -1905,7 +1918,7 @@
     (asserts! (not (is-eq new-recovery current-contract)) err-unauthorised)
     (var-set pending-recovery new-recovery)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-propose-recovery new-recovery
     ))
     (ok true)
@@ -1921,7 +1934,7 @@
     (var-set recovery-address pending)
     (var-set pending-recovery 'SP000000000000000000002Q6VF78)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-confirm-recovery pending
     ))
     (ok true)
@@ -1938,7 +1951,7 @@
     (map-set admins new-admin true)
     (var-set owner new-admin)
     (var-set last-activity-block burn-block-height)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-recover-inactive-wallet new-admin tx-sender
     ))
     (ok true)
@@ -1988,8 +2001,8 @@
     )
     (asserts! (> amount-ustx u0) err-zero-amount)
 
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-stake-stx-stacking-dao amount-ustx
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+      log-stake-stx amount-ustx
     ))
 
     (try! (as-contract? ((with-staking amount-ustx))
@@ -2047,8 +2060,8 @@
     )
 
     (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)) err-zero-amount)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
-      log-stake-stx-stacking-dao amount-increase
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+      log-stake-stx amount-increase
     ))
 
     (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
@@ -2100,7 +2113,7 @@
       (try! (is-authorized none))
     )
 
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-revoke-fast-pool
     ))
 
@@ -2182,14 +2195,137 @@
     )
     (try! (as-contract? ()
       (try! (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
         register-wallet
-        .fakfun-wallet-v17
+        'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.fakfun-wallet-v17
       ))
     ))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-initialized pubkey
     ))
     (ok true)
   )
 )
+
+
+;; ===========================================================================
+;; RV invariants for fakfun-wallet-v17. Appended to the contract by ./build.sh,
+;; because rv reads invariants from the contract under test.
+;;
+;; Carried over from juice-safe-v6 where the property applies, plus four v16-only
+;; ones covering the extension whitelist and the three-step admin seating.
+;; ===========================================================================
+
+;; rv tracks which SUT function it called through this pair. It is not injected for
+;; us -- the target contract must define it, so it lives here alongside the invariants.
+(define-map context (string-ascii 100) { called: uint })
+(define-public (update-context (function-name (string-ascii 100)) (called uint))
+  (ok (map-set context function-name { called: called })))
+
+;; --- RV-ONLY: make the wallet reachable -----------------------------------
+;; Without this every path bounces on authorisation and the invariants hold over a
+;; contract that never left its initial state -- true and worthless. Seats the caller
+;; as owner and admin and marks the wallet initialised. It does NOT bypass anything the
+;; invariants assert.
+(define-public (rv-bootstrap)
+  (begin
+    (map-delete admins 'SP000000000000000000002Q6VF78)
+    (map-set admins tx-sender true)
+    (var-set owner tx-sender)
+    (var-set recovery-address 'ST2REHHS5J3CERCRBEPMGH7921Q6PYKAADT7JP2VB)
+    (var-set pubkey-initialized true)
+    (var-set wallet-config {
+      stx-threshold: u100000000,
+      sbtc-threshold: u100000,
+      cooldown-period: MIN-COOLDOWN,
+      config-signaled-at: none,
+    })
+    (var-set last-activity-block burn-block-height)
+    (ok true)))
+
+;; a contract holds no STX at genesis, so staking would bounce on the balance
+(define-public (rv-fund (amount uint))
+  (stx-transfer? (+ u2000000000 (mod amount u2000000000)) tx-sender current-contract))
+
+(define-public (rv-stake-anything (amount uint))
+  (stake-stx-juice (+ u1000000 (mod amount u1000000000)) none none))
+
+;; --- 1. the cooldown stays inside its documented bounds -------------------
+(define-read-only (invariant-cooldown-within-bounds)
+  (let ((cd (get cooldown-period (var-get wallet-config))))
+    (and (>= cd MIN-COOLDOWN) (<= cd MAX-CONFIG-COOLDOWN))))
+
+;; --- 2. max-gas never exceeds the ceiling --------------------------------
+(define-read-only (invariant-max-gas-within-ceiling)
+  (<= (var-get max-gas-amount) MAX-GAS-CEILING))
+
+;; --- 3. the per-period gas fuse holds ------------------------------------
+(define-read-only (invariant-gas-fuse-holds)
+  (<= (get gas (var-get spent-this-period))
+      (* (var-get max-gas-amount) GAS-CALLS-PER-PERIOD)))
+
+;; --- 4. the wallet is never its own admin --------------------------------
+;; The gas-station re-entrancy story depends on this: a hostile station cannot make
+;; the wallet call itself as an admin if the wallet is not in the map.
+(define-read-only (invariant-contract-never-own-admin)
+  (is-none (map-get? admins current-contract)))
+
+(define-read-only (invariant-owner-not-contract)
+  (not (is-eq (var-get owner) current-contract)))
+
+(define-read-only (invariant-recovery-not-contract)
+  (not (is-eq (var-get recovery-address) current-contract)))
+
+;; --- 5. a queued config change is empty or legal -------------------------
+(define-read-only (invariant-pending-config-empty-or-legal)
+  (let ((cd (get cooldown-period (var-get pending-config))))
+    (or (is-eq cd u0) (and (>= cd MIN-COOLDOWN) (<= cd MAX-CONFIG-COOLDOWN)))))
+
+;; --- 6. the onboard latch never goes backwards ---------------------------
+(define-read-only (invariant-pubkey-initialized-monotonic)
+  (var-get pubkey-initialized))
+
+;; --- 7. period counters never exceed their thresholds -------------------
+(define-read-only (invariant-spent-within-thresholds)
+  (let ((s (var-get spent-this-period)) (c (var-get wallet-config)))
+    (and (<= (get stx s) (get stx-threshold c))
+         (<= (get sbtc s) (get sbtc-threshold c)))))
+
+;; --- 8. V16-ONLY: the wallet can never whitelist ITSELF as an extension --
+;; extension-call runs the extension under (with-all-assets-unsafe). If the wallet
+;; could whitelist itself, that clause would be pointed back at its own surface.
+(define-read-only (invariant-self-never-whitelisted-extension)
+  (not (default-to false (map-get? whitelisted-extensions current-contract))))
+
+;; --- 9. V16-ONLY: a pending init is empty or names a non-contract admin --
+(define-read-only (invariant-pending-init-sane)
+  (let ((p (var-get pending-init-admin)))
+    (or (is-eq (get proposed-at p) u0)
+        (not (is-eq (get new-admin p) current-contract)))))
+
+;; --- 10. V16-ONLY: the staked position never exceeds what could fund it --
+(define-read-only (invariant-staked-not-above-funded)
+  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
+    info (<= (get amount-ustx info) (+ (stx-get-balance current-contract)
+                                       (get locked (stx-account current-contract))))
+    true))
+
+;; --- 11. V16-ONLY: a position always points at the Juice signer ---------
+(define-read-only (invariant-signer-is-juice)
+  (match (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract)
+    info (is-eq (get signer info)
+                'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
+    true))
+
+;; --- an operation is never both executed AND vetoed -------------------------
+;; execute-pending-* and veto-operation both mutate the same map. If a sequence could
+;; set both flags, "vetoed" would stop meaning "this can never pay out". Maps cannot be
+;; iterated in a read-only, so this checks the op-ids RV actually reaches.
+(define-read-only (invariant-no-op-executed-and-vetoed)
+  (fold check-op-flags (list u0 u1 u2 u3 u4) true))
+
+(define-private (check-op-flags (op-id uint) (acc bool))
+  (and acc
+    (match (map-get? pending-operations op-id)
+      op (not (and (get executed op) (get vetoed op)))
+      true)))
