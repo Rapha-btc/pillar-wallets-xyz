@@ -1,45 +1,90 @@
 
-(define-constant DEPLOYER tx-sender)
+;; fakfun-wallet-core-v2
+;; The verified-contract registry + whitelist decide which wallet code is
+;; "canonical". In v1 these were gated on a single deployer EOA constant. Here
+;; they are gated on a settable `admin` data-var: it starts as the deployer and
+;; can be handed off (2-step, timelocked propose/confirm) to a multisig -- an
+;; SM... standard-multisig principal. The multisig lives one layer up; this
+;; contract only checks
+;; tx-sender == admin. register-wallet and every log-* are unchanged.
+
 (define-constant err-not-authorized (err u6001))
 (define-constant err-invalid-contract-hash (err u6002))
+(define-constant err-in-cooldown (err u6003))
+(define-constant err-no-pending-admin (err u6004))
+
+(define-constant ADMIN-COOLDOWN u144) ;; burn blocks (~1 day) timelock on admin handoff
 
 (define-map whitelisted-wallets principal bool)
-
 (define-data-var open-access bool false)
-
 (define-map verified-contracts principal (buff 32))
 
+;; Admin starts as the deployer; hand off to a multisig SM... address later via
+;; a 2-step, timelocked transfer: propose -> wait 144 burn blocks -> the new
+;; admin confirms (accepts).
+(define-data-var admin principal tx-sender)
+(define-data-var pending-admin (optional principal) none)
+(define-data-var admin-proposed-at uint u0)
+
+(define-read-only (get-admin) (var-get admin))
+(define-read-only (get-pending-admin) (var-get pending-admin))
+(define-read-only (get-admin-proposed-at) (var-get admin-proposed-at))
+
 (define-read-only (is-whitelisted (wallet principal))
-  (or (var-get open-access) (default-to false (map-get? whitelisted-wallets wallet)))
-)
+  (or (var-get open-access) (default-to false (map-get? whitelisted-wallets wallet))))
 
 (define-read-only (get-verified-contract-hash (contract principal))
-  (map-get? verified-contracts contract)
-)
+  (map-get? verified-contracts contract))
 
 (define-read-only (get-contract-hash (contract principal))
-  (contract-hash? contract)
-)
+  (contract-hash? contract))
+
+;; Step 1: current admin proposes a new admin. Starts the timelock.
+(define-public (propose-admin (new-admin principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-authorized)
+    (var-set pending-admin (some new-admin))
+    (var-set admin-proposed-at burn-block-height)
+    (print { event: "admin-proposed", pending-admin: new-admin, proposed-at: burn-block-height })
+    (ok true)))
+
+;; Step 2: after the cooldown, the PENDING admin accepts. Requiring the new admin
+;; to confirm proves it controls the key (no bricking to a dead address) and
+;; enforces the 144-block delay.
+(define-public (confirm-admin)
+  (let ((pending (unwrap! (var-get pending-admin) err-no-pending-admin)))
+    (asserts! (is-eq tx-sender pending) err-not-authorized)
+    (asserts! (>= burn-block-height (+ (var-get admin-proposed-at) ADMIN-COOLDOWN)) err-in-cooldown)
+    (var-set admin pending)
+    (var-set pending-admin none)
+    (var-set admin-proposed-at u0)
+    (print { event: "admin-confirmed", admin: pending })
+    (ok true)))
+
+;; Current admin can abort a pending handoff before it is confirmed.
+(define-public (cancel-admin-transfer)
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-authorized)
+    (var-set pending-admin none)
+    (var-set admin-proposed-at u0)
+    (print { event: "admin-transfer-cancelled" })
+    (ok true)))
 
 (define-public (set-open-access (open bool))
   (begin
-    (asserts! (is-eq tx-sender DEPLOYER) err-not-authorized)
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-authorized)
     (var-set open-access open)
-    (ok true)
-  )
-)
+    (ok true)))
 
 (define-public (whitelist-wallet (wallet principal) (allowed bool))
   (begin
-    (asserts! (is-eq tx-sender DEPLOYER) err-not-authorized)
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-authorized)
     (map-set whitelisted-wallets wallet allowed)
-    (ok true)
-  )
-)
+    (ok true)))
 
 (define-public (set-verified-contract (contract principal) (hash (optional (buff 32))))
   (begin
-    (asserts! (is-eq tx-sender DEPLOYER) err-not-authorized)
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-authorized)
     (match hash
       provided-hash (begin
         (map-set verified-contracts contract provided-hash)
@@ -57,7 +102,7 @@
 
 (define-public (remove-verified-contract (contract principal))
   (begin
-    (asserts! (is-eq tx-sender DEPLOYER) err-not-authorized)
+    (asserts! (is-eq tx-sender (var-get admin)) err-not-authorized)
     (map-delete verified-contracts contract)
     (print { event: "verified-contract-removed", contract: contract })
     (ok true)
@@ -418,11 +463,11 @@
   )
 )
 
-(define-public (log-stake-stx-stacking-dao (stx-amount uint))
+(define-public (log-stake-stx (stx-amount uint))
   (begin
     (asserts! (is-whitelisted contract-caller) err-not-authorized)
     (print {
-      event: "stake-stx-stacking-dao",
+      event: "stake-stx",
       wallet: contract-caller,
       stx-amount: stx-amount
     })
