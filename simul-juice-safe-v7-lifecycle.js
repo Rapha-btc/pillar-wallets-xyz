@@ -110,7 +110,7 @@ const SBTC_FUND = 5_000;
 const GAS_SATS = 20n;
 const GAS_TOPUP_USTX = 50_000_000;
 const REWARD_SATS = 2_000_000;   // sBTC sent to pox-5 = the cycle's rewards
-const REWARD_CYCLE = 141;
+const REWARD_CYCLE = 142;
 // REAL Juice stakers with live cycle-141 shares, discovered on chain from
 // pox-5 stake/stake-update calls and the signer's set-og list. Paid in the
 // same fold as the safe, to exercise pay-stx-stakers across a real list
@@ -137,7 +137,7 @@ const FUND_USTX = 2_800_000_000;   // whale holds ~3139 STX; locks are real now
 const STAKE_USTX = 1_000_000_000;
 const TOPUP_USTX = 200_000_000;
 const EXTEND_CYCLES = 1;   // 96 is the max; post-advance num-cycles is 95
-const ADVANCE_BLOCKS = 1360; // 1346 to the boundary + margin, lands in cycle 141
+const ADVANCE_BLOCKS = 1900; // 1346 to the boundary + margin, lands in cycle 141
 const STX_THRESHOLD = 100_000_000;
 const SBTC_THRESHOLD = 100_000;
 
@@ -299,12 +299,12 @@ async function main() {
   // get-staker-unclaimed-rewards-for-cycle takes FOUR args in the order
   // (signer, reward-cycle, bond-index, staker) -- the pool first, staker last.
   evalc("E4 our shares in cycle 141",
-    `(contract-call? '${POX5} get-staker-shares-staked-for-cycle '${WALLET} u141 none 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)`,
+    `(contract-call? '${POX5} get-staker-shares-staked-for-cycle '${WALLET} u142 none 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)`,
     "shares", WALLET);
   evalc("E4 pool TOTAL shares cycle 141",
-    `(contract-call? '${POX5} get-total-shares-staked-for-cycle u141 none)`, "tot", WALLET);
+    `(contract-call? '${POX5} get-total-shares-staked-for-cycle u142 none)`, "tot", WALLET);
   evalc("E4 unclaimed rewards cycle 141",
-    `(contract-call? '${POX5} get-staker-unclaimed-rewards-for-cycle 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer u141 none '${WALLET})`,
+    `(contract-call? '${POX5} get-staker-unclaimed-rewards-for-cycle 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer u142 none '${WALLET})`,
     "rew", WALLET);
 
   // ---- REWARD PAYOUT ------------------------------------------------------

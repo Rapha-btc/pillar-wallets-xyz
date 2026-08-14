@@ -18,13 +18,14 @@ invariant fuzzing. Where it runs, it runs against the DEPLOYED bytes.
 Each onboards and exercises the live `SPV9K21….juice-safe-v7` on the stxer
 mainnet fork. Run with `node <file>.js`.
 
-- `simul-juice-safe-v7-lifecycle.js` - **59 / 62**. Full wallet lifecycle:
+- `simul-juice-safe-v7-lifecycle.js` - **62 / 62**. Full wallet lifecycle:
   onboard, STX/sBTC transfers, under/over-threshold routing, the passkey 2FA
   fast-path, the cooldown path, staking locks, top-ups, unstake across the
-  cycle boundary, gas-station accounting. The 3 failures are the cycle-141
-  reward-payout assertions - the fork is now well past cycle 141, so the safe
-  holds no cycle-141 shares. **The v6 lifecycle fails the identical 3 on the
-  same fork (59/62), so this is time drift, not a v7 regression - full parity.**
+  cycle boundary, gas-station accounting, and the pox-5 reward payout to the
+  safe + the real Juice stakers. The reward assertions are pinned to the
+  currently-active reward cycle (142 at the current fork height) and the advance
+  crosses into it; bump REWARD_CYCLE / ADVANCE_BLOCKS forward when the fork rolls
+  to a later cycle (the v6 lifecycle has the same time-pinning).
 
 - `simul-juice-safe-v7-recovery.js` - **16 / 16**. Inactivity + recovery-address
   path (propose/confirm recovery, recover-inactive-wallet).
