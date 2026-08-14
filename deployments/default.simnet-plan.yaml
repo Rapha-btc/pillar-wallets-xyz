@@ -121,6 +121,16 @@ plan:
   - id: 4
     transactions:
     - transaction-type: emulated-contract-publish
+      contract-name: clarity-5-webauthn-v4
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: .cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: fakfun-wallet-core-v2
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: .cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
       contract-name: juice-pool-stx-signer
       emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
       path: .cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer.clar
@@ -235,6 +245,9 @@ plan:
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/juice-safe-v2.clar
       clarity-version: 4
+    epoch: '4.0'
+  - id: 5
+    transactions:
     - transaction-type: emulated-contract-publish
       contract-name: juice-safe-v3
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
@@ -245,9 +258,6 @@ plan:
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/juice-safe-v4.clar
       clarity-version: 6
-    epoch: '4.0'
-  - id: 5
-    transactions:
     - transaction-type: emulated-contract-publish
       contract-name: juice-safe-v5
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
@@ -257,6 +267,11 @@ plan:
       contract-name: juice-safe-v6
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/juice-safe-v6.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: juice-safe-v7
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/juice-safe-v7.clar
       clarity-version: 6
     - transaction-type: emulated-contract-publish
       contract-name: mm-safe-auth-helpers-v1
