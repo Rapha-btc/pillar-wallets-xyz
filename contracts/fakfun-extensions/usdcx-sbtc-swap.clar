@@ -85,22 +85,24 @@
           max-steps: uint,
         } payload)
         ERR-BAD-PAYLOAD))
+      (amt (get amount cmd))
+      (min (get min-out cmd))
       (action (get action cmd)))
-    (asserts! (> (get amount cmd) u0) ERR-ZERO-AMOUNT)
-    (asserts! (> (get min-out cmd) u0) ERR-ZERO-MIN-OUT)
+    (asserts! (> amt u0) ERR-ZERO-AMOUNT)
+    (asserts! (> min u0) ERR-ZERO-MIN-OUT)
     (if (is-eq action "to-sbtc")
       ;; USDCx is the pool's y side, sBTC its x side: y-for-x.
       (begin
         (try! (contract-call? DLMM-ROUTER swap-y-for-x-simple-range-multi
           POOL SBTC USDCX
-          (get amount cmd) (get min-out cmd) (get max-steps cmd)
+          amt min (get max-steps cmd)
         ))
         (ok true))
       (if (is-eq action "to-usdcx")
         (begin
           (try! (contract-call? DLMM-ROUTER swap-x-for-y-simple-range-multi
             POOL SBTC USDCX
-            (get amount cmd) (get min-out cmd) (get max-steps cmd)
+            amt min (get max-steps cmd)
           ))
           (ok true))
         ERR-BAD-ACTION))))
