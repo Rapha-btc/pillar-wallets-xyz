@@ -50,6 +50,10 @@
 (define-constant err-threshold-exceeded (err u4018))
 (define-constant err-cooldown-too-long (err u4019))
 (define-constant err-cooldown-too-short (err u4031))
+;; v18: smart-* may only route through a router blessed in the central
+;; fakfun-smart-router-registry -- an unknown trait-conforming contract could
+;; pocket the input the wallet's allowance releases.
+(define-constant err-router-not-approved (err u4033))
 (define-constant err-no-pending-transfer (err u4020))
 (define-constant err-already-initialized (err u4022))
 (define-constant err-token-locked (err u4023))
@@ -1251,6 +1255,14 @@
     }))
     (gas (optional <gas-trait>))
   )
+  (begin
+    ;; Gate BOTH auth paths: the router must be blessed centrally. Bounds a
+    ;; phished signature / malicious front end to a known-good router.
+    (asserts!
+      (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-smart-router-registry
+        is-approved-router smart)
+      err-router-not-approved)
   (match sig-auth
     sig-auth-details (begin
       (try! (is-authorized (some {
@@ -1281,6 +1293,7 @@
       (try! (is-authorized none))
       (ok true)
     )
+  )
   )
 )
 
