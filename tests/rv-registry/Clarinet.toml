@@ -1,0 +1,18 @@
+[project]
+name = "fakfun-smart-router-registry-rv"
+description = "Rendezvous fuzzing of fakfun-smart-router-registry"
+authors = []
+telemetry = false
+cache_dir = "../../.cache"
+
+[repl.analysis]
+passes = []
+
+# BUILD ARTIFACT: contract + invariants, produced by ./build.sh. Editing the
+# invariants alone leaves a stale target. The registry has no external
+# requirements -- it only references router principals as map keys, which do
+# not need to exist.
+[contracts.fakfun-smart-router-registry]
+path = "contracts/fakfun-smart-router-registry.clar"
+clarity_version = 5
+epoch = "4.0"
