@@ -26,22 +26,29 @@ pre-deploy proof.
 
 ## New contracts (deploy order matters)
 
-| # | Contract | Purpose |
-|---|----------|---------|
-| 1 | `faktory-smart-trait-v1.clar` | Shared interface of the 9 smart routers. Response tuples verified identical across all routers. |
-| 2 | `smart-execute-auth-helper.clar` | `build-smart-execute-hash` — the smart-trade challenge. A dedicated contract because on-chain `auth-helpers-v8/v9/v10` already exist **without** this builder. |
-| 3 | `fakfun-extensions/usdcx-sbtc-swap.clar` | USDCx↔sBTC via Bitflow DLMM router, both directions. |
-| 4 | `fakfun-wallet-v18.clar` | The wallet template. Clarity **6** (uses `with-staking`). References 1–3. |
+| # | Contract | Clarity | Purpose |
+|---|----------|---------|---------|
+| 1 | `faktory-smart-trait-v1.clar` | 5 | Shared interface of the 9 smart routers. Response tuples verified identical across all routers. |
+| 2 | `smart-execute-auth-helper.clar` | 5 | `build-smart-execute-hash` — the smart-trade challenge. A dedicated contract because on-chain `auth-helpers-v8/v9/v10` already exist **without** this builder. |
+| 3 | `fakfun-smart-router-registry.clar` | 5 | Central allowlist of approved routers (seeds the 9 live routers at deploy). v18 gates every smart trade on it. See `README-smart-router-registry.md` for the one-way design decision. |
+| 4 | `fakfun-extensions/usdcx-sbtc-swap.clar` | 5 | USDCx↔sBTC via Bitflow DLMM router, both directions. |
+| 5 | `fakfun-wallet-v18.clar` | **6** (uses `with-staking`) | The wallet template. References 1–4. |
 
-Deploy 1→4 under `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22`.
+Deploy 1→5 under `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22`. The registry (3)
+must be live before v18 (5), which calls it on every smart trade.
+
+`mock-smart-router.clar` is **sim-only** (a trait-conforming but unapproved
+router used to prove the registry rejects unknown routers) — never deploy it.
 
 ## Coverage — `simul-v18-smart-swap.js`
 
-Latest run: **46 passed / 1 (cosmetic) — 9/9 tokens, both sides, both funding
-assets, both swap directions.** The single "fail" is a reporting artifact on
-the `advance-blocks` step (no tx result to read); it ran fine.
+Latest run: **47 passed / 1 (cosmetic) — 9/9 tokens both sides on both funding
+assets, both swap directions, passkey + admin paths, plus the registry gate
+(approved routers pass, an unapproved router is rejected `u4033`).** The single
+"fail" is a reporting artifact on the `advance-blocks` step (no tx result to
+read); it ran fine.
 
-Latest sim: <https://stxer.xyz/simulations/mainnet/150b5efaf5a6c7b45ce74fe5db2be169>
+Latest sim: <https://stxer.xyz/simulations/mainnet/2bcd38ad181f2d0cb306c9fd3f188c99>
 
 What it drives, on a real mainnet fork:
 
@@ -56,6 +63,9 @@ What it drives, on a real mainnet fork:
   (ADMIN path), plus one **passkey-signed** `smart-buy-sbtc` (PEPE) proving
   `build-smart-execute-hash` end-to-end.
 - **USDCx↔sBTC** both directions: `to-sbtc` passkey-signed, `to-usdcx` admin.
+- **Registry gate:** the registry seeds the 9 at deploy (eval confirms
+  `pepe-smart-faktory` approved, `mock-smart-router` not), and an unapproved
+  trait-conforming `mock-smart-router` buy is rejected `(err u4033)`.
 
 ### Test-parameter notes
 

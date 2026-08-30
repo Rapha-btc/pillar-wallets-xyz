@@ -167,6 +167,18 @@ async function main() {
   });
   plan.push({ kind: "deploy", label: "deploy smart-execute-auth-helper" });
   b.withSender(DEPLOYER).addContractDeploy({
+    contract_name: "fakfun-smart-router-registry",
+    source_code: read("fakfun-smart-router-registry.clar"),
+    clarity_version: ClarityVersion.Clarity5,
+  });
+  plan.push({ kind: "deploy", label: "deploy fakfun-smart-router-registry (seeds 9)" });
+  b.withSender(DEPLOYER).addContractDeploy({
+    contract_name: "mock-smart-router",
+    source_code: read("mock-smart-router.clar"),
+    clarity_version: ClarityVersion.Clarity5,
+  });
+  plan.push({ kind: "deploy", label: "deploy mock-smart-router (unapproved)" });
+  b.withSender(DEPLOYER).addContractDeploy({
     contract_name: "usdcx-sbtc-swap",
     source_code: read("fakfun-extensions/usdcx-sbtc-swap.clar"),
     clarity_version: ClarityVersion.Clarity5,
@@ -178,6 +190,11 @@ async function main() {
     clarity_version: CLARITY_6,
   });
   plan.push({ kind: "deploy", label: "deploy fakfun-wallet-v18" });
+  // Registry seeded the 9 routers at deploy; sanity-read two.
+  evalc("registry: pepe-smart-faktory approved?",
+    `(is-approved-router '${DEPLOYER}.pepe-smart-faktory)`, `${DEPLOYER}.fakfun-smart-router-registry`);
+  evalc("registry: mock-smart-router approved? (expect false)",
+    `(is-approved-router '${DEPLOYER}.mock-smart-router)`, `${DEPLOYER}.fakfun-smart-router-registry`);
 
   // ── Verify + onboard + seat OWNER as admin ──
   call("verify v18 in core-v2", DEPLOYER, WALLET_CORE,
@@ -275,6 +292,14 @@ async function main() {
     uintCV(SBTC_PER_BUY), uintCV(1), uintCV(FAK), boolCV(false),
     someCV(sigAuth(200, key.pubKeyHex, sPepe)), noneCV(),
   ], okre);
+
+  // NEGATIVE: an unapproved (but trait-conforming) router must be rejected by
+  // the registry gate, even from the admin. err-router-not-approved = u4033.
+  call("UNAPPROVED mock-smart-router buy -> u4033 (ADMIN)", OWNER, FIXED, "smart-buy-sbtc", [
+    contractPrincipalCV(DEPLOYER, "mock-smart-router"),
+    uintCV(SBTC_PER_BUY), uintCV(1), uintCV(FAK), boolCV(false),
+    noneCV(), noneCV(),
+  ], /\(err u4033\)/);
 
   console.log("=== v18 smart-router + USDCx swap harness ===\n");
   const id = await b.run();
