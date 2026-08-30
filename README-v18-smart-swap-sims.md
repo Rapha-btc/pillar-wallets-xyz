@@ -1,5 +1,27 @@
 # fakfun-wallet-v18 — smart-router trading + USDCx↔sBTC swap
 
+## DEPLOYED on mainnet (2026-08-29) + verified
+
+All 5 live under `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22`:
+
+| Contract | Deploy tx |
+|----------|-----------|
+| `faktory-smart-trait-v1` | `3d535a68…24b96c` |
+| `smart-execute-auth-helper` | `3712cc38…40e48a` |
+| `fakfun-smart-router-registry` | `83a3da3d…72b405` |
+| `usdcx-sbtc-swap` | `b8e0c167…3534dd2` |
+| `fakfun-wallet-v18` | `65ce4e21…0e31fca` |
+
+`simul-v18-verify-deployed.js` forks the tip and runs the full scenario
+against the **deployed bytecode** (only the sim-only mock is deployed
+in-fork): **47/1** (the 1 is the cosmetic advance-blocks artifact).
+Verified sim: <https://stxer.xyz/simulations/mainnet/6ba841f8a852abdb142427afcca59a4f>
+
+Still open before real wallets onboard: register the v18 template hash in
+the wallet registry, and point the SDK/FE signer at `build-smart-execute-hash`.
+
+
+
 v18 extends v17 with two capabilities, both validated on a **stxer mainnet
 fork** (`simul-v18-smart-swap.js`). Nothing here is deployed yet; this is the
 pre-deploy proof.
