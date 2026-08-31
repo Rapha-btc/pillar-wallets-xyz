@@ -30,6 +30,14 @@ Details: [README-clarinet-rv.md](README-clarinet-rv.md) for the safe,
 [README-v16-signer-test-plan.md](README-v16-signer-test-plan.md) for the wallet and the
 signer.
 
+**Latest template — v19** (extension registry + instant passkey whitelist +
+`usdcx-sbtc-swap-v2` with sponsor broadcast fee):
+[README-v19-registry-sims.md](README-v19-registry-sims.md). Stxer
+mainnet-fork proof, **54/0 green**:
+<https://stxer.xyz/simulations/mainnet/749231b435c245f86ce81775cce0b3b7>
+(`simul-v19-registry-swap.js`). v18 (deployed) is covered by
+[README-v18-smart-swap-sims.md](README-v18-smart-swap-sims.md).
+
 ---
 
 ## Why pillar-wallets
