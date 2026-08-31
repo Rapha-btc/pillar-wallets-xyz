@@ -693,8 +693,6 @@
   )
 )
 
-;; no per-wallet cooldown: the vetting cooldown already ran in the central
-;; registry; passkey signature stays mandatory
 (define-public (whitelist-extension-fast
     (extension principal)
     (sig-auth {

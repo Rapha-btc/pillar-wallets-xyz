@@ -1,10 +1,3 @@
-;; Central registry of vetted pillar-wallet extensions.
-;; The whitelisting cooldown lives HERE (propose -> 144 burn blocks -> confirm),
-;; done once by the registry owner. Wallets can then whitelist a registry-approved
-;; extension instantly (passkey 2FA only, no per-wallet cooldown) via
-;; whitelist-extension-fast. Non-registry extensions keep the per-wallet
-;; pending-operation cooldown path.
-
 (define-constant COOLDOWN u144)
 
 (define-constant ERR-NOT-OWNER (err u7101))
@@ -81,7 +74,6 @@
   )
 )
 
-;; revocation is immediate: pulling a bad extension must not wait out a cooldown
 (define-public (revoke-extension (extension principal))
   (begin
     (asserts! (is-eq tx-sender (var-get contract-owner)) ERR-NOT-OWNER)

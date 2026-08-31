@@ -1,7 +1,3 @@
-;; v11: hash builder for the registry-gated instant extension whitelist.
-;; New topic so a fast-whitelist signature can never replay into
-;; execute-pending-whitelist (v7 hash carries op-id) or vice versa.
-
 (define-constant SIP018_MSG_PREFIX 0x534950303138)
 
 (define-read-only (get-domain-hash)

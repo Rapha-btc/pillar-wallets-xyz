@@ -1,7 +1,7 @@
 # fakfun-wallet-v19 — extension registry + fast whitelist + usdcx-sbtc-swap-v2
 
 **Status: NOT deployed. Pre-deploy proof on a stxer mainnet fork.**
-Verified sim, **54/0**: <https://stxer.xyz/simulations/mainnet/749231b435c245f86ce81775cce0b3b7>
+Verified sim, **54/0** (re-verified on the comment-stripped deploy sources): <https://stxer.xyz/simulations/mainnet/860d93065011fcf7083b8fccc3f2195b>
 (`simul-v19-registry-swap.js`)
 
 ## What v19 adds over v18

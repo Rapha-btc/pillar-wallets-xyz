@@ -1,9 +1,3 @@
-;; usdcx-sbtc-swap-v2: same DLMM swap as v1, but pays the sponsor a broadcast
-;; fee on the sBTC leg. to-usdcx takes the fee from the sBTC input (swaps
-;; amount - fee); to-sbtc takes it from the sBTC output (after the swap).
-;; Fee defaults to 20 sats, capped at MAX-GAS (5,000 sats), changeable by the
-;; sponsor only through a 144 burn-block propose/confirm cooldown.
-
 (impl-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.extension-trait.extension-trait)
 
 (define-constant DLMM-ROUTER 'SM1FKXGNZJWSTWDWXQZJNF7B5TV5ZB235JTCXYXKD.dlmm-swap-router-v-1-1)
@@ -113,7 +107,6 @@
     (asserts! (> amt u0) ERR-ZERO-AMOUNT)
     (asserts! (> min u0) ERR-ZERO-MIN-OUT)
     (if (is-eq action "to-sbtc")
-      ;; sBTC is the output: swap first, then take the fee from the output
       (begin
         (asserts! (> min gas) ERR-AMOUNT-BELOW-FEE)
         (try! (contract-call? DLMM-ROUTER swap-y-for-x-simple-range-multi POOL SBTC
@@ -123,7 +116,6 @@
         (ok true)
       )
       (if (is-eq action "to-usdcx")
-        ;; sBTC is the input: take the fee off the input, swap the rest
         (begin
           (asserts! (> amt gas) ERR-AMOUNT-BELOW-FEE)
           (try! (pay-sponsor gas))
