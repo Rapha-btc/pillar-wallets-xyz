@@ -230,3 +230,13 @@ epoch = "4.0"
 path = "contracts/juice-safe-v7.clar"
 clarity_version = 6
 epoch = "4.0"
+
+[contracts.juice-autostake-safe-auth-helpers-v1]
+path = "contracts/juice-autostake-safe-auth-helpers-v1.clar"
+clarity_version = 4
+epoch = "latest"
+
+[contracts.juice-autostake-safe]
+path = "contracts/juice-autostake-safe.clar"
+clarity_version = 6
+epoch = "4.0"

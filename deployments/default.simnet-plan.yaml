@@ -64,6 +64,11 @@ plan:
   - id: 0
     transactions:
     - transaction-type: emulated-contract-publish
+      contract-name: extension-trait
+      emulated-sender: SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9
+      path: .cache/requirements/SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.extension-trait.clar
+      clarity-version: 1
+    - transaction-type: emulated-contract-publish
       contract-name: nft-trait
       emulated-sender: SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9
       path: .cache/requirements/SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.clar
@@ -221,6 +226,16 @@ plan:
       path: contracts/jing-mm-safe.clar
       clarity-version: 4
     - transaction-type: emulated-contract-publish
+      contract-name: juice-autostake-safe
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/juice-autostake-safe.clar
+      clarity-version: 6
+    - transaction-type: emulated-contract-publish
+      contract-name: juice-autostake-safe-auth-helpers-v1
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/juice-autostake-safe-auth-helpers-v1.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
       contract-name: juice-pox5-stake
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/fakfun-extensions/juice-pox5-stake.clar
@@ -235,6 +250,9 @@ plan:
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/juice-safe-v0.clar
       clarity-version: 4
+    epoch: '4.0'
+  - id: 5
+    transactions:
     - transaction-type: emulated-contract-publish
       contract-name: juice-safe-v1
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
@@ -245,9 +263,6 @@ plan:
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
       path: contracts/juice-safe-v2.clar
       clarity-version: 4
-    epoch: '4.0'
-  - id: 5
-    transactions:
     - transaction-type: emulated-contract-publish
       contract-name: juice-safe-v3
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
