@@ -27,6 +27,7 @@
 (define-constant err-token-locked (err u4023))
 
 (define-constant err-zero-amount (err u4026))
+(define-constant err-not-staking (err u4040))
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-GAS-CEILING u10000)
@@ -43,9 +44,13 @@
 (define-constant POX5 'SP000000000000000000002Q6VF78.pox-5)
 
 (define-constant JUICE-SIGNER
-  'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
+  'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)
 
 (define-constant NUM-CYCLES u96)
+
+;; The keeper may only `restake`: add unlocked STX (signer rewards) to the
+;; current Juice stake. Default chavita.btc; the owner can change it.
+(define-data-var keeper principal 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22)
 
 (define-data-var last-activity-block uint burn-block-height)
 (define-data-var recovery-address principal 'SP000000000000000000002Q6VF78)
@@ -1482,6 +1487,103 @@
   )
 )
 
+(define-read-only (get-keeper)
+  (var-get keeper)
+)
+
+(define-public (set-keeper
+    (new-keeper principal)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1
+            build-set-keeper-hash {
+            auth-id: (get auth-id sig-auth-details),
+            keeper: new-keeper,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (print {
+      event: "set-keeper",
+      old: (var-get keeper),
+      new: new-keeper,
+    })
+    (var-set keeper new-keeper)
+    (ok true)
+  )
+)
+
+;; Keeper only. Adds ALL unlocked STX in the safe to the current Juice stake
+;; and rolls the lock back to NUM-CYCLES (96, the pox-5 max) from next cycle.
+;; The keeper picks nothing: no amount, no signer, no lock length. It cannot
+;; move STX out or change the signer.
+;; Rolling costs the owner nothing: pox-5 `unstake` works in any cycle and
+;; unlocks after the next one. After `unstake` pox-5 leaves 0 cycles to run;
+;; restake refuses that case, so the keeper never re-locks a safe that is
+;; leaving. Once the lock ends, pox-5 has no position and refuses too.
+;; No update-activity: keeper calls must not hold off inactivity recovery.
+(define-public (restake)
+  (let (
+      (amount (get unlocked (stx-account current-contract)))
+      (info (unwrap! (contract-call? POX5 get-staker-info current-contract)
+        err-not-staking
+      ))
+      (current-cycle (contract-call? POX5 current-pox-reward-cycle))
+      (unlock-cycle (+ (get first-reward-cycle info) (get num-cycles info)))
+      (target-unlock-cycle (+ current-cycle u1 NUM-CYCLES))
+      (cycles-to-extend (if (> target-unlock-cycle unlock-cycle)
+        (- target-unlock-cycle unlock-cycle)
+        u0
+      ))
+    )
+    (asserts! (is-eq contract-caller (var-get keeper)) err-unauthorised)
+    (asserts! (> unlock-cycle (+ current-cycle u1)) err-not-staking)
+    (asserts! (or (> amount u0) (> cycles-to-extend u0)) err-zero-amount)
+    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+      log-stake-stx amount
+    ))
+    (try! (as-contract? ((with-staking (+ (locked-ustx) amount)))
+      (try! (contract-call? POX5 stake-update
+        JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount none
+      ))
+    ))
+    (print {
+      event: "restake",
+      keeper: contract-caller,
+      amount: amount,
+      cycles-to-extend: cycles-to-extend,
+    })
+    (ok {
+      amount: amount,
+      cycles-to-extend: cycles-to-extend,
+    })
+  )
+)
+
 (map-set admins 'SP000000000000000000002Q6VF78 true)
 
 (define-public (onboard
@@ -1520,7 +1622,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v7
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe
       ))
     ))
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
