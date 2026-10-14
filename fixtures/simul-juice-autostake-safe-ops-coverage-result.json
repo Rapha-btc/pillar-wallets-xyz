@@ -1,0 +1,1042 @@
+{
+ "simulation": "https://stxer.xyz/simulations/mainnet/b6fd12bda7695aa13138daabdb73a613",
+ "passed": 204,
+ "total": 204,
+ "sources": {
+  "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe": {
+   "form": "deploy-bytes-mv7dfb",
+   "bytes": 51552,
+   "sha256": "dda5367c1800f6f541840607ba9b5437f479580d51cd3654c12270024ae28a3d",
+   "clarity": 6
+  },
+  "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1": {
+   "form": "deploy-bytes-mv7dfb",
+   "bytes": 593,
+   "sha256": "aabf3ba32c5602b83693f1581adb7a22a2e180df2306673b23f94c61fa61bd70",
+   "clarity": 4
+  }
+ },
+ "gasSats": "20",
+ "checks": [
+  {
+   "label": "deploy jing-core-v6 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy jing-ladder-v1 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy markets-sbtc-stx-jing-v6-3 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy swap-router-sbtc-stx-jing-v5-3 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-swap-vault-trait-v2 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-sbtc-autoswap (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-pool-sbtc-signer (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-autostake-safe-auth-helpers-v1 (Clarity 4, sha256 aabf3ba32c56)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-autostake-safe (Clarity 6, sha256 dda5367c1800)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z0 toggle-token-lock before onboard (no owner) -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "Z0 confirm-recovery before anything is proposed -> u4010",
+   "actual": "(err u4010)",
+   "passed": true
+  },
+  {
+   "label": "Z1 core-v2 set-verified-contract(safe)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z2 fund 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z2 fund 1200000 sats sBTC",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z2 fund 1000000 LEO",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z2 NFT owner sends bitcoin-pepe #5",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z2 NFT owner sends bitcoin-pepe #100",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Z3 onboard",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "P0 confirm-max-gas-amount with nothing proposed -> u4016",
+   "actual": "(err u4016)",
+   "passed": true
+  },
+  {
+   "label": "P1 RANDOM propose-max-gas-amount -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "P2 propose above MAX-GAS-CEILING (10001) -> u4018",
+   "actual": "(err u4018)",
+   "passed": true
+  },
+  {
+   "label": "P3 owner proposes max gas 2000",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "P4 confirm inside the cooldown -> u4012",
+   "actual": "(err u4012)",
+   "passed": true
+  },
+  {
+   "label": "P5 confirm signed for another amount (bad signature) -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "P6 confirm by an unregistered passkey -> u4004",
+   "actual": "(err u4004)",
+   "passed": true
+  },
+  {
+   "label": "C0 set-wallet-config with nothing signaled -> u4016",
+   "actual": "(err u4016)",
+   "passed": true
+  },
+  {
+   "label": "C1 RANDOM signal-config-change -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "C2 signal cooldown 143 (< MIN-COOLDOWN) -> u4031",
+   "actual": "(err u4031)",
+   "passed": true
+  },
+  {
+   "label": "C3 signal cooldown 4033 (> MAX-CONFIG-COOLDOWN) -> u4019",
+   "actual": "(err u4019)",
+   "passed": true
+  },
+  {
+   "label": "C4 owner signals 200 STX / 200000 sats / 150",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C5 set-wallet-config inside the cooldown -> u4012",
+   "actual": "(err u4012)",
+   "passed": true
+  },
+  {
+   "label": "T1 RANDOM toggle-token-lock true -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "T2 owner turns the lock on (admin path)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "T3 owner turns the lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "T4 RANDOM turns the lock off -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "S1 RANDOM stx-transfer -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "S2 owner stx-transfer 10 STX (under)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "S3 passkey stx-transfer 10 STX with memo + gas (under)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "S4 passkey stx-transfer signed under example.com -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "S5 owner stx-transfer 150 STX (over) -> op0 queued, nothing moves",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "S6 passkey stx-transfer 150 STX (over) -> op1 queued (passkey-created)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "S7 owner stx-transfer 150 STX -> op2",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "S8 owner stx-transfer 150 STX -> op3",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "E1 execute-pending-stx-transfer unknown op 99 -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "E2 execute-pending-stx-transfer op0 before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "V1 RANDOM veto op2 -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "V2 veto unknown op 99 -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "V3 passkey veto op2 with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "N1 execute-stx-now op1 (passkey-created) -> u4003",
+   "actual": "(err u4003)",
+   "passed": true
+  },
+  {
+   "label": "N2 execute-stx-now op0 with a sig for op3 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "N3 execute-stx-now op2 (vetoed) -> u4015",
+   "actual": "(err u4015)",
+   "passed": true
+  },
+  {
+   "label": "N4 execute-stx-now op3 with gas: 150 STX moves before the cooldown",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "N5 execute-stx-now op3 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "N6 execute-pending-stx-transfer op3 (executed) -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "V4 veto op3 (executed) -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "B1 RANDOM sip010-transfer -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "B2 owner sip010-transfer 10000 sats sBTC (under)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B3 passkey sip010-transfer 10000 sats sBTC with gas (under)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B4 owner sip010-transfer 1000 LEO (not sBTC: no threshold)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B5 passkey sip010-transfer 1000 LEO",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B6 passkey sip010-transfer signed for sBTC, sent with LEO -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "B7 owner sip010-transfer 150000 sats (over) -> op4",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B8 passkey sip010-transfer 150000 sats (over) -> op5 (passkey-created)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B9 owner sip010-transfer 150000 sats -> op6",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "ES1 execute-pending-sbtc-transfer unknown op 99 -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "ES2 execute-pending-sbtc-transfer on an STX op (op0) -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "ES3 execute-pending-sbtc-transfer op4 before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "ES4 execute-pending-stx-transfer on an sBTC op (op4) -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "V5 owner vetoes op6 (admin path)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "NS1 execute-sbtc-now op5 (passkey-created) -> u4003",
+   "actual": "(err u4003)",
+   "passed": true
+  },
+  {
+   "label": "NS2 execute-sbtc-now op6 (vetoed) -> u4015",
+   "actual": "(err u4015)",
+   "passed": true
+  },
+  {
+   "label": "NS3 execute-sbtc-now on an STX op (op0) -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "NS4 execute-sbtc-now op4 signed under example.com -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "NS5 execute-stx-now on an sBTC op (op4) -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "W1 RANDOM sbtc-initiate-withdrawal -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "W2 owner withdrawal 20000 + 3000 fee (under): sBTC locked in sbtc-withdrawal",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "W3 passkey withdrawal 20000 + 3000 fee with gas (under)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "W4 passkey withdrawal signed for another fee -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "W5 owner withdrawal 120000 + 1000 (over) -> op7",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "W6 passkey withdrawal 120000 + 1000 (over) -> op8 (passkey-created)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "W7 owner withdrawal 120000 + 1000 -> op9",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "EW1 execute-pending-sbtc-withdrawal unknown op 99 -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "EW2 execute-pending-sbtc-withdrawal on an sBTC transfer op (op4) -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "EW3 execute-pending-sbtc-withdrawal op7 before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "V6 passkey veto op9 (no gas)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "NW1 execute-withdrawal-now op8 (passkey-created) -> u4003",
+   "actual": "(err u4003)",
+   "passed": true
+  },
+  {
+   "label": "NW2 execute-withdrawal-now op9 (vetoed) -> u4015",
+   "actual": "(err u4015)",
+   "passed": true
+  },
+  {
+   "label": "NW3 execute-withdrawal-now on an sBTC transfer op (op4) -> u4013",
+   "actual": "(err u4013)",
+   "passed": true
+  },
+  {
+   "label": "NW4 execute-withdrawal-now op7 by an unregistered passkey -> u4004",
+   "actual": "(err u4004)",
+   "passed": true
+  },
+  {
+   "label": "NW5 execute-withdrawal-now op7 with a sig for op8 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "L1 passkey turns the lock on, with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "L2 same lock signature replayed -> u4006",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "label": "L3 locked: passkey stx-transfer -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L4 locked: passkey sip010-transfer -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L5 locked: passkey withdrawal -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L6 locked: passkey sip009-transfer -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L7 locked: execute-stx-now op0 -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L8 locked: execute-sbtc-now op4 -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L9 locked: execute-withdrawal-now op7 -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "L10 locked: the owner (admin path) still sends 5 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "L11 relayer with a passkey sig cannot turn the lock off -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "L12 owner turns the lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "NS6 execute-sbtc-now op4 with gas: 150000 sats move",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "NS7 execute-sbtc-now op4 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "NW6 execute-withdrawal-now op7 with gas: 121000 sats locked",
+   "actual": "(ok u4137)",
+   "passed": true
+  },
+  {
+   "label": "NW7 execute-withdrawal-now op7 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "NF1 RANDOM sip009-transfer -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "NF2 owner sip009-transfer #5 to RECIPIENT",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "NF3 passkey sip009-transfer #100 signed for #5 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "NF4 passkey sip009-transfer #100 to RECIPIENT with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "NF5 owner sip009-transfer #5 again (no longer held) -> err",
+   "actual": "(err u1)",
+   "passed": true
+  },
+  {
+   "label": "R1 propose-recovery signed for another address -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "R2 propose-recovery = the safe itself -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "R3 passkey propose-recovery with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "R4 same propose-recovery signature replayed -> u4006",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "label": "R5 RANDOM confirm-recovery -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "R6 owner confirm-recovery",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "R7 confirm-recovery again (nothing pending) -> u4010",
+   "actual": "(err u4010)",
+   "passed": true
+  },
+  {
+   "label": "advance 150 burn blocks (past the 144-block cooldown)",
+   "actual": "<none>",
+   "passed": true
+  },
+  {
+   "label": "X1 RANDOM execute-pending-stx-transfer op0 -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "X2 execute-pending-stx-transfer op2 (vetoed) -> u4015",
+   "actual": "(err u4015)",
+   "passed": true
+  },
+  {
+   "label": "X3 owner executes op0 with memo: 150 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "X4 execute op0 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "X5 owner executes op1 (passkey-created, plain path after the cooldown)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "X6 veto op0 (executed) -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "XS1 RANDOM execute-pending-sbtc-transfer op5 -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "XS2 execute-pending-sbtc-transfer op6 (vetoed) -> u4015",
+   "actual": "(err u4015)",
+   "passed": true
+  },
+  {
+   "label": "XS3 owner executes op5: 150000 sats",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "XS4 execute op5 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "XW1 RANDOM execute-pending-sbtc-withdrawal op8 -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "XW2 execute-pending-sbtc-withdrawal op9 (vetoed) -> u4015",
+   "actual": "(err u4015)",
+   "passed": true
+  },
+  {
+   "label": "XW3 owner executes op8: 121000 sats locked",
+   "actual": "(ok u4138)",
+   "passed": true
+  },
+  {
+   "label": "XW4 execute op8 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "XR1 new period: passkey stx-transfer 90 STX goes through (spent reset)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G1 owner stx-transfer 150 STX -> op10",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G1 owner sip010-transfer 150000 sats -> op11",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G1 owner withdrawal 120000 + 1000 -> op12",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G2 execute-stx-now op10 with memo, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G3 execute-sbtc-now op11, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G4 execute-withdrawal-now op12, no gas",
+   "actual": "(ok u4139)",
+   "passed": true
+  },
+  {
+   "label": "G5 passkey turns the lock on, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G5 owner turns the lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G6 RECIPIENT sends #5 back to the safe",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "G7 passkey sip009-transfer #5 to RECIPIENT, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "P7 passkey confirm-max-gas-amount 2000 with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "P8 confirm again (nothing pending) -> u4016",
+   "actual": "(err u4016)",
+   "passed": true
+  },
+  {
+   "label": "C6 set-wallet-config signed for other values -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "C7 passkey set-wallet-config with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 set-wallet-config again (nothing signaled) -> u4016",
+   "actual": "(err u4016)",
+   "passed": true
+  },
+  {
+   "label": "Y1 owner proposes transfer to NEW_OWNER",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Y2 passkey confirm-transfer-wallet with gas (gas-exempt from the cap)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "Y3 old passkey (owner no longer admin) stx-transfer -> u4005",
+   "actual": "(err u4005)",
+   "passed": true
+  },
+  {
+   "label": "Y4 old owner stx-transfer -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "label": "Y5 new owner signal-config-change works",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "balances exact: S2 owner stx-transfer 10 STX (under)",
+   "actual": "{\"ss\":\"-10000000\",\"rs\":\"10000000\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: S3 passkey stx-transfer 10 STX with memo + gas (under)",
+   "actual": "{\"ss\":\"-10000000\",\"rs\":\"10000000\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: S5 owner stx-transfer 150 STX (over) -> op0 queued, nothing moves",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: S6 passkey stx-transfer 150 STX (over) -> op1 queued (passkey-created)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: V3 passkey veto op2 with gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: N4 execute-stx-now op3 with gas: 150 STX moves before the cooldown",
+   "actual": "{\"ss\":\"-150000000\",\"rs\":\"150000000\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: B2 owner sip010-transfer 10000 sats sBTC (under)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-10000\",\"sl\":\"0\",\"rb\":\"10000\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: B3 passkey sip010-transfer 10000 sats sBTC with gas (under)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-10020\",\"sl\":\"0\",\"rb\":\"10000\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: B4 owner sip010-transfer 1000 LEO (not sBTC: no threshold)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"-1000\",\"rf\":\"1000\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: B5 passkey sip010-transfer 1000 LEO",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"-1000\",\"rf\":\"1000\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: B7 owner sip010-transfer 150000 sats (over) -> op4",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: W2 owner withdrawal 20000 + 3000 fee (under): sBTC locked in sbtc-withdrawal",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-23000\",\"sl\":\"23000\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: W3 passkey withdrawal 20000 + 3000 fee with gas (under)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-23020\",\"sl\":\"23000\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: W5 owner withdrawal 120000 + 1000 (over) -> op7",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: L1 passkey turns the lock on, with gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: L10 locked: the owner (admin path) still sends 5 STX",
+   "actual": "{\"ss\":\"-5000000\",\"rs\":\"5000000\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: NS6 execute-sbtc-now op4 with gas: 150000 sats move",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-150020\",\"sl\":\"0\",\"rb\":\"150000\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: NW6 execute-withdrawal-now op7 with gas: 121000 sats locked",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-121020\",\"sl\":\"121000\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: NF4 passkey sip009-transfer #100 to RECIPIENT with gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: R3 passkey propose-recovery with gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: X3 owner executes op0 with memo: 150 STX",
+   "actual": "{\"ss\":\"-150000000\",\"rs\":\"150000000\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: X5 owner executes op1 (passkey-created, plain path after the cooldown)",
+   "actual": "{\"ss\":\"-150000000\",\"rs\":\"150000000\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: XS3 owner executes op5: 150000 sats",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-150000\",\"sl\":\"0\",\"rb\":\"150000\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: XW3 owner executes op8: 121000 sats locked",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-121000\",\"sl\":\"121000\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: XR1 new period: passkey stx-transfer 90 STX goes through (spent reset)",
+   "actual": "{\"ss\":\"-90000000\",\"rs\":\"90000000\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: G2 execute-stx-now op10 with memo, no gas",
+   "actual": "{\"ss\":\"-150000000\",\"rs\":\"150000000\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: G3 execute-sbtc-now op11, no gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-150000\",\"sl\":\"0\",\"rb\":\"150000\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: G4 execute-withdrawal-now op12, no gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-121000\",\"sl\":\"121000\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: G5 passkey turns the lock on, no gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: G7 passkey sip009-transfer #5 to RECIPIENT, no gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: P7 passkey confirm-max-gas-amount 2000 with gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: C7 passkey set-wallet-config with gas",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: Y2 passkey confirm-transfer-wallet with gas (gas-exempt from the cap)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "balances exact: Y5 new owner signal-config-change works",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
+   "label": "Z3 the safe holds NFTs #5 and #100",
+   "actual": "(tuple (a (some SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe)) (b (some SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe)))",
+   "passed": true
+  },
+  {
+   "label": "P3 pending max gas recorded",
+   "actual": "(tuple (amount u2000) (proposed-at u971455))",
+   "passed": true
+  },
+  {
+   "label": "C4 pending config recorded",
+   "actual": "(tuple (cooldown-period u150) (sbtc-threshold u200000) (stx-threshold u200000000))",
+   "passed": true
+  },
+  {
+   "label": "T2 lock on after the admin toggle",
+   "actual": "true",
+   "passed": true
+  },
+  {
+   "label": "S8 op0 admin-created, op1 passkey-created",
+   "actual": "(some (tuple (amount u150000000) (execute-after u971599) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false))) | (some (tuple (amount u150000000) (execute-after u971599) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created true) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "V3 op2 vetoed",
+   "actual": "(some (tuple (amount u150000000) (execute-after u971599) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed true)))",
+   "passed": true
+  },
+  {
+   "label": "B9 op4 is an sbtc-transfer",
+   "actual": "(some (tuple (amount u150000) (execute-after u971599) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "W7 op7 is an sbtc-withdraw with the payload",
+   "actual": "(some (tuple (amount u120000) (execute-after u971599) (executed false) (extension none) (op-type \"sbtc-withdraw\") (passkey-created false) (payload (some 0x0c00000002076d61782d66656501000000000000000000000000000003e809726563697069656e740c00000002096861736862797465730200000014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0776657273696f6e020000000104)) (recipient SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "L1 lock on after the passkey toggle",
+   "actual": "true",
+   "passed": true
+  },
+  {
+   "label": "L12 lock off",
+   "actual": "false",
+   "passed": true
+  },
+  {
+   "label": "NF4 both NFTs now owned by RECIPIENT",
+   "actual": "(tuple (a (some SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B)) (b (some SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B)))",
+   "passed": true
+  },
+  {
+   "label": "R6 recovery-address = NEW_RECOVERY, pending cleared",
+   "actual": "(tuple (p SP000000000000000000002Q6VF78) (r SP354663MXNWN2B6HKNBYD8JBNJK2ZNBZE764X1RR))",
+   "passed": true
+  },
+  {
+   "label": "P7 max-gas-amount = 2000, pending cleared",
+   "actual": "(tuple (m u2000) (p (tuple (amount u0) (proposed-at u0))))",
+   "passed": true
+  },
+  {
+   "label": "C7 wallet-config set, signal + pending cleared",
+   "actual": "(tuple (c (tuple (config-signaled-at none) (cooldown-period u150) (sbtc-threshold u200000) (stx-threshold u200000000))) (p (tuple (cooldown-period u0) (sbtc-threshold u0) (stx-threshold u0))))",
+   "passed": true
+  },
+  {
+   "label": "G7 NFT #5 back with RECIPIENT after the no-gas passkey send",
+   "actual": "(tuple (a (some SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B)) (b (some SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B)))",
+   "passed": true
+  },
+  {
+   "label": "Y2 owner is NEW_OWNER",
+   "actual": "(ok SPY3VW50YQCEWD905SSBPVF55D1E502ZV24TE2M6)",
+   "passed": true
+  }
+ ]
+}
