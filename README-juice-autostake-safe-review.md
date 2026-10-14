@@ -72,3 +72,38 @@ Reviewed and accepted 2026-10-13. The commit adds a keeper to the deployed
   Coverage: set-keeper 4/4 branches, restake 28/28 lines and 10/10 branches.
   The 2 set-keeper lines lcov marks unhit are the contract name and function
   name atoms of the helper call, not expressions.
+
+## Bounty mv7dfb: Giant Moth set-keeper token lock
+
+Finding. The passkey branch of `set-keeper` did not check the token lock.
+Every other passkey path does. With the lock on, a locked-out passkey could
+still set a keeper. That keeper could then restake all unlocked STX for 96
+cycles.
+
+Fix. One line in the sig-auth branch of `set-keeper`, first in the branch, as
+in the siblings:
+
+```
+(asserts! (not (var-get token-lock-enabled)) err-token-locked)
+```
+
+The admin branch (sig-auth none) is unchanged. The same line is in the
+coverage copy `tests/cl-autostake-cov/contracts/juice-autostake-safe.clar`, so
+it still differs from the repo source only by the three repointed literals.
+
+Tests. `tests/juice-autostake-safe-keeper.test.ts`, new block "set-keeper:
+token lock" (4 tests, 31 total, all pass on both manifests):
+
+- lock on: passkey set-keeper is u4023, keeper and events unchanged;
+- lock on: the refused passkey cannot hand restake to a new keeper;
+- lock on: the admin path still sets the keeper;
+- lock off again: the same passkey signature works (auth-id not spent).
+
+Without the fix, the three passkey tests fail.
+
+Hash impact. The source bytes change, so the canonical hash of
+`juice-autostake-safe` changes. The safe is not deployed yet. Anything that
+pins the hash (BE templates, a registered verified-contract entry) must be
+regenerated from this source before deploy. `simul-juice-autostake-safe.js`
+reads the repo file and registers the deployed safe on the fork, so the K
+user-copy check still compares like with like. Stxer was not re-run.

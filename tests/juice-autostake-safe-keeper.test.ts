@@ -79,7 +79,8 @@ const NUM_CYCLES = 96;
 const CYCLE_LEN = 1050;
 const PREPARE_LEN = 50;
 
-const E_UNAUTH = 4001, E_INVALID_SIG = 4002, E_REPLAY = 4006, E_ZERO = 4026, E_NOT_STAKING = 4040;
+const E_UNAUTH = 4001, E_INVALID_SIG = 4002, E_REPLAY = 4006, E_TOKEN_LOCKED = 4023, E_ZERO = 4026,
+  E_NOT_STAKING = 4040;
 const POX_INVALID_NUM_CYCLES = 20, POX_STAKE_IN_PREPARE = 47;
 
 // --- deploy -------------------------------------------------------------------
@@ -232,6 +233,12 @@ function restake(sender = D) {
 }
 function setKeeperAdmin(k: string, sender = OWNER) {
   return simnet.callPublicFn(WALLET, "set-keeper", [Cl.principal(k), Cl.none(), Cl.none()], sender);
+}
+/** The owner turns the token lock on or off (admin path, no passkey). */
+function setTokenLock(enabled: boolean) {
+  expect(simnet.callPublicFn(WALLET, "toggle-token-lock",
+    [Cl.bool(enabled), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+  expect(simnet.callReadOnlyFn(WALLET, "get-token-lock-enabled", [], RANDOM).result).toBeBool(enabled);
 }
 function fundSbtc(to: string, amount: number) {
   const h = simnet.burnBlockHeight - 1;
@@ -413,6 +420,65 @@ describe("set-keeper: passkey path (build-set-keeper-hash)", () => {
     // assert
     expect(byOld.result).toBeErr(Cl.uint(E_UNAUTH));
     expect(byNew.result).toBeOk(Cl.tuple({ amount: Cl.uint(FUND), "cycles-to-extend": Cl.uint(0) }));
+  });
+});
+
+describe("set-keeper: token lock (bounty mv7dfb, Giant Moth)", () => {
+  it("token lock on: a passkey set-keeper is u4023 and the keeper is unchanged", () => {
+    // arrange
+    readySafe();
+    setTokenLock(true);
+    const auth = sigAuth(1, setKeeperHash(1, NEW_KEEPER));
+    // act
+    const r = simnet.callPublicFn(WALLET, "set-keeper",
+      [Cl.principal(NEW_KEEPER), Cl.some(auth), Cl.none()], RELAYER);
+    // assert
+    expect(r.result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
+    expect(keeper()).toBe(D);
+    expect(printed(r.events, `event: "set-keeper"`)).toHaveLength(0);
+  });
+
+  it("token lock on: the locked-out passkey cannot hand restake to a new keeper", () => {
+    // arrange
+    stakedSafe();
+    setTokenLock(true);
+    const auth = sigAuth(1, setKeeperHash(1, NEW_KEEPER));
+    // act
+    const r = simnet.callPublicFn(WALLET, "set-keeper",
+      [Cl.principal(NEW_KEEPER), Cl.some(auth), Cl.none()], RELAYER);
+    const byNew = restake(NEW_KEEPER);
+    // assert
+    expect(r.result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
+    expect(byNew.result).toBeErr(Cl.uint(E_UNAUTH));
+    expect(infoField("amount-ustx")).toBe(BigInt(STAKE));
+  });
+
+  it("token lock on: the admin path still sets the keeper", () => {
+    // arrange
+    readySafe();
+    setTokenLock(true);
+    // act
+    const r = setKeeperAdmin(NEW_KEEPER);
+    // assert
+    expect(r.result).toBeOk(Cl.bool(true));
+    expect(keeper()).toBe(NEW_KEEPER);
+  });
+
+  it("token lock off again: the same passkey signature now works", () => {
+    // arrange
+    readySafe();
+    setTokenLock(true);
+    const auth = sigAuth(1, setKeeperHash(1, NEW_KEEPER));
+    expect(simnet.callPublicFn(WALLET, "set-keeper",
+      [Cl.principal(NEW_KEEPER), Cl.some(auth), Cl.none()], RELAYER).result)
+      .toBeErr(Cl.uint(E_TOKEN_LOCKED));
+    setTokenLock(false);
+    // act: the refused call rolled back, so auth-id 1 is not spent
+    const r = simnet.callPublicFn(WALLET, "set-keeper",
+      [Cl.principal(NEW_KEEPER), Cl.some(auth), Cl.none()], RELAYER);
+    // assert
+    expect(r.result).toBeOk(Cl.bool(true));
+    expect(keeper()).toBe(NEW_KEEPER);
   });
 });
 

@@ -1507,6 +1507,7 @@
     (update-activity)
     (match sig-auth
       sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
           message-hash: (contract-call?
             'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1
