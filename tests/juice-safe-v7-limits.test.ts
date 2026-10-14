@@ -24,13 +24,16 @@ const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
 // locally, since clarinet --coverage only instruments project contracts.
 // Unset -- the normal case -- it is the real mainnet deployer.
-const WD = process.env.V7_DEPLOYER ?? D;
+const WD = process.env.AUTOSTAKE_DEPLOYER ?? process.env.V7_DEPLOYER ?? D;
+const WALLET_NAME = process.env.AUTOSTAKE_WALLET_NAME ?? "juice-safe-v7";
+const POOL_NAME = process.env.AUTOSTAKE_POOL_NAME ?? "juice-pool-stx-signer";
+const POOL_DEPLOYER = process.env.AUTOSTAKE_DEPLOYER ? WD : D;
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${WD}.juice-safe-v7`;
+const WALLET = `${WD}.${WALLET_NAME}`;
 const CORE = `${D}.fakfun-wallet-core-v2`;
 const SBTC_DEPOSIT = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit";
 const SBTC_SIGNER = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4";
-const JUICE_SIGNER = `${D}.juice-pool-stx-signer`;
+const JUICE_SIGNER = `${POOL_DEPLOYER}.${POOL_NAME}`;
 const RP_ID = "juiceofbtc.com";
 const CHAIN_ID = 2147483648;
 
@@ -55,7 +58,7 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const domainHash = () => cvHash(Cl.tuple({
   name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "juice-safe-v7"),
+  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, WALLET_NAME),
 }));
 const challenge = (t: any) => sha256(Buffer.concat([SIP018, domainHash(), cvHash(t)]));
 const key = generateP256Keypair();
@@ -81,7 +84,7 @@ const poxAddr = Cl.tuple({ version: Cl.bufferFromHex("00"), hashbytes: Cl.buffer
 
 function onboarded(cooldown = MIN_COOLDOWN) {
   simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(WD, "juice-safe-v7"), Cl.none()], D);
+    [Cl.contractPrincipal(WD, WALLET_NAME), Cl.none()], D);
   expect(simnet.callPublicFn(WALLET, "onboard",
     [pubkeyCV, Cl.principal(OWNER), Cl.principal(RECOVERY),
      Cl.uint(STX_THRESHOLD), Cl.uint(SBTC_THRESHOLD), Cl.uint(cooldown)],
@@ -111,14 +114,14 @@ function registerSigner() {
   const dom = cvHash(Cl.tuple({ name: Cl.stringAscii("pox-5-signer"),
     version: Cl.stringAscii("1.0.0"), "chain-id": Cl.uint(CHAIN_ID) }));
   const st = cvHash(Cl.tuple({ topic: Cl.stringAscii("grant-authorization"),
-    "signer-manager": Cl.contractPrincipal(D, "juice-pool-stx-signer"), "auth-id": Cl.uint(1) }));
+    "signer-manager": Cl.contractPrincipal(POOL_DEPLOYER, POOL_NAME), "auth-id": Cl.uint(1) }));
   const h = sha256(Buffer.concat([SIP018, dom, st]));
   const compact = Buffer.from(secp256k1.sign(h, priv, { prehash: false }));
   for (const rec of [0, 1]) {
     const r = simnet.callPublicFn(JUICE_SIGNER, "register-self",
-      [Cl.contractPrincipal(D, "juice-pool-stx-signer"),
+      [Cl.contractPrincipal(POOL_DEPLOYER, POOL_NAME),
        Cl.bufferFromHex(Buffer.from(pub).toString("hex")), Cl.uint(1),
-       Cl.bufferFromHex(Buffer.concat([compact, Buffer.from([rec])]).toString("hex"))], D);
+       Cl.bufferFromHex(Buffer.concat([compact, Buffer.from([rec])]).toString("hex"))], POOL_DEPLOYER);
     if (Cl.prettyPrint(r.result).startsWith("(ok")) return;
   }
   throw new Error("signer registration failed");

@@ -27,11 +27,14 @@ const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
 // locally, since clarinet --coverage only instruments project contracts.
 // Unset -- the normal case -- it is the real mainnet deployer.
-const WD = process.env.V7_DEPLOYER ?? D;
+const WD = process.env.AUTOSTAKE_DEPLOYER ?? process.env.V7_DEPLOYER ?? D;
+const WALLET_NAME = process.env.AUTOSTAKE_WALLET_NAME ?? "juice-safe-v7";
+const POOL_NAME = process.env.AUTOSTAKE_POOL_NAME ?? "juice-pool-stx-signer";
+const POOL_DEPLOYER = process.env.AUTOSTAKE_DEPLOYER ? WD : D;
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${WD}.juice-safe-v7`;
+const WALLET = `${WD}.${WALLET_NAME}`;
 const CORE = `${D}.fakfun-wallet-core-v2`;
-const SIGNER = `${D}.juice-pool-stx-signer`;
+const SIGNER = `${POOL_DEPLOYER}.${POOL_NAME}`;
 const POX5 = "SP000000000000000000002Q6VF78.pox-5";
 const RP_ID = "juiceofbtc.com";
 const CHAIN_ID = 2147483648;
@@ -56,7 +59,7 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const walletDomain = () => cvHash(Cl.tuple({
   name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "juice-safe-v7"),
+  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, WALLET_NAME),
 }));
 const challenge = (t: any) => sha256(Buffer.concat([SIP018, walletDomain(), cvHash(t)]));
 const pk = generateP256Keypair();
@@ -113,11 +116,11 @@ function registerSigner(authId = 1) {
   for (const rec of [0, 1]) {
     const sig = Buffer.concat([compact, Buffer.from([rec])]);
     last = simnet.callPublicFn(SIGNER, "register-self",
-      [Cl.contractPrincipal(D, "juice-pool-stx-signer"),
+      [Cl.contractPrincipal(POOL_DEPLOYER, POOL_NAME),
        Cl.bufferFromHex(Buffer.from(signerPub).toString("hex")),
        Cl.uint(authId),
        Cl.bufferFromHex(sig.toString("hex"))],
-      D); // the signer's admin is its deployer
+      POOL_DEPLOYER); // the signer's admin is its deployer
     if (Cl.prettyPrint(last.result).startsWith("(ok")) return last;
   }
   return last;
@@ -125,7 +128,7 @@ function registerSigner(authId = 1) {
 
 function onboarded() {
   expect(simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(WD, "juice-safe-v7"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    [Cl.contractPrincipal(WD, WALLET_NAME), Cl.none()], D).result).toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "onboard",
     [pubkeyCV, Cl.principal(OWNER), Cl.principal(RECOVERY),
      Cl.uint(STX_THRESHOLD), Cl.uint(SBTC_THRESHOLD), Cl.uint(MIN_COOLDOWN)],
@@ -133,7 +136,7 @@ function onboarded() {
 }
 const fundSTX = (n = 3_000_000_000) => simnet.transferSTX(n, WALLET, DEPLOYER);
 const stakerInfo = () => Cl.prettyPrint(simnet.callReadOnlyFn(POX5, "get-staker-info",
-  [Cl.contractPrincipal(WD, "juice-safe-v7")], OWNER).result);
+  [Cl.contractPrincipal(WD, WALLET_NAME)], OWNER).result);
 // stx-account returns a tuple the JS pretty-printer cannot render, so read the
 // locked field off the wire form instead.
 const lockedUstx = (): bigint => {
@@ -147,7 +150,7 @@ describe("v6 staking: registering the Juice signer in pox-5", () => {
     const r = registerSigner();
     expect(Cl.prettyPrint(r.result)).toMatch(/^\(ok /);
     expect(Cl.prettyPrint(simnet.callReadOnlyFn(POX5, "get-signer-info",
-      [Cl.contractPrincipal(D, "juice-pool-stx-signer")], D).result))
+      [Cl.contractPrincipal(POOL_DEPLOYER, POOL_NAME)], D).result))
       .toMatch(/some|\{/);
   });
 });
@@ -344,14 +347,14 @@ describe("v6 rewards: the full payout chain, sBTC -> pox-5 -> signer -> staker",
     // and pays the safe out of that pot
     const before = sbtcOf(WALLET);
     expect(Cl.prettyPrint(simnet.callPublicFn(SIGNER, "pay-stx-stakers",
-      [Cl.list([Cl.contractPrincipal(WD, "juice-safe-v7")]), Cl.uint(cycle), Cl.uint(0)],
+      [Cl.list([Cl.contractPrincipal(WD, WALLET_NAME)]), Cl.uint(cycle), Cl.uint(0)],
       RELAYER).result)).toMatch(/^\(ok /);
     const paid = sbtcOf(WALLET) - before;
     expect(paid).toBeGreaterThan(0n);
 
     // the stx-paid guard makes a replay a no-op, not a double payment
     expect(Cl.prettyPrint(simnet.callPublicFn(SIGNER, "pay-stx-stakers",
-      [Cl.list([Cl.contractPrincipal(WD, "juice-safe-v7")]), Cl.uint(cycle), Cl.uint(0)],
+      [Cl.list([Cl.contractPrincipal(WD, WALLET_NAME)]), Cl.uint(cycle), Cl.uint(0)],
       RELAYER).result)).toMatch(/^\(ok /);
     expect(sbtcOf(WALLET) - before).toBe(paid);
   });

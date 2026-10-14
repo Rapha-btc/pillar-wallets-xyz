@@ -28,9 +28,10 @@ const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
 // locally, since clarinet --coverage only instruments project contracts.
 // Unset -- the normal case -- it is the real mainnet deployer.
-const WD = process.env.V7_DEPLOYER ?? D;
+const WD = process.env.AUTOSTAKE_DEPLOYER ?? process.env.V7_DEPLOYER ?? D;
+const WALLET_NAME = process.env.AUTOSTAKE_WALLET_NAME ?? "juice-safe-v7";
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${WD}.juice-safe-v7`;
+const WALLET = `${WD}.${WALLET_NAME}`;
 const CORE = `${D}.fakfun-wallet-core-v2`;
 const SBTC_ADDR = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4";
 const SBTC = `${SBTC_ADDR}.sbtc-token`;
@@ -61,7 +62,7 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const domainHash = () => cvHash(Cl.tuple({
   name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "juice-safe-v7"),
+  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, WALLET_NAME),
 }));
 const challenge = (t: any) => sha256(Buffer.concat([SIP018, domainHash(), cvHash(t)]));
 const key = generateP256Keypair();
@@ -85,7 +86,7 @@ const stationCV = Cl.contractPrincipal(DEPLOYER, "zz-gas-station");
 
 function onboarded() {
   expect(simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(WD, "juice-safe-v7"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    [Cl.contractPrincipal(WD, WALLET_NAME), Cl.none()], D).result).toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "onboard",
     [pubkeyCV, Cl.principal(OWNER), Cl.principal(RECOVERY),
      Cl.uint(STX_THRESHOLD), Cl.uint(SBTC_THRESHOLD), Cl.uint(MIN_COOLDOWN)],

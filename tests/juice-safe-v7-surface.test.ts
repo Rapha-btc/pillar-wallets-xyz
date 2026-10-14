@@ -22,9 +22,10 @@ const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
 // locally, since clarinet --coverage only instruments project contracts.
 // Unset -- the normal case -- it is the real mainnet deployer.
-const WD = process.env.V7_DEPLOYER ?? D;
+const WD = process.env.AUTOSTAKE_DEPLOYER ?? process.env.V7_DEPLOYER ?? D;
+const WALLET_NAME = process.env.AUTOSTAKE_WALLET_NAME ?? "juice-safe-v7";
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
-const WALLET = `${WD}.juice-safe-v7`;
+const WALLET = `${WD}.${WALLET_NAME}`;
 const CORE = `${D}.fakfun-wallet-core-v2`;
 const SBTC_ID = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
 const RP_ID = "juiceofbtc.com";
@@ -55,7 +56,7 @@ const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
 const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
 const domainHash = () => cvHash(Cl.tuple({
   name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
-  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, "juice-safe-v7"),
+  "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(WD, WALLET_NAME),
 }));
 const challenge = (t: any) => sha256(Buffer.concat([SIP018, domainHash(), cvHash(t)]));
 const key = generateP256Keypair();
@@ -78,7 +79,7 @@ const sign = (t: any, id: number) => sigAuth(id, signChallengeWithRpId(challenge
 // --- setup --------------------------------------------------------------
 function onboarded(cooldown = MIN_COOLDOWN) {
   expect(simnet.callPublicFn(CORE, "set-verified-contract",
-    [Cl.contractPrincipal(WD, "juice-safe-v7"), Cl.none()], D).result).toBeOk(Cl.bool(true));
+    [Cl.contractPrincipal(WD, WALLET_NAME), Cl.none()], D).result).toBeOk(Cl.bool(true));
   expect(simnet.callPublicFn(WALLET, "onboard",
     [pubkeyCV, Cl.principal(OWNER), Cl.principal(RECOVERY),
      Cl.uint(STX_THRESHOLD), Cl.uint(SBTC_THRESHOLD), Cl.uint(cooldown)],
@@ -124,6 +125,8 @@ describe("v6 surface: pending STX operations", () => {
       [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
     expect(simnet.callPublicFn(WALLET, "execute-pending-stx-transfer",
       [Cl.uint(99), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_INVALID_OP));
+    expect(simnet.callPublicFn(WALLET, "veto-operation",
+      [Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
   });
 
   it("the passkey fast path skips the cooldown entirely", () => {
@@ -136,6 +139,10 @@ describe("v6 surface: pending STX operations", () => {
        sign(topic("execute-now", { "auth-id": Cl.uint(3), "op-id": Cl.uint(0) }), 3),
        Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
     expect(simnet.getAssetsMap().get("STX")?.get(RECIPIENT) ?? 0n).toBeGreaterThan(before);
+    expect(simnet.callPublicFn(WALLET, "execute-pending-stx-transfer-now",
+      [Cl.uint(0), Cl.none(),
+       sign(topic("execute-now", { "auth-id": Cl.uint(3), "op-id": Cl.uint(0) }), 3),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
   });
 
   it("veto kills a pending op, by either factor, and blocks release", () => {
@@ -150,6 +157,49 @@ describe("v6 surface: pending STX operations", () => {
 
     simnet.mineEmptyBurnBlocks(MIN_COOLDOWN + 5);
     expect(simnet.callPublicFn(WALLET, "execute-pending-stx-transfer",
+      [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_VETOED));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-stx-transfer-now",
+      [Cl.uint(0), Cl.none(),
+       sign(topic("execute-now", { "auth-id": Cl.uint(6), "op-id": Cl.uint(0) }), 6),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_VETOED));
+  });
+
+  it("rejects each settlement entrypoint when the pending operation has the wrong type", () => {
+    onboarded(); fundSTX();
+    expect(simnet.callPublicFn(WALLET, "stx-transfer",
+      [Cl.uint(STX_THRESHOLD + 1), Cl.principal(RECIPIENT), Cl.none(), Cl.none(), Cl.none()], OWNER).result)
+      .toBeOk(Cl.bool(true));
+
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer",
+      [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_INVALID_OP));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer-now",
+      [Cl.uint(0), Cl.none(),
+       sign(topic("execute-now", { "auth-id": Cl.uint(50), "op-id": Cl.uint(0) }), 50),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_INVALID_OP));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal",
+      [Cl.uint(0)], OWNER).result).toBeErr(Cl.uint(E_INVALID_OP));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal-now",
+      [Cl.uint(0),
+       sign(topic("execute-now", { "auth-id": Cl.uint(51), "op-id": Cl.uint(0) }), 51),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_INVALID_OP));
+  });
+
+  it("rejects STX settlement for an sBTC operation, including after it is vetoed", () => {
+    onboarded();
+    expect(simnet.callPublicFn(WALLET, "sip010-transfer",
+      [Cl.uint(SBTC_THRESHOLD + 1), Cl.principal(RECIPIENT), Cl.none(), sbtcCV,
+       Cl.stringAscii("sbtc-token"), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(Cl.prettyPrint(pendingOp(0))).toContain("sbtc-transfer");
+
+    expect(simnet.callPublicFn(WALLET, "execute-pending-stx-transfer",
+      [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_INVALID_OP));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-stx-transfer-now",
+      [Cl.uint(0), Cl.none(),
+       sign(topic("execute-now", { "auth-id": Cl.uint(52), "op-id": Cl.uint(0) }), 52),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_INVALID_OP));
+    expect(simnet.callPublicFn(WALLET, "veto-operation",
+      [Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer",
       [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_VETOED));
   });
 
@@ -222,11 +272,11 @@ describe("v6 surface: 2FA ownership transfer", () => {
         { "auth-id": Cl.uint(7), "new-admin": Cl.principal(NEW_OWNER) }), 7), Cl.none()],
       RELAYER).result).toBeErr(Cl.uint(E_NO_PENDING_TRANSFER));
     expect(simnet.callPublicFn(WALLET, "propose-transfer-wallet",
-      [Cl.contractPrincipal(WD, "juice-safe-v7")], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.contractPrincipal(WD, WALLET_NAME)], OWNER).result).toBeOk(Cl.bool(true));
     // the guard fires at the write, not the proposal
     expect(simnet.callPublicFn(WALLET, "confirm-transfer-wallet",
       [sign(topic("confirm-transfer",
-        { "auth-id": Cl.uint(8), "new-admin": Cl.contractPrincipal(WD, "juice-safe-v7") }), 8),
+        { "auth-id": Cl.uint(8), "new-admin": Cl.contractPrincipal(WD, WALLET_NAME) }), 8),
        Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_UNAUTH));
   });
 });
@@ -252,9 +302,9 @@ describe("v6 surface: recovery address rotation", () => {
     expect(simnet.callPublicFn(WALLET, "confirm-recovery", [], OWNER).result)
       .toBeErr(Cl.uint(E_NO_PENDING_RECOVERY));
     expect(simnet.callPublicFn(WALLET, "propose-recovery",
-      [Cl.contractPrincipal(WD, "juice-safe-v7"),
+      [Cl.contractPrincipal(WD, WALLET_NAME),
        sign(topic("propose-recovery",
-         { "auth-id": Cl.uint(10), "new-recovery": Cl.contractPrincipal(WD, "juice-safe-v7") }), 10),
+         { "auth-id": Cl.uint(10), "new-recovery": Cl.contractPrincipal(WD, WALLET_NAME) }), 10),
        Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_UNAUTH));
   });
 });
