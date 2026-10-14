@@ -1,7 +1,7 @@
 {
- "simulation": "https://stxer.xyz/simulations/mainnet/b6fd12bda7695aa13138daabdb73a613",
- "passed": 204,
- "total": 204,
+ "simulation": "https://stxer.xyz/simulations/mainnet/80c3db54c6af49497a65e7e05c262c94",
+ "passed": 208,
+ "total": 208,
  "sources": {
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe": {
    "form": "deploy-bytes-mv7dfb",
@@ -764,6 +764,21 @@
    "passed": true
   },
   {
+   "label": "F0 deploy sim-only gas-station-free (charges nothing)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F1 passkey turns the lock on, gas station charges 0 (fee 0 arm)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F2 owner turns the lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
    "label": "Y1 owner proposes transfer to NEW_OWNER",
    "actual": "(ok true)",
    "passed": true
@@ -949,6 +964,11 @@
    "passed": true
   },
   {
+   "label": "balances exact: F1 passkey turns the lock on, gas station charges 0 (fee 0 arm)",
+   "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"0\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
+   "passed": true
+  },
+  {
    "label": "balances exact: Y2 passkey confirm-transfer-wallet with gas (gas-exempt from the cap)",
    "actual": "{\"ss\":\"0\",\"rs\":\"0\",\"sb\":\"-20\",\"sl\":\"0\",\"rb\":\"0\",\"sf\":\"0\",\"rf\":\"0\"}",
    "passed": true
@@ -965,7 +985,7 @@
   },
   {
    "label": "P3 pending max gas recorded",
-   "actual": "(tuple (amount u2000) (proposed-at u971455))",
+   "actual": "(tuple (amount u2000) (proposed-at u971457))",
    "passed": true
   },
   {
@@ -980,22 +1000,22 @@
   },
   {
    "label": "S8 op0 admin-created, op1 passkey-created",
-   "actual": "(some (tuple (amount u150000000) (execute-after u971599) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false))) | (some (tuple (amount u150000000) (execute-after u971599) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created true) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "actual": "(some (tuple (amount u150000000) (execute-after u971601) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false))) | (some (tuple (amount u150000000) (execute-after u971601) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created true) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
    "passed": true
   },
   {
    "label": "V3 op2 vetoed",
-   "actual": "(some (tuple (amount u150000000) (execute-after u971599) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed true)))",
+   "actual": "(some (tuple (amount u150000000) (execute-after u971601) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed true)))",
    "passed": true
   },
   {
    "label": "B9 op4 is an sbtc-transfer",
-   "actual": "(some (tuple (amount u150000) (execute-after u971599) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "actual": "(some (tuple (amount u150000) (execute-after u971601) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
    "passed": true
   },
   {
    "label": "W7 op7 is an sbtc-withdraw with the payload",
-   "actual": "(some (tuple (amount u120000) (execute-after u971599) (executed false) (extension none) (op-type \"sbtc-withdraw\") (passkey-created false) (payload (some 0x0c00000002076d61782d66656501000000000000000000000000000003e809726563697069656e740c00000002096861736862797465730200000014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0776657273696f6e020000000104)) (recipient SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "actual": "(some (tuple (amount u120000) (execute-after u971601) (executed false) (extension none) (op-type \"sbtc-withdraw\") (passkey-created false) (payload (some 0x0c00000002076d61782d66656501000000000000000000000000000003e809726563697069656e740c00000002096861736862797465730200000014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0776657273696f6e020000000104)) (recipient SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
    "passed": true
   },
   {

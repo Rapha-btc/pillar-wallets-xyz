@@ -33,7 +33,8 @@
 // Paths not reachable on a fork (documented, not asserted):
 //   - pay-gas-accounted u4018 (gas over max-gas * 25 per period): needs 25+
 //     gas-paid calls inside one cooldown period at the live 20-sat fee.
-//   - pay-gas-accounted fee = 0 arm: the live gas station always charges.
+//   (the pay-gas-accounted fee = 0 arm is reached in F with a sim-only gas
+//   station that charges nothing: the gas trait is not allow-listed.)
 //   - consume-signature second replay check (used assertion id with a new
 //     message hash): a WebAuthn signature verifies for one message hash only,
 //     so the first check (used message hash) always fires first.
@@ -436,6 +437,18 @@ async function main() {
   valued("C7 passkey set-wallet-config with gas", RELAYER, "set-wallet-config", [auth(56, T.cfg(56, NEW_CFG.stx, NEW_CFG.sbtc, NEW_CFG.cooldown)), GASCV], okre, { sb: -GAS });
   evalc("C7 wallet-config", "{ c: (var-get wallet-config), p: (get-pending-config) }", "cfgC7");
   w("C8 set-wallet-config again (nothing signaled) -> u4016", RELAYER, "set-wallet-config", [auth(57, T.cfg(57, 0, 0, 0)), noneCV()], "(err u4016)");
+
+  // -- F: a gas station that charges nothing (pay-gas-accounted fee = 0 arm). The gas
+  //    trait is not allow-listed, so a relayer may name any implementation; the safe's
+  //    as-contract? allowance caps what it can take at max-gas-amount sBTC.
+  b.withSender(RANDOM).addContractDeploy({ contract_name: "gas-station-free", clarity_version: ClarityVersion.Clarity4, source_code: `
+(define-public (pay-gas) (ok true))
+(define-public (pay-gas-with-pyth) (ok true))
+(define-public (get-gas-amount) (ok u0))` });
+  step("F0 deploy sim-only gas-station-free (charges nothing)");
+  valued("F1 passkey turns the lock on, gas station charges 0 (fee 0 arm)", RELAYER, "toggle-token-lock",
+    [trueCV(), sAuth(65, T.lock(65, true)), someCV(contractPrincipalCV(RANDOM, "gas-station-free"))], okre, {});
+  w("F2 owner turns the lock off", OWNER, "toggle-token-lock", [falseCV(), noneCV(), noneCV()], okre);
 
   // -- Y: after an ownership transfer the old passkey maps to a non-admin -> u4005 ----------
   w("Y1 owner proposes transfer to NEW_OWNER", OWNER, "propose-transfer-wallet", [standardPrincipalCV(NEW_OWNER)], okre);
