@@ -54,7 +54,8 @@ const SBTC_THRESHOLD = 100_000;
 const FUND_SATS = 5_000_000;
 const GAS_FEE = 20n;
 
-const E_UNAUTH = 4001, E_INVALID_OP = 4013, E_COOLDOWN_NOT_PASSED = 4017;
+const E_UNAUTH = 4001, E_INVALID_OP = 4013, E_ALREADY_EXECUTED = 4014,
+  E_VETOED = 4015, E_COOLDOWN_NOT_PASSED = 4017;
 
 // --- SIP-018 ------------------------------------------------------------
 const SIP018 = Buffer.from("534950303138", "hex");
@@ -171,6 +172,8 @@ describe("v6 assets: sip010-transfer success paths", () => {
     simnet.mineEmptyBurnBlocks(MIN_COOLDOWN + 5);
     expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer",
       [Cl.uint(0), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer",
+      [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
     expect(sbtcTotal(RECIPIENT) - b0).toBe(BigInt(SBTC_THRESHOLD + 1));
   });
 
@@ -180,11 +183,29 @@ describe("v6 assets: sip010-transfer success paths", () => {
     simnet.callPublicFn(WALLET, "sip010-transfer",
       [Cl.uint(SBTC_THRESHOLD + 1), Cl.principal(RECIPIENT), Cl.none(), sbtcCV,
        Cl.stringAscii("sbtc-token"), Cl.none(), Cl.none()], OWNER);
+    const auth = sign(topic("execute-now", { "auth-id": Cl.uint(2), "op-id": Cl.uint(0) }), 2);
+    const args = [Cl.uint(0), Cl.none(), auth, Cl.none()];
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer-now",
+      args, RELAYER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer-now",
+      args, RELAYER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
+    expect(sbtcTotal(RECIPIENT) - b0).toBe(BigInt(SBTC_THRESHOLD + 1));
+  });
+
+  it("veto blocks both sBTC transfer settlement paths", () => {
+    onboarded(); fundSBTC(WALLET);
+    expect(simnet.callPublicFn(WALLET, "sip010-transfer",
+      [Cl.uint(SBTC_THRESHOLD + 1), Cl.principal(RECIPIENT), Cl.none(), sbtcCV,
+       Cl.stringAscii("sbtc-token"), Cl.none(), Cl.none()], OWNER).result)
+      .toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "veto-operation",
+      [Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer",
+      [Cl.uint(0), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_VETOED));
     expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-transfer-now",
       [Cl.uint(0), Cl.none(),
-       sign(topic("execute-now", { "auth-id": Cl.uint(2), "op-id": Cl.uint(0) }), 2),
-       Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
-    expect(sbtcTotal(RECIPIENT) - b0).toBe(BigInt(SBTC_THRESHOLD + 1));
+       sign(topic("execute-now", { "auth-id": Cl.uint(20), "op-id": Cl.uint(0) }), 20),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_VETOED));
   });
 });
 
@@ -218,6 +239,8 @@ describe("v6 assets: sBTC withdrawal (peg-out)", () => {
     // returns the withdrawal REQUEST ID, not a bool
     expect(Cl.prettyPrint(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal",
       [Cl.uint(0)], OWNER).result)).toMatch(/^\(ok u\d+\)$/);
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal",
+      [Cl.uint(0)], OWNER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
     expect(a0 - sbtcAvail(WALLET)).toBe(BigInt(SBTC_THRESHOLD + 1) + 1_000n);
   });
 
@@ -226,11 +249,28 @@ describe("v6 assets: sBTC withdrawal (peg-out)", () => {
     const a0 = sbtcAvail(WALLET);
     simnet.callPublicFn(WALLET, "sbtc-initiate-withdrawal",
       [Cl.uint(SBTC_THRESHOLD + 1), poxAddr, Cl.uint(1_000), Cl.none(), Cl.none()], OWNER);
+    const auth = sign(topic("execute-now", { "auth-id": Cl.uint(3), "op-id": Cl.uint(0) }), 3);
+    const args = [Cl.uint(0), auth, Cl.none()];
     expect(Cl.prettyPrint(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal-now",
-      [Cl.uint(0),
-       sign(topic("execute-now", { "auth-id": Cl.uint(3), "op-id": Cl.uint(0) }), 3),
-       Cl.none()], RELAYER).result)).toMatch(/^\(ok u\d+\)$/);
+      args, RELAYER).result)).toMatch(/^\(ok u\d+\)$/);
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal-now",
+      args, RELAYER).result).toBeErr(Cl.uint(E_ALREADY_EXECUTED));
     expect(a0 - sbtcAvail(WALLET)).toBe(BigInt(SBTC_THRESHOLD + 1) + 1_000n);
+  });
+
+  it("veto blocks both sBTC withdrawal settlement paths", () => {
+    onboarded(); fundSBTC(WALLET);
+    expect(simnet.callPublicFn(WALLET, "sbtc-initiate-withdrawal",
+      [Cl.uint(SBTC_THRESHOLD + 1), poxAddr, Cl.uint(1_000), Cl.none(), Cl.none()], OWNER).result)
+      .toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "veto-operation",
+      [Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal",
+      [Cl.uint(0)], OWNER).result).toBeErr(Cl.uint(E_VETOED));
+    expect(simnet.callPublicFn(WALLET, "execute-pending-sbtc-withdrawal-now",
+      [Cl.uint(0),
+       sign(topic("execute-now", { "auth-id": Cl.uint(21), "op-id": Cl.uint(0) }), 21),
+       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_VETOED));
   });
 
   it("a passkey-signed withdrawal is accepted", () => {

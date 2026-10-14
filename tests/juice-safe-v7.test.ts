@@ -145,6 +145,12 @@ describe("juice-safe-v7: deploys and initialises against real mainnet dependenci
 });
 
 describe("juice-safe-v7: onboard guards", () => {
+  it("refuses the contract itself as owner", () => {
+    expect(verifyContract().result).toBeOk(Cl.bool(true));
+    expect(onboard(RECOVERY, MIN_COOLDOWN, WALLET).result)
+      .toBeErr(Cl.uint(ERR_UNAUTH));
+  });
+
   it("refuses the contract itself as recovery", () => {
     expect(verifyContract().result).toBeOk(Cl.bool(true));
     const r = simnet.callPublicFn(
