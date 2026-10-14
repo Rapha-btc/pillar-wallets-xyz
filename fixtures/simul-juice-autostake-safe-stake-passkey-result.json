@@ -1,18 +1,18 @@
 {
- "simulation": "https://stxer.xyz/simulations/mainnet/6fd870360cfc4da466dce5dca72da925",
- "passed": 43,
- "total": 43,
+ "simulation": "https://stxer.xyz/simulations/mainnet/8881fb12d6e3c345549c1bb24a820c78",
+ "passed": 50,
+ "total": 50,
  "sources": {
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe": {
    "form": "deploy-bytes-mv7dfb",
-   "bytes": 51552,
-   "sha256": "dda5367c1800f6f541840607ba9b5437f479580d51cd3654c12270024ae28a3d",
+   "bytes": 51742,
+   "sha256": "711f3fcb923674c852708f51472043c1e97543fea2845b210fe077a0b2e99838",
    "clarity": 6
   },
   "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.bob-autostake-safe": {
    "form": "deploy-bytes-mv7dfb",
-   "bytes": 51552,
-   "sha256": "dda5367c1800f6f541840607ba9b5437f479580d51cd3654c12270024ae28a3d",
+   "bytes": 51742,
+   "sha256": "711f3fcb923674c852708f51472043c1e97543fea2845b210fe077a0b2e99838",
    "clarity": 6
   },
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1": {
@@ -23,7 +23,7 @@
   }
  },
  "gasSats": "20",
- "startBurn": 971456,
+ "startBurn": 971472,
  "checks": [
   {
    "label": "deploy jing-core-v6 (deploy bytes)",
@@ -62,7 +62,7 @@
   },
   {
    "label": "pool register-self (real pox-5 grant)",
-   "actual": "(ok (tuple (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer) (signer-key 0x030bd2dd00735f326235c4e52627d37d66b74f1b5c4171814a45dd70a913c7dfc2)))",
+   "actual": "(ok (tuple (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer) (signer-key 0x023fc31b0c2c79dc8727704547a927b6a1d586c78f9977825e70fc672339ab6e59)))",
    "passed": true
   },
   {
@@ -71,7 +71,7 @@
    "passed": true
   },
   {
-   "label": "deploy juice-autostake-safe (Clarity 6, sha256 dda5367c1800)",
+   "label": "deploy juice-autostake-safe (Clarity 6, sha256 711f3fcb9236)",
    "actual": "(ok true)",
    "passed": true
   },
@@ -151,7 +151,7 @@
    "passed": true
   },
   {
-   "label": "A8 passkey stake 500 STX, no gas",
+   "label": "A8 passkey stake 500 STX, no gas, signer-calldata \"telegram\"",
    "actual": "(ok true)",
    "passed": true
   },
@@ -161,12 +161,12 @@
    "passed": true
   },
   {
-   "label": "A10 passkey update +100 STX, with gas",
+   "label": "A10 passkey update +100 STX, with gas, signer-calldata \"telegram\"",
    "actual": "(ok true)",
    "passed": true
   },
   {
-   "label": "A11 passkey update +50 STX, no gas",
+   "label": "A11 passkey update +50 STX, no gas, signer-calldata none",
    "actual": "(ok true)",
    "passed": true
   },
@@ -196,7 +196,7 @@
    "passed": true
   },
   {
-   "label": "B2 bob passkey stake 300 STX, with gas",
+   "label": "B2 bob passkey stake 300 STX, with gas, signer-calldata none",
    "actual": "(ok true)",
    "passed": true
   },
@@ -238,6 +238,41 @@
   {
    "label": "B3 bob unstake: lock ends next cycle, no gas",
    "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u972650) (unlocked u700000000))) (cyc u145) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u146) (num-cycles u0) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u4980))",
+   "passed": true
+  },
+  {
+   "label": "A8 pool validate-stake print: signer-calldata = \"telegram\" (0x74656c656772616d)",
+   "actual": "[\"(tuple (added-ustx u500000000) (covered-ustx u500000000) (seats u1) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (topic \\\"og-seat\\\"))\",\"(tuple (amount-sats u0) (amount-ustx u500000000) (first-index u146) (is-bond false) (num-indexes u96) (signer-calldata (some 0x74656c656772616d)) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (topic \\\"validate-stake\\\"))\"]",
+   "passed": true
+  },
+  {
+   "label": "A10 pool validate-stake print: signer-calldata = \"telegram\" (0x74656c656772616d)",
+   "actual": "[\"(tuple (added-ustx u100000000) (covered-ustx u600000000) (seats u1) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (topic \\\"og-seat\\\"))\",\"(tuple (amount-sats u0) (amount-ustx u600000000) (first-index u146) (is-bond false) (num-indexes u96) (signer-calldata (some 0x74656c656772616d)) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (topic \\\"validate-stake\\\"))\"]",
+   "passed": true
+  },
+  {
+   "label": "A11 pool validate-stake print: signer-calldata none",
+   "actual": "[\"(tuple (added-ustx u50000000) (covered-ustx u650000000) (seats u1) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (topic \\\"og-seat\\\"))\",\"(tuple (amount-sats u0) (amount-ustx u650000000) (first-index u146) (is-bond false) (num-indexes u96) (signer-calldata none) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe) (topic \\\"validate-stake\\\"))\"]",
+   "passed": true
+  },
+  {
+   "label": "B2 pool validate-stake print: signer-calldata none",
+   "actual": "[\"(tuple (added-ustx u300000000) (covered-ustx u300000000) (seats u2) (staker SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.bob-autostake-safe) (topic \\\"og-seat\\\"))\",\"(tuple (amount-sats u0) (amount-ustx u300000000) (first-index u146) (is-bond false) (num-indexes u96) (signer-calldata none) (staker SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.bob-autostake-safe) (topic \\\"validate-stake\\\"))\"]",
+   "passed": true
+  },
+  {
+   "label": "A8 safe print carries signer-calldata = \"telegram\"",
+   "actual": "[\"(tuple (amount-ustx u500000000) (event \\\"stake-stx-juice\\\") (num-cycles u96) (signer-calldata (some 0x74656c656772616d)))\"]",
+   "passed": true
+  },
+  {
+   "label": "A10 safe print carries signer-calldata = \"telegram\"",
+   "actual": "[\"(tuple (amount-increase u100000000) (cycles-to-extend u0) (event \\\"update-stake-stx-juice\\\") (signer-calldata (some 0x74656c656772616d)))\"]",
+   "passed": true
+  },
+  {
+   "label": "A11 safe print carries signer-calldata none",
+   "actual": "[\"(tuple (amount-increase u50000000) (cycles-to-extend u0) (event \\\"update-stake-stx-juice\\\") (signer-calldata none))\"]",
    "passed": true
   }
  ]

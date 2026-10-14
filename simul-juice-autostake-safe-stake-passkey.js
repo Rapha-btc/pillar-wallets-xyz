@@ -20,6 +20,9 @@
 //   B  SP28MP....bob-autostake-safe (relay user copy, same bytes, onboarded on
 //      the canonical hash, own passkey): passkey stake (gas); passkey unstake
 //      (no gas)
+// signer-calldata: A8 (stake) and A10 (update) pass (some "telegram"), A11
+// and B2 pass none; the pool's validate-stake! print must carry exactly that,
+// for pox-5 stake and stake-update alike, and so must the safe's own print.
 // Message hashes: SPV9K21....juice-safe-auth-helpers-v1 (live) builders
 // build-stake-stx-juice-pox5-hash / build-update-stake-stx-juice-hash /
 // build-unstake-stx-juice-hash, mirrored below.
@@ -80,6 +83,12 @@ const FUND = 1_000_000_000;     // 1000 STX each
 const FUND_SBTC = 5_000;
 const STAKE = 500_000_000, INC1 = 100_000_000, INC2 = 50_000_000;
 const STAKE_B = 300_000_000;
+// signer-calldata (last param of stake-stx-juice / update-stake-stx-juice since
+// pillar-wallets 99d69e8): forwarded to pox-5 stake / stake-update, which hands
+// it to the pool's validate-stake!, which prints it.
+const CALLDATA = "telegram";
+const CALLDATA_HEX = Buffer.from(CALLDATA).toString("hex");
+const CALLDATA_CV = someCV(bufferCV(Buffer.from(CALLDATA)));
 
 const SIP018_PREFIX = Buffer.from("534950303138", "hex");
 const sha256 = (b) => crypto.createHash("sha256").update(b).digest();
@@ -145,9 +154,9 @@ async function main() {
   const okre = /^\(ok/;
   const step = (label) => plan.push({ kind: "fund", label });
   const evalw = (wallet, label, code, capture) => { b.addEvalCode(wallet, code); plan.push({ kind: "eval", label, capture }); };
-  const call = (label, sender, cid, fn, args, expect, capture) => {
+  const call = (label, sender, cid, fn, args, expect, capture, ev) => {
     b.withSender(sender).addContractCall({ contract_id: cid, function_name: fn, function_args: args, post_condition_mode: PostConditionMode.Allow });
-    plan.push({ kind: "tx", label, expect, capture });
+    plan.push({ kind: "tx", label, expect, capture, ev });
   };
   const snap = (wallet, tag) => evalw(wallet, `${tag} snapshot`, `{ acct: (stx-account '${wallet}), info: (contract-call? '${POX5} get-staker-info '${wallet}),
     cyc: (contract-call? '${POX5} current-pox-reward-cycle), sbtc: (unwrap-panic (contract-call? '${SBTC_TOKEN} get-balance '${wallet})) }`, tag);
@@ -192,13 +201,13 @@ async function main() {
   call("A6 owner stake 0 -> u4026", OWNER, A, "stake-stx-juice", [uintCV(0), noneCV(), noneCV(), noneCV()], "(err u4026)");
   call("A7 passkey stake signed for another amount -> u4002", RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 4, T.stake(4, STAKE + 1)), noneCV(), noneCV()], "(err u4002)");
   snap(A, "a0");
-  call(`A8 passkey stake ${STAKE / 1e6} STX, no gas`, RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 5, T.stake(5, STAKE)), noneCV(), noneCV()], okre);
+  call(`A8 passkey stake ${STAKE / 1e6} STX, no gas, signer-calldata "${CALLDATA}"`, RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 5, T.stake(5, STAKE)), noneCV(), CALLDATA_CV], okre, undefined, "A8");
   snap(A, "a1");
   call("A9 owner update 0/0 -> u4026", OWNER, A, "update-stake-stx-juice", [uintCV(0), uintCV(0), noneCV(), noneCV(), noneCV()], "(err u4026)");
-  call(`A10 passkey update +${INC1 / 1e6} STX, with gas`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 6, T.update(6, INC1, 0)), GASCV, noneCV()], okre);
+  call(`A10 passkey update +${INC1 / 1e6} STX, with gas, signer-calldata "${CALLDATA}"`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 6, T.update(6, INC1, 0)), GASCV, CALLDATA_CV], okre, undefined, "A10");
   snap(A, "a2");
   const upd2 = sAuth(A, keyA, 7, T.update(7, INC2, 0));
-  call(`A11 passkey update +${INC2 / 1e6} STX, no gas`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV(), noneCV()], okre);
+  call(`A11 passkey update +${INC2 / 1e6} STX, no gas, signer-calldata none`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV(), noneCV()], okre, undefined, "A11");
   snap(A, "a3");
   call("A12 same update signature replayed -> u4006", RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV(), noneCV()], "(err u4006)");
   call("A13 passkey unstake, with gas", RELAYER, A, "unstake", [sAuth(A, keyA, 8, T.unstake(8)), GASCV], okre);
@@ -209,7 +218,7 @@ async function main() {
   call("B1 bob locked: passkey stake with gas -> u4023", RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 1, T.stake(1, STAKE_B)), GASCV, noneCV()], "(err u4023)");
   call("B1 owner turns bob's lock off", OWNER, B, "toggle-token-lock", [falseCV(), noneCV(), noneCV()], okre);
   snap(B, "b0");
-  call(`B2 bob passkey stake ${STAKE_B / 1e6} STX, with gas`, RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 2, T.stake(2, STAKE_B)), GASCV, noneCV()], okre);
+  call(`B2 bob passkey stake ${STAKE_B / 1e6} STX, with gas, signer-calldata none`, RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 2, T.stake(2, STAKE_B)), GASCV, noneCV()], okre, undefined, "B2");
   snap(B, "b1");
   call("B3 bob passkey unstake, no gas", RELAYER, B, "unstake", [sAuth(B, keyB, 3, T.unstake(3)), noneCV()], okre);
   snap(B, "b2");
@@ -232,12 +241,16 @@ async function main() {
     try { return cvToString(deserializeCV(r.Ok)); } catch { return r.Ok; }
   };
   let pass = 0, fail = 0;
-  const checks = [], cap = {};
+  const checks = [], cap = {}, evs = {};
+  const prints = (s, cid) => (s?.Result?.Transaction?.Ok?.events ?? []).map((raw) => (typeof raw === "string" ? JSON.parse(raw) : raw))
+    .filter((e) => e.type === "contract_event" && e.contract_event?.contract_identifier === cid && e.committed !== false)
+    .map((e) => cvToString(deserializeCV(e.contract_event.raw_value)));
   if (res.steps.length !== plan.length) console.log(`WARN: ${res.steps.length} steps returned, ${plan.length} planned`);
   plan.forEach((p, i) => {
     const s = res.steps[i];
     if (p.kind === "eval") { cap[p.capture] = decEval(s); console.log(`INFO [${i}] ${p.label}: ${String(cap[p.capture]).slice(0, 260)}`); return; }
     const d = decTx(s);
+    if (p.ev) evs[p.ev] = { pool: prints(s, `${DEPLOYER}.${POOL}`), safe: prints(s, p.ev.startsWith("B") ? B : A) };
     const ok = p.kind === "fund" ? !!s && !/^ENGINE-ERR|^\(err|^<none>/.test(d) : p.expect instanceof RegExp ? p.expect.test(d) : d === p.expect;
     console.log(`${ok ? "PASS" : "FAIL"} [${i}] ${p.label}\n        got ${d.slice(0, 200)}`);
     ok ? pass++ : fail++;
@@ -261,6 +274,22 @@ async function main() {
   chk(`B2 bob passkey stake locked exactly ${STAKE_B}, gas ${G} paid`, num("b1", "locked") === BigInt(STAKE_B) && num("b1", "amount-ustx") === BigInt(STAKE_B)
     && num("b0", "sbtc") - num("b1", "sbtc") === G, cap.b1);
   chk("B3 bob unstake: lock ends next cycle, no gas", unlockCycle("b2") === cyc("b2") + 1n && num("b2", "sbtc") === num("b1", "sbtc"), cap.b2);
+
+  // signer-calldata reaches the pool: pox-5 stake / stake-update -> validate-stake! print
+  const vs = (k) => (evs[k]?.pool ?? []).filter((x) => /\(topic "validate-stake"\)/.test(x));
+  const cdSome = `(signer-calldata (some 0x${CALLDATA_HEX}))`;
+  const cdOk = (k, want, extra = () => true) => {
+    const v = vs(k);
+    chk(`${k} pool validate-stake print: signer-calldata ${want === "none" ? "none" : `= "${CALLDATA}" (0x${CALLDATA_HEX})`}`,
+      v.length === 1 && v[0].includes(want === "none" ? "(signer-calldata none)" : cdSome) && extra(v[0]), JSON.stringify(evs[k]?.pool));
+  };
+  cdOk("A8", "some", (x) => x.includes(`(amount-ustx u${STAKE})`) && x.includes(`(staker ${A})`));
+  cdOk("A10", "some", (x) => x.includes(`(staker ${A})`));
+  cdOk("A11", "none");
+  cdOk("B2", "none", (x) => x.includes(`(staker ${B})`));
+  for (const k of ["A8", "A10"])
+    chk(`${k} safe print carries signer-calldata = "${CALLDATA}"`, (evs[k]?.safe ?? []).some((x) => x.includes(cdSome)), JSON.stringify(evs[k]?.safe));
+  chk("A11 safe print carries signer-calldata none", (evs.A11?.safe ?? []).some((x) => x.includes("(signer-calldata none)")), JSON.stringify(evs.A11?.safe));
 
   const total = pass + fail;
   console.log(`\n=== ${pass} passed, ${fail} failed (${total}) ===\nView: ${url}`);
