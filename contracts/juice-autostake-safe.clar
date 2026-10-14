@@ -1166,6 +1166,8 @@
     (map-set admins pending true)
     (map-delete admins (var-get owner))
     (var-set owner pending)
+    ;; a new owner starts with auto-restake off (bounty mv7dfb, Giant Moth F2)
+    (var-set keeper pending)
     (var-set pending-transfer 'SP000000000000000000002Q6VF78)
     (update-activity)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
@@ -1312,6 +1314,8 @@
     (asserts! (not (is-eq new-admin current-contract)) err-unauthorised)
     (map-set admins new-admin true)
     (var-set owner new-admin)
+    ;; a new owner starts with auto-restake off (bounty mv7dfb, Giant Moth F2)
+    (var-set keeper new-admin)
     (var-set last-activity-block burn-block-height)
     (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-recover-inactive-wallet new-admin tx-sender
