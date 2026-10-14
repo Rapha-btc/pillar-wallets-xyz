@@ -1,0 +1,133 @@
+// juice-safe-v8-rv-repro.test.ts -- RV-F1 against juice-safe-v8, mirrored from
+// tests/juice-autostake-safe-rv-repro.test.ts.
+//
+// Run:
+//   npx vitest run tests/juice-safe-v8-rv-repro.test.ts -- --manifest tests/cl-v8/Clarinet.toml
+//
+// juice-safe-v8 loads at its real address from tests/cl-v8 (see that manifest).
+//
+// RV-F1: a stale pending-transfer that names the CURRENT owner. propose-transfer-
+// wallet only refuses new-admin == tx-sender at propose time, and neither
+// recover-inactive-wallet nor confirm-transfer-wallet clears it. Before v8,
+// confirming it ran (map-set admins pending true) (map-delete admins (var-get owner))
+// on the SAME key and left the admins map EMPTY. v8 refuses pending == owner.
+import { describe, expect, it } from "vitest";
+import { Cl } from "@stacks/transactions";
+import crypto from "node:crypto";
+import { secp256k1 } from "@noble/curves/secp256k1.js";
+import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
+
+const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
+const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
+const WALLET_NAME = "juice-safe-v8";
+const POOL_NAME = "juice-pool-stx-signer";
+const WALLET = `${D}.${WALLET_NAME}`;
+const POOL = `${D}.${POOL_NAME}`;
+const CORE = `${D}.fakfun-wallet-core-v2`;
+const RP_ID = "juiceofbtc.com";
+const CHAIN_ID = 2147483648;
+const INACTIVITY_PERIOD = 52560;
+
+const accounts = simnet.getAccounts();
+const DEPLOYER = accounts.get("deployer")!;
+const OWNER = accounts.get("wallet_1")!; // A: onboarded owner, holds the passkey
+const RECOVERY = accounts.get("wallet_2")!;
+const B = accounts.get("wallet_3")!;
+
+const E_UNAUTH = 4001;
+
+const SIP018 = Buffer.from("534950303138", "hex");
+const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest();
+const cvHash = (cv: any) => sha256(Buffer.from(Cl.serialize(cv), "hex"));
+const strip = (h: string) => (h.startsWith("0x") ? h.slice(2) : h);
+
+const pk = generateP256Keypair();
+const pubkeyCV = Cl.bufferFromHex(strip(pk.pubKeyHex));
+function walletDomain(): Buffer {
+  return cvHash(Cl.tuple({
+    name: Cl.stringAscii("smart-wallet-standard"), version: Cl.stringAscii("1.0.0"),
+    "chain-id": Cl.uint(CHAIN_ID), wallet: Cl.contractPrincipal(D, WALLET_NAME),
+  }));
+}
+/** Mirrors smart-wallet-standard-auth-helpers-v7.build-confirm-transfer-hash. */
+function confirmTransferHash(authId: number, newAdmin: string): Buffer {
+  const struct = cvHash(Cl.tuple({
+    topic: Cl.stringAscii("confirm-transfer"), "auth-id": Cl.uint(authId), "new-admin": Cl.principal(newAdmin),
+  }));
+  return sha256(Buffer.concat([SIP018, walletDomain(), struct]));
+}
+function sigAuth(authId: number, hash: Buffer) {
+  const s = signChallengeWithRpId(hash, pk.privKey, RP_ID);
+  return Cl.tuple({
+    "auth-id": Cl.uint(authId), pubkey: pubkeyCV,
+    signature: Cl.bufferFromHex(strip(s.signatureHex)),
+    "authenticator-data": Cl.bufferFromHex(strip(s.authenticatorDataHex)),
+    "client-data-prefix": Cl.bufferFromHex(strip(s.clientDataPrefixHex)),
+    "client-data-suffix": Cl.bufferFromHex(strip(s.clientDataSuffixHex)),
+  });
+}
+
+const signerPriv = secp256k1.utils.randomSecretKey();
+const signerPub = secp256k1.getPublicKey(signerPriv, true);
+function grantMessageHash(authId: number): Buffer {
+  const domain = cvHash(Cl.tuple({
+    name: Cl.stringAscii("pox-5-signer"), version: Cl.stringAscii("1.0.0"), "chain-id": Cl.uint(CHAIN_ID),
+  }));
+  const struct = cvHash(Cl.tuple({
+    topic: Cl.stringAscii("grant-authorization"),
+    "signer-manager": Cl.contractPrincipal(D, POOL_NAME), "auth-id": Cl.uint(authId),
+  }));
+  return sha256(Buffer.concat([SIP018, domain, struct]));
+}
+function registerPool() {
+  const compact = Buffer.from(secp256k1.sign(grantMessageHash(1), signerPriv, { prehash: false }) as any);
+  for (const rec of [0, 1]) {
+    const r = simnet.callPublicFn(POOL, "register-self",
+      [Cl.contractPrincipal(D, POOL_NAME), Cl.bufferFromHex(Buffer.from(signerPub).toString("hex")),
+       Cl.uint(1), Cl.bufferFromHex(Buffer.concat([compact, Buffer.from([rec])]).toString("hex"))], D);
+    if (Cl.prettyPrint(r.result).startsWith("(ok")) return;
+  }
+  throw new Error("pool registration failed");
+}
+function readySafe() {
+  registerPool();
+  expect(simnet.callPublicFn(CORE, "set-verified-contract",
+    [Cl.contractPrincipal(D, WALLET_NAME), Cl.none()], D).result).toBeOk(Cl.bool(true));
+  expect(simnet.callPublicFn(WALLET, "onboard",
+    [pubkeyCV, Cl.principal(OWNER), Cl.principal(RECOVERY),
+     Cl.uint(10_000_000_000_000), Cl.uint(100_000), Cl.uint(144)], FAKFUN_DEPLOYER).result).toBeOk(Cl.bool(true));
+  simnet.transferSTX(3_000_000_000, WALLET, DEPLOYER);
+}
+const isAdmin = (p: string) =>
+  Cl.prettyPrint(simnet.callReadOnlyFn(WALLET, "is-admin-calling", [Cl.principal(p)], p).result) === "(ok true)";
+const owner = () => Cl.prettyPrint(simnet.callReadOnlyFn(WALLET, "get-owner", [], OWNER).result);
+
+describe("RV-F1: confirming a stale self-transfer is refused", () => {
+  it("owner A -> B -> (B proposes A) -> recovery to A -> A confirms: refused, A stays admin", () => {
+    // arrange: A proposes B and confirms with the passkey -> owner B
+    readySafe();
+    expect(simnet.callPublicFn(WALLET, "propose-transfer-wallet", [Cl.principal(B)], OWNER).result)
+      .toBeOk(Cl.bool(true));
+    expect(simnet.callPublicFn(WALLET, "confirm-transfer-wallet",
+      [sigAuth(1, confirmTransferHash(1, B)), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    expect(owner()).toBe(`(ok '${B})`);
+    // B (admin, principal key) proposes handing the safe back to A
+    expect(simnet.callPublicFn(WALLET, "propose-transfer-wallet", [Cl.principal(OWNER)], B).result)
+      .toBeOk(Cl.bool(true));
+    // B goes inactive; the recovery address restores A. pending-transfer = A survives.
+    simnet.mineEmptyBurnBlocks(INACTIVITY_PERIOD + 1);
+    expect(simnet.callPublicFn(WALLET, "recover-inactive-wallet", [Cl.principal(OWNER)], RECOVERY).result)
+      .toBeOk(Cl.bool(true));
+    expect(owner()).toBe(`(ok '${OWNER})`);
+    expect(isAdmin(OWNER)).toBe(true);
+
+    // act: A's passkey confirms the stale transfer, which names A itself
+    const r = simnet.callPublicFn(WALLET, "confirm-transfer-wallet",
+      [sigAuth(2, confirmTransferHash(2, OWNER)), Cl.none()], OWNER);
+
+    // assert: refused, and A stays the sole admin
+    expect(r.result).toBeErr(Cl.uint(E_UNAUTH));
+    expect(owner()).toBe(`(ok '${OWNER})`);
+    expect(isAdmin(OWNER)).toBe(true);
+  });
+});
