@@ -1,0 +1,244 @@
+{
+ "simulation": "https://stxer.xyz/simulations/mainnet/6fd870360cfc4da466dce5dca72da925",
+ "passed": 43,
+ "total": 43,
+ "sources": {
+  "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe": {
+   "form": "deploy-bytes-mv7dfb",
+   "bytes": 51552,
+   "sha256": "dda5367c1800f6f541840607ba9b5437f479580d51cd3654c12270024ae28a3d",
+   "clarity": 6
+  },
+  "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.bob-autostake-safe": {
+   "form": "deploy-bytes-mv7dfb",
+   "bytes": 51552,
+   "sha256": "dda5367c1800f6f541840607ba9b5437f479580d51cd3654c12270024ae28a3d",
+   "clarity": 6
+  },
+  "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1": {
+   "form": "deploy-bytes-mv7dfb",
+   "bytes": 593,
+   "sha256": "aabf3ba32c5602b83693f1581adb7a22a2e180df2306673b23f94c61fa61bd70",
+   "clarity": 4
+  }
+ },
+ "gasSats": "20",
+ "startBurn": 971456,
+ "checks": [
+  {
+   "label": "deploy jing-core-v6 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy jing-ladder-v1 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy markets-sbtc-stx-jing-v6-3 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy swap-router-sbtc-stx-jing-v5-3 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-swap-vault-trait-v2 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-sbtc-autoswap (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-pool-sbtc-signer (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "pool register-self (real pox-5 grant)",
+   "actual": "(ok (tuple (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer) (signer-key 0x030bd2dd00735f326235c4e52627d37d66b74f1b5c4171814a45dd70a913c7dfc2)))",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-autostake-safe-auth-helpers-v1 (Clarity 4, sha256 aabf3ba32c56)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-autostake-safe (Clarity 6, sha256 dda5367c1800)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "core-v2 set-verified-contract(safe)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "relay deploys user copy SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.bob-autostake-safe (same bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "onboard juice-autostake-safe",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "onboard bob-autostake-safe",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "fund juice-autostake-safe 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "fund juice-autostake-safe 5000 sats (gas)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "fund bob-autostake-safe 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "fund bob-autostake-safe 5000 sats (gas)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A1 owner turns the lock on",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A2 locked: passkey stake -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "A3 locked: passkey update -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "A4 locked: passkey unstake -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "A5 owner turns the lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A6 owner stake 0 -> u4026",
+   "actual": "(err u4026)",
+   "passed": true
+  },
+  {
+   "label": "A7 passkey stake signed for another amount -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "A8 passkey stake 500 STX, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A9 owner update 0/0 -> u4026",
+   "actual": "(err u4026)",
+   "passed": true
+  },
+  {
+   "label": "A10 passkey update +100 STX, with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A11 passkey update +50 STX, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A12 same update signature replayed -> u4006",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "label": "A13 passkey unstake, with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B1 owner turns bob's lock on",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B1 bob locked: passkey stake with gas -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "label": "B1 owner turns bob's lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B2 bob passkey stake 300 STX, with gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B3 bob passkey unstake, no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "a0 nothing staked before",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u1000000000))) (cyc u145) (info none) (sbtc u5000))",
+   "passed": true
+  },
+  {
+   "label": "A8 passkey stake locked exactly 500000000, 96 cycles, no gas paid",
+   "actual": "(tuple (acct (tuple (locked u500000000) (unlock-height u1174250) (unlocked u500000000))) (cyc u145) (info (some (tuple (amount-ustx u500000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u5000))",
+   "passed": true
+  },
+  {
+   "label": "A10 update +100000000: locked 600000000, gas 20 paid",
+   "actual": "(tuple (acct (tuple (locked u600000000) (unlock-height u1174250) (unlocked u400000000))) (cyc u145) (info (some (tuple (amount-ustx u600000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u4980))",
+   "passed": true
+  },
+  {
+   "label": "A11 update +50000000: locked 650000000, no gas",
+   "actual": "(tuple (acct (tuple (locked u650000000) (unlock-height u1174250) (unlocked u350000000))) (cyc u145) (info (some (tuple (amount-ustx u650000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u4980))",
+   "passed": true
+  },
+  {
+   "label": "A13 unstake: lock ends next cycle, gas 20 paid",
+   "actual": "(tuple (acct (tuple (locked u650000000) (unlock-height u972650) (unlocked u350000000))) (cyc u145) (info (some (tuple (amount-ustx u650000000) (first-reward-cycle u146) (num-cycles u0) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u4960))",
+   "passed": true
+  },
+  {
+   "label": "B2 bob passkey stake locked exactly 300000000, gas 20 paid",
+   "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u1174250) (unlocked u700000000))) (cyc u145) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u4980))",
+   "passed": true
+  },
+  {
+   "label": "B3 bob unstake: lock ends next cycle, no gas",
+   "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u972650) (unlocked u700000000))) (cyc u145) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u146) (num-cycles u0) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)))) (sbtc u4980))",
+   "passed": true
+  }
+ ]
+}
