@@ -245,7 +245,7 @@ async function main() {
   // -- B: stake, keeper gate, first restake -----------------------------------
   restake("B1 restake before any stake -> u4040", DEPLOYER, "(err u4040)");
   call("B2 owner stakes 1000 STX", OWNER, WALLET, "stake-stx-juice",
-    [uintCV(STAKE), noneCV(), noneCV()], okre);
+    [uintCV(STAKE), noneCV(), noneCV(), noneCV()], okre);
   snap("B2");
   restake("B3 restake by OWNER (not keeper) -> u4001", OWNER, "(err u4001)");
   restake("B4 restake by RANDOM -> u4001", RANDOM, "(err u4001)");
@@ -271,7 +271,7 @@ async function main() {
 
   // -- F: the roll target is pox-5's ceiling ----------------------------------
   call("F1 owner extends +1 at the max -> pox-5 u20", OWNER, WALLET, "update-stake-stx-juice",
-    [uintCV(0), uintCV(1), noneCV(), noneCV()], "(err u20)");
+    [uintCV(0), uintCV(1), noneCV(), noneCV(), noneCV()], "(err u20)");
 
   // -- G: prepare phase ---------------------------------------------------------
   advance("G into the prepare phase (50 blocks before the boundary)", CYCLE - 20 - 50);
@@ -367,7 +367,7 @@ async function main() {
     [pubkey2CV, standardPrincipalCV(OWNER), standardPrincipalCV(RECOVERY),
      uintCV(100_000_000), uintCV(100_000), uintCV(144)], okre);
   fundBob(`L0 fund bob ${BOB_FUND / 1e6} STX`, BOB_FUND);
-  call(`L1 owner stakes ${BOB_STAKE / 1e6} STX in bob`, OWNER, BOB, "stake-stx-juice", [uintCV(BOB_STAKE), noneCV(), noneCV()], okre);
+  call(`L1 owner stakes ${BOB_STAKE / 1e6} STX in bob`, OWNER, BOB, "stake-stx-juice", [uintCV(BOB_STAKE), noneCV(), noneCV(), noneCV()], okre);
   call("L1 owner sets keeper RANDOM", OWNER, BOB, "set-keeper", [standardPrincipalCV(RANDOM), noneCV(), noneCV()], okre);
   call("L2 owner proposes transfer to RECIPIENT", OWNER, BOB, "propose-transfer-wallet", [standardPrincipalCV(RECIPIENT)], okre);
   call("L2 relayer submits the passkey confirm-transfer", RELAYER, BOB, "confirm-transfer-wallet",

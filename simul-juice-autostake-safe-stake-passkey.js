@@ -185,31 +185,31 @@ async function main() {
 
   // -- A: token lock on -> every passkey staking call refused -------------------------------
   call("A1 owner turns the lock on", OWNER, A, "toggle-token-lock", [trueCV(), noneCV(), noneCV()], okre);
-  call("A2 locked: passkey stake -> u4023", RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 1, T.stake(1, STAKE)), noneCV()], "(err u4023)");
-  call("A3 locked: passkey update -> u4023", RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 2, T.update(2, INC1, 0)), noneCV()], "(err u4023)");
+  call("A2 locked: passkey stake -> u4023", RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 1, T.stake(1, STAKE)), noneCV(), noneCV()], "(err u4023)");
+  call("A3 locked: passkey update -> u4023", RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 2, T.update(2, INC1, 0)), noneCV(), noneCV()], "(err u4023)");
   call("A4 locked: passkey unstake -> u4023", RELAYER, A, "unstake", [sAuth(A, keyA, 3, T.unstake(3)), noneCV()], "(err u4023)");
   call("A5 owner turns the lock off", OWNER, A, "toggle-token-lock", [falseCV(), noneCV(), noneCV()], okre);
-  call("A6 owner stake 0 -> u4026", OWNER, A, "stake-stx-juice", [uintCV(0), noneCV(), noneCV()], "(err u4026)");
-  call("A7 passkey stake signed for another amount -> u4002", RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 4, T.stake(4, STAKE + 1)), noneCV()], "(err u4002)");
+  call("A6 owner stake 0 -> u4026", OWNER, A, "stake-stx-juice", [uintCV(0), noneCV(), noneCV(), noneCV()], "(err u4026)");
+  call("A7 passkey stake signed for another amount -> u4002", RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 4, T.stake(4, STAKE + 1)), noneCV(), noneCV()], "(err u4002)");
   snap(A, "a0");
-  call(`A8 passkey stake ${STAKE / 1e6} STX, no gas`, RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 5, T.stake(5, STAKE)), noneCV()], okre);
+  call(`A8 passkey stake ${STAKE / 1e6} STX, no gas`, RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 5, T.stake(5, STAKE)), noneCV(), noneCV()], okre);
   snap(A, "a1");
-  call("A9 owner update 0/0 -> u4026", OWNER, A, "update-stake-stx-juice", [uintCV(0), uintCV(0), noneCV(), noneCV()], "(err u4026)");
-  call(`A10 passkey update +${INC1 / 1e6} STX, with gas`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 6, T.update(6, INC1, 0)), GASCV], okre);
+  call("A9 owner update 0/0 -> u4026", OWNER, A, "update-stake-stx-juice", [uintCV(0), uintCV(0), noneCV(), noneCV(), noneCV()], "(err u4026)");
+  call(`A10 passkey update +${INC1 / 1e6} STX, with gas`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 6, T.update(6, INC1, 0)), GASCV, noneCV()], okre);
   snap(A, "a2");
   const upd2 = sAuth(A, keyA, 7, T.update(7, INC2, 0));
-  call(`A11 passkey update +${INC2 / 1e6} STX, no gas`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV()], okre);
+  call(`A11 passkey update +${INC2 / 1e6} STX, no gas`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV(), noneCV()], okre);
   snap(A, "a3");
-  call("A12 same update signature replayed -> u4006", RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV()], "(err u4006)");
+  call("A12 same update signature replayed -> u4006", RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV(), noneCV()], "(err u4006)");
   call("A13 passkey unstake, with gas", RELAYER, A, "unstake", [sAuth(A, keyA, 8, T.unstake(8)), GASCV], okre);
   snap(A, "a4");
 
   // -- B: the other gas arms ------------------------------------------------------------------
   call("B1 owner turns bob's lock on", OWNER, B, "toggle-token-lock", [trueCV(), noneCV(), noneCV()], okre);
-  call("B1 bob locked: passkey stake with gas -> u4023", RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 1, T.stake(1, STAKE_B)), GASCV], "(err u4023)");
+  call("B1 bob locked: passkey stake with gas -> u4023", RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 1, T.stake(1, STAKE_B)), GASCV, noneCV()], "(err u4023)");
   call("B1 owner turns bob's lock off", OWNER, B, "toggle-token-lock", [falseCV(), noneCV(), noneCV()], okre);
   snap(B, "b0");
-  call(`B2 bob passkey stake ${STAKE_B / 1e6} STX, with gas`, RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 2, T.stake(2, STAKE_B)), GASCV], okre);
+  call(`B2 bob passkey stake ${STAKE_B / 1e6} STX, with gas`, RELAYER, B, "stake-stx-juice", [uintCV(STAKE_B), sAuth(B, keyB, 2, T.stake(2, STAKE_B)), GASCV, noneCV()], okre);
   snap(B, "b1");
   call("B3 bob passkey unstake, no gas", RELAYER, B, "unstake", [sAuth(B, keyB, 3, T.unstake(3)), noneCV()], okre);
   snap(B, "b2");

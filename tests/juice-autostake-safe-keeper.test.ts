@@ -184,7 +184,7 @@ function readySafe(fund = FUND) {
 function stakedSafe(fund = FUND) {
   readySafe(fund);
   expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-    [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+    [Cl.uint(STAKE), Cl.none(), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
 }
 
 // --- reads ----------------------------------------------------------------------
@@ -639,7 +639,7 @@ describe("restake: the lock roll", () => {
     expect(restake(D).result).toBeOk(Cl.tuple({ amount: Cl.uint(0), "cycles-to-extend": Cl.uint(2) }));
     // act
     const r = simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(0), Cl.uint(1), Cl.none(), Cl.none()], OWNER);
+      [Cl.uint(0), Cl.uint(1), Cl.none(), Cl.none(), Cl.none()], OWNER);
     // assert
     expect(r.result).toBeErr(Cl.uint(POX_INVALID_NUM_CYCLES));
   });
@@ -681,6 +681,23 @@ describe("restake: allowance and activity", () => {
     // juicestx pool-autostake-e2e-stxer.mjs.
     expect(locked).toBeUint(0);
     expect(r.result).toBeOk(Cl.tuple({ amount: Cl.uint(FUND), "cycles-to-extend": Cl.uint(0) }));
+  });
+});
+
+describe("stake-stx-juice: signer-calldata", () => {
+  it("forwards signer-calldata to pox-5 and prints it on the stake event", () => {
+    // arrange
+    readySafe();
+    const calldata = Cl.some(Cl.bufferFromAscii("telegram"));
+    // act
+    const r = simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(STAKE), Cl.none(), Cl.none(), calldata], OWNER);
+    // assert
+    expect(r.result).toBeOk(Cl.bool(true));
+    const ev = r.events.find((e: any) => e.event === "print_event"
+      && Cl.prettyPrint(e.data.value).includes('event: "stake-stx-juice"'));
+    expect(ev).toBeDefined();
+    expect((ev!.data.value as any).value["signer-calldata"]).toStrictEqual(calldata);
   });
 });
 
