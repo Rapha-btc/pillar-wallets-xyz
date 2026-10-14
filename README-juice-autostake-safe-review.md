@@ -53,3 +53,22 @@ Reviewed and accepted 2026-10-13. The commit adds a keeper to the deployed
   (62/62): the launch pool pays STX into the safe, the keeper restakes it, the
   roll, set-keeper, unstake refusal and the recovery clock, on the exact
   pool source.
+- Clarinet SDK (vitest), this repo: `tests/juice-autostake-safe-keeper.test.ts`
+  (27 tests): get-keeper, set-keeper by admin and by passkey (helper hash,
+  keeper and auth-id binding, replay, gas station), and every restake guard,
+  the all-unlocked amount, the roll to `current + 1 + 96`, roll-only, the
+  prepare phase and the untouched recovery clock, on the real simnet pox-5.
+  The pool stand-in is the live `juice-pool-stx-signer` source. Simnet applies
+  no STX locks, so the `with-staking (+ locked amount)` allowance is only
+  proven on stxer.
+
+  ```
+  npx vitest run tests/juice-autostake-safe-keeper.test.ts -- --manifest tests/cl-v7/Clarinet.toml
+  AUTOSTAKE_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM \
+    npx vitest run tests/juice-autostake-safe-keeper.test.ts -- \
+    --manifest tests/cl-autostake-cov/Clarinet.toml --coverage
+  ```
+
+  Coverage: set-keeper 4/4 branches, restake 28/28 lines and 10/10 branches.
+  The 2 set-keeper lines lcov marks unhit are the contract name and function
+  name atoms of the helper call, not expressions.

@@ -1,0 +1,112 @@
+[project]
+name = "juice-autostake-safe-cov"
+description = "COVERAGE ONLY: juice-autostake-safe + helper + stand-in launch pool as local contracts"
+authors = []
+telemetry = false
+cache_dir = "../../.cache"
+
+[repl.analysis]
+passes = []
+
+[[project.requirements]]
+contract_id = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait"
+
+[[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
+
+[[project.requirements]]
+contract_id = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v8"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal"
+
+[[project.requirements]]
+contract_id = "SP000000000000000000002Q6VF78.pox-5"
+
+# COVERAGE ONLY. clarinet --coverage instruments PROJECT contracts, never
+# requirements or simnet.deployContract deploys, so line coverage needs the safe
+# deployed locally -- which moves it off SPV9K21T... The local
+# contracts/juice-autostake-safe.clar is byte-identical to
+# ../../contracts/juice-autostake-safe.clar EXCEPT three literals repointed to
+# the local deployer: the set-keeper helper (.juice-autostake-safe-auth-helpers-v1),
+# onboard's register-wallet canonical (.juice-autostake-safe) and JUICE-SIGNER
+# (.juice-autostake-pool). The stand-in pool is the live juice-pool-stx-signer
+# source (the launch pool is not on mainnet). It is renamed juice-autostake-pool
+# only for plan order: clarinet does not see a define-constant principal as a
+# dependency and orders ties by name, and the pool must exist before the safe
+# (the safe passes it to pox-5 as a trait).
+# Correctness runs use tests/cl-v7 with the unedited source at its real address.
+# Run:
+#   AUTOSTAKE_DEPLOYER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM \
+#     npx vitest run tests/juice-autostake-safe-keeper.test.ts -- \
+#     --manifest tests/cl-autostake-cov/Clarinet.toml --coverage
+
+[contracts.zz-gas-station]
+path = "contracts/zz-gas-station.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-allowance-probe]
+path = "contracts/zz-allowance-probe.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-ft]
+path = "contracts/zz-ft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-station-free]
+path = "contracts/zz-gas-station-free.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.juice-autostake-pool]
+path = "contracts/juice-autostake-pool.clar"
+clarity_version = 5
+epoch = "4.0"
+
+[contracts.juice-autostake-safe-auth-helpers-v1]
+path = "contracts/juice-autostake-safe-auth-helpers-v1.clar"
+clarity_version = 4
+epoch = "4.0"
+
+[contracts.juice-autostake-safe]
+path = "contracts/juice-autostake-safe.clar"
+clarity_version = 6
+epoch = "4.0"
