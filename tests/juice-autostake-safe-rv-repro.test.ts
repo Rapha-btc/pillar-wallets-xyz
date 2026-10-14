@@ -125,8 +125,8 @@ const isAdmin = (p: string) =>
   Cl.prettyPrint(simnet.callReadOnlyFn(WALLET, "is-admin-calling", [Cl.principal(p)], p).result) === "(ok true)";
 const owner = () => Cl.prettyPrint(simnet.callReadOnlyFn(WALLET, "get-owner", [], OWNER).result);
 
-describe("RV-F1: confirming a stale self-transfer empties the admin set", () => {
-  it("owner A -> B -> (B proposes A) -> recovery to A -> A confirms: no admin left", () => {
+describe("RV-F1: confirming a stale self-transfer is refused", () => {
+  it("owner A -> B -> (B proposes A) -> recovery to A -> A confirms: refused, A stays admin", () => {
     // arrange: A proposes B and confirms with the passkey -> owner B
     readySafe();
     expect(simnet.callPublicFn(WALLET, "propose-transfer-wallet", [Cl.principal(B)], OWNER).result)
@@ -148,23 +148,9 @@ describe("RV-F1: confirming a stale self-transfer empties the admin set", () => 
     const r = simnet.callPublicFn(WALLET, "confirm-transfer-wallet",
       [sigAuth(2, confirmTransferHash(2, OWNER)), Cl.none()], OWNER);
 
-    // assert: accepted, and the admin set is now empty
-    expect(r.result).toBeOk(Cl.bool(true));
+    // assert: refused, and A stays the sole admin
+    expect(r.result).toBeErr(Cl.uint(E_UNAUTH));
     expect(owner()).toBe(`(ok '${OWNER})`);
-    for (const p of [OWNER, RECOVERY, B, SINK, DEPLOYER, D]) expect(isAdmin(p)).toBe(false);
-    // the owner's principal key is locked out ...
-    expect(simnet.callPublicFn(WALLET, "stx-transfer",
-      [Cl.uint(1_000_000), Cl.principal(SINK), Cl.none(), Cl.none(), Cl.none()], OWNER).result)
-      .toBeErr(Cl.uint(E_UNAUTH));
-    // ... and so is the passkey (its principal is no longer an admin)
-    expect(simnet.callPublicFn(WALLET, "unstake",
-      [Cl.some(sigAuth(3, unstakeHash(3))), Cl.none()], SINK).result).toBeErr(Cl.uint(E_NOT_ADMIN_PUBKEY));
-    // the recovery address cannot act until the NEW owner action timestamp ages out
-    expect(simnet.callPublicFn(WALLET, "recover-inactive-wallet", [Cl.principal(SINK)], RECOVERY).result)
-      .toBeErr(Cl.uint(4009));
-    simnet.mineEmptyBurnBlocks(INACTIVITY_PERIOD + 1);
-    expect(simnet.callPublicFn(WALLET, "recover-inactive-wallet", [Cl.principal(SINK)], RECOVERY).result)
-      .toBeOk(Cl.bool(true));
-    expect(isAdmin(SINK)).toBe(true);
+    expect(isAdmin(OWNER)).toBe(true);
   });
 });

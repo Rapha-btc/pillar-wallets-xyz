@@ -1163,6 +1163,7 @@
     (try! (ft-burn? ect u1 current-contract))
 
     (asserts! (not (is-eq pending current-contract)) err-unauthorised)
+    (asserts! (not (is-eq pending (var-get owner))) err-unauthorised)
     (map-set admins pending true)
     (map-delete admins (var-get owner))
     (var-set owner pending)
