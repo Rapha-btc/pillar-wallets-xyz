@@ -1,18 +1,18 @@
 {
- "simulation": "https://stxer.xyz/simulations/mainnet/8881fb12d6e3c345549c1bb24a820c78",
+ "simulation": "https://stxer.xyz/simulations/mainnet/1d74d1bc1b2227500a7a270b94f49a38",
  "passed": 50,
  "total": 50,
  "sources": {
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe": {
    "form": "deploy-bytes-mv7dfb",
-   "bytes": 51742,
-   "sha256": "711f3fcb923674c852708f51472043c1e97543fea2845b210fe077a0b2e99838",
+   "bytes": 51812,
+   "sha256": "599192e3cc933485ca03d9b703fd6aaf56c57929815e141f9fe4aabe872c2500",
    "clarity": 6
   },
   "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.bob-autostake-safe": {
    "form": "deploy-bytes-mv7dfb",
-   "bytes": 51742,
-   "sha256": "711f3fcb923674c852708f51472043c1e97543fea2845b210fe077a0b2e99838",
+   "bytes": 51812,
+   "sha256": "599192e3cc933485ca03d9b703fd6aaf56c57929815e141f9fe4aabe872c2500",
    "clarity": 6
   },
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1": {
@@ -62,7 +62,7 @@
   },
   {
    "label": "pool register-self (real pox-5 grant)",
-   "actual": "(ok (tuple (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer) (signer-key 0x023fc31b0c2c79dc8727704547a927b6a1d586c78f9977825e70fc672339ab6e59)))",
+   "actual": "(ok (tuple (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer) (signer-key 0x02fd5c2e0ce73daf44051484419ccec209ee69cda1cc49f11c05efa81244f811d8)))",
    "passed": true
   },
   {
@@ -71,7 +71,7 @@
    "passed": true
   },
   {
-   "label": "deploy juice-autostake-safe (Clarity 6, sha256 711f3fcb9236)",
+   "label": "deploy juice-autostake-safe (Clarity 6, sha256 599192e3cc93)",
    "actual": "(ok true)",
    "passed": true
   },

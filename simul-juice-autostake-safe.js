@@ -39,7 +39,10 @@
 //      chavita again and the restake works
 //   M  same for recover-inactive-wallet: the new owner sets a keeper, the safe
 //      goes idle for INACTIVITY-PERIOD (52560 burn blocks), recovery moves it;
-//      keeper = recovered owner, old keeper -> u4001; set again, restake works
+//      keeper = recovered owner, old keeper -> u4001; set again, restake works.
+//      RV-F1: a transfer to OWNER, proposed before the idle period, names the
+//      owner once recovery restores OWNER; its passkey confirm -> u4001 (not
+//      u4005: the passkey is live), OWNER stays admin
 //
 // Run: node simul-juice-autostake-safe.js
 import crypto from "node:crypto";
@@ -347,6 +350,7 @@ async function main() {
   const key2 = generateP256Keypair();
   const pubkey2CV = bufferCV(Buffer.from(strip(key2.pubKeyHex), "hex"));
   const sigXfer = signChallengeWithRpId(buildChallenge(tConfirmTransfer(21, RECIPIENT), BOB), key2.privKey, RP_ID);
+  const sigStale = signChallengeWithRpId(buildChallenge(tConfirmTransfer(22, OWNER), BOB), key2.privKey, RP_ID);
   const evalBob = (label, code, capture) => {
     b.addEvalCode(BOB, code);
     plan.push({ kind: "eval", label, capture });
@@ -385,8 +389,11 @@ async function main() {
   // -- M: inactivity recovery resets the keeper -------------------------------------
   call("M0 new owner sets keeper RANDOM (last owner action)", RECIPIENT, BOB, "set-keeper",
     [standardPrincipalCV(RANDOM), noneCV(), noneCV()], okre);
+  // RV-F1 setup: a pending transfer that will name the owner once recovery runs
+  call("M0 new owner proposes transfer to OWNER (left pending)", RECIPIENT, BOB, "propose-transfer-wallet",
+    [standardPrincipalCV(OWNER)], okre);
   call("M0 recovery before the period -> u4009", RECOVERY, BOB, "recover-inactive-wallet",
-    [standardPrincipalCV(RELAYER)], "(err u4009)");
+    [standardPrincipalCV(OWNER)], "(err u4009)");
   {
     // past INACTIVITY, landing near offset 1000 (clear of the prepare phase)
     const base = INACTIVITY + 40;
@@ -400,13 +407,18 @@ async function main() {
     }
   }
   evalBob("M1 is-inactive", "(is-inactive)", "inactiveM1");
-  call("M2 recovery moves bob to RELAYER", RECOVERY, BOB, "recover-inactive-wallet", [standardPrincipalCV(RELAYER)], okre);
+  call("M2 recovery moves bob to OWNER", RECOVERY, BOB, "recover-inactive-wallet", [standardPrincipalCV(OWNER)], okre);
   evalBob("M2 get-owner", "(get-owner)", "ownerM2");
   evalBob("M2 get-keeper", "(get-keeper)", "keeperM2");
+  // RV-F1: the stale pending transfer now names the current owner -> refused
+  call("M2 RV-F1 passkey confirm-transfer naming the current owner -> u4001", RELAYER, BOB, "confirm-transfer-wallet",
+    [sigAuthTuple(22, key2.pubKeyHex, sigStale), noneCV()], "(err u4001)");
+  evalBob("M2 RV-F1 owner unchanged", "(get-owner)", "ownerM2b");
+  evalBob("M2 RV-F1 owner still admin", `(is-admin-calling '${OWNER})`, "adminM2b");
   fundBob(`M3 payout ${PAYOUT_3 / 1e6} STX lands`, PAYOUT_3);
   restakeBob("M3 old keeper RANDOM -> u4001", RANDOM, "(err u4001)");
   restakeBob("M3 chavita -> u4001", DEPLOYER, "(err u4001)");
-  call("M4 recovered owner sets chavita as keeper", RELAYER, BOB, "set-keeper", [standardPrincipalCV(DEPLOYER), noneCV(), noneCV()], okre);
+  call("M4 recovered owner sets chavita as keeper", OWNER, BOB, "set-keeper", [standardPrincipalCV(DEPLOYER), noneCV(), noneCV()], okre);
   restakeBob("M5 chavita restakes the payout and rolls the lock", DEPLOYER, okre, "rM5");
   snapBob("M5");
 
@@ -496,8 +508,10 @@ async function main() {
   chk("L5 restake by the re-set keeper: all free STX, extend 0", r("rL5").amount === BigInt(BOB_FUND - BOB_STAKE) && r("rL5").ext === 0n);
   chk("L5 everything locked", locked("L5") === BigInt(BOB_FUND) && unlocked("L5") === 0n);
   chk("M1 bob is inactive", String(cap.inactiveM1).trim() === "true");
-  chk("M2 owner is RELAYER after recovery", String(cap.ownerM2).includes(RELAYER));
-  chk("M2 keeper reset to the recovered owner", String(cap.keeperM2).includes(RELAYER));
+  chk("M2 owner is OWNER after recovery", String(cap.ownerM2).includes(OWNER));
+  chk("M2 keeper reset to the recovered owner", String(cap.keeperM2).includes(OWNER));
+  chk("M2 RV-F1 owner still OWNER after the refused confirm", String(cap.ownerM2b).includes(OWNER));
+  chk("M2 RV-F1 owner still admin (admins map not emptied)", String(cap.adminM2b) === "(ok true)");
   chk("M5 restake after recovery: amount 10, extend > 0", r("rM5").amount === BigInt(PAYOUT_3) && r("rM5").ext > 0n);
   chk("M5 unlock is back at current + 1 + 96", atMax("M5"));
 

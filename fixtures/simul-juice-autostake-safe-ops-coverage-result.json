@@ -1,12 +1,12 @@
 {
- "simulation": "https://stxer.xyz/simulations/mainnet/c1e4997e2b7ec10df4fc500e58acac72",
+ "simulation": "https://stxer.xyz/simulations/mainnet/2333f897b10606d208ee3c03a460f1b2",
  "passed": 208,
  "total": 208,
  "sources": {
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe": {
    "form": "deploy-bytes-mv7dfb",
-   "bytes": 51742,
-   "sha256": "711f3fcb923674c852708f51472043c1e97543fea2845b210fe077a0b2e99838",
+   "bytes": 51812,
+   "sha256": "599192e3cc933485ca03d9b703fd6aaf56c57929815e141f9fe4aabe872c2500",
    "clarity": 6
   },
   "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1": {
@@ -59,7 +59,7 @@
    "passed": true
   },
   {
-   "label": "deploy juice-autostake-safe (Clarity 6, sha256 711f3fcb9236)",
+   "label": "deploy juice-autostake-safe (Clarity 6, sha256 599192e3cc93)",
    "actual": "(ok true)",
    "passed": true
   },
