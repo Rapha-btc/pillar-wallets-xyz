@@ -1,0 +1,111 @@
+# Rendezvous (rv) fuzzing of juice-autostake-safe. See ../README.md.
+# contracts/juice-autostake-safe.clar, juice-autostake-pool.clar and
+# juice-autostake-safe-auth-helpers-v1.clar are BUILD ARTIFACTS from ./build.sh.
+# The production Clarinet.toml and ../../../contracts/*.clar are never edited.
+[project]
+name = "juice-autostake-safe-rv"
+description = "RV fuzzing: juice-autostake-safe against real pox-5, sBTC and fakfun-wallet-core-v2"
+authors = []
+telemetry = false
+cache_dir = "../../../.cache"
+
+[repl.analysis]
+passes = []
+
+[[project.requirements]]
+contract_id = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait"
+
+[[project.requirements]]
+contract_id = "SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait"
+
+[[project.requirements]]
+contract_id = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v8"
+
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10"
+
+[[project.requirements]]
+contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal"
+
+[[project.requirements]]
+contract_id = "SP000000000000000000002Q6VF78.pox-5"
+
+# Trait implementations must be PROJECT contracts: rv skips any function whose
+# trait argument has no eligible project implementation.
+[contracts.zz-gas-station]
+path = "contracts/zz-gas-station.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-station-free]
+path = "contracts/zz-gas-station-free.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-max]
+path = "contracts/zz-gas-max.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-greedy]
+path = "contracts/zz-gas-greedy.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-gas-thief]
+path = "contracts/zz-gas-thief.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-ft]
+path = "contracts/zz-ft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+[contracts.zz-nft]
+path = "contracts/zz-nft.clar"
+clarity_version = 6
+epoch = "4.0"
+
+# BUILD ARTIFACT: the live juice-pool-stx-signer source (stand-in for the launch
+# pool, as in tests/cl-autostake-cov). Named so it sorts before the safe.
+[contracts.juice-autostake-pool]
+path = "contracts/juice-autostake-pool.clar"
+clarity_version = 5
+epoch = "4.0"
+
+# BUILD ARTIFACT: copy of ../../../contracts/juice-autostake-safe-auth-helpers-v1.clar
+[contracts.juice-autostake-safe-auth-helpers-v1]
+path = "contracts/juice-autostake-safe-auth-helpers-v1.clar"
+clarity_version = 4
+epoch = "4.0"
+
+# BUILD ARTIFACT: production source + test-only patches + harness (./build.sh)
+[contracts.juice-autostake-safe]
+path = "contracts/juice-autostake-safe.clar"
+clarity_version = 6
+epoch = "4.0"
