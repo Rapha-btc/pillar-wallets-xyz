@@ -1163,6 +1163,7 @@
     (try! (ft-burn? ect u1 current-contract))
 
     (asserts! (not (is-eq pending current-contract)) err-unauthorised)
+    (asserts! (not (is-eq pending (var-get owner))) err-unauthorised)
     (map-set admins pending true)
     (map-delete admins (var-get owner))
     (var-set owner pending)
@@ -1339,6 +1340,7 @@
       client-data-suffix: (buff 512),
     }))
     (gas (optional <gas-trait>))
+    (signer-calldata (optional (buff 500)))
   )
   (begin
     (update-activity)
@@ -1373,13 +1375,14 @@
 
     (try! (as-contract? ((with-staking amount-ustx))
       (try! (contract-call? POX5 stake
-        JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height none
+        JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height signer-calldata
       ))
     ))
     (print {
       event: "stake-stx-juice",
       amount-ustx: amount-ustx,
       num-cycles: NUM-CYCLES,
+      signer-calldata: signer-calldata,
     })
     (ok true)
   )
@@ -1397,6 +1400,7 @@
       client-data-suffix: (buff 512),
     }))
     (gas (optional <gas-trait>))
+    (signer-calldata (optional (buff 500)))
   )
   (begin
     (update-activity)
@@ -1433,13 +1437,14 @@
     (asserts! (<= amount-increase (get unlocked (rv-stx-account))) (err u8))
     (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
       (try! (contract-call? POX5 stake-update
-        JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase none
+        JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase signer-calldata
       ))
     ))
     (print {
       event: "update-stake-stx-juice",
       amount-increase: amount-increase,
       cycles-to-extend: cycles-to-extend,
+      signer-calldata: signer-calldata,
     })
     (ok true)
   )
@@ -2031,7 +2036,7 @@
   (let ((s (rv-snap)) (admin (rv-is-admin tx-sender))
         (info0 (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract))
         (bal0 (stx-get-balance current-contract)) (cyc (rv-cycle)))
-    (match (stake-stx-juice amount none none)
+    (match (stake-stx-juice amount none none none)
       okv (let ((info (unwrap! (contract-call? 'SP000000000000000000002Q6VF78.pox-5
                           get-staker-info current-contract) (err u9701))))
         (asserts! admin (err u9700))
@@ -2051,7 +2056,7 @@
         (info0 (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract))
         (unl0 (get unlocked (rv-stx-account))) (unl-c0 (rv-unlock-cycle))
         (bal0 (stx-get-balance current-contract)))
-    (match (update-stake-stx-juice amount-increase c none none)
+    (match (update-stake-stx-juice amount-increase c none none none)
       okv (let ((i0 (unwrap! info0 (err u9801)))
                 (info (unwrap! (contract-call? 'SP000000000000000000002Q6VF78.pox-5
                           get-staker-info current-contract) (err u9802))))

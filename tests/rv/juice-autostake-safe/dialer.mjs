@@ -58,7 +58,7 @@ const st = {
   nfts: new Set([1n]), // zz-nft ids held by the safe (the plan mints #1)
   lastOk: new Map(), // fn -> args of the last successful VALID passkey call
 };
-const stats = { valid: {}, replay: {}, okValid: {}, okPlain: {} };
+const stats = { valid: {}, replay: {}, okValid: {}, okPlain: {}, f1Signed: 0, f1Ok: 0 };
 const bump = (m, k) => (m[k] = (m[k] ?? 0) + 1);
 
 // --- SIP-018 hashing, mirroring the helper contracts --------------------------
@@ -179,6 +179,9 @@ export function preInject({ selectedFunction, clarityValueArguments: a }) {
       a[spec.i] = spec.opt ? Cl.some(sa) : sa;
       cur.kind = "valid";
       bump(stats.valid, fn);
+      // RV_ALLOW_F1=1 only: a valid passkey confirm of a transfer naming the
+      // current owner (fixed in 7724b0d: must be refused, f1Ok stays 0)
+      if (fn === "confirm-transfer-wallet" && st.pendingTransfer === st.owner) { cur.f1 = true; stats.f1Signed++; }
     }
     cur.sigSome = spec.opt ? a[spec.i].type === "some" : true;
   }
@@ -202,6 +205,7 @@ export function postOracle({ selectedFunction, functionCall, clarityValueArgumen
   const a = cur.args;
   const evs = functionCall.events ?? [];
   if (cur.kind === "valid") bump(stats.okValid, fn); else bump(stats.okPlain, fn);
+  if (cur.f1) stats.f1Ok++;
 
   // O3 replay
   if (cur.kind === "replay") fail("a replayed passkey signature was accepted");

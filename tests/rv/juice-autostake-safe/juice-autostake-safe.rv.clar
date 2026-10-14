@@ -381,7 +381,7 @@
   (let ((s (rv-snap)) (admin (rv-is-admin tx-sender))
         (info0 (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract))
         (bal0 (stx-get-balance current-contract)) (cyc (rv-cycle)))
-    (match (stake-stx-juice amount none none)
+    (match (stake-stx-juice amount none none none)
       okv (let ((info (unwrap! (contract-call? 'SP000000000000000000002Q6VF78.pox-5
                           get-staker-info current-contract) (err u9701))))
         (asserts! admin (err u9700))
@@ -401,7 +401,7 @@
         (info0 (contract-call? 'SP000000000000000000002Q6VF78.pox-5 get-staker-info current-contract))
         (unl0 (get unlocked (rv-stx-account))) (unl-c0 (rv-unlock-cycle))
         (bal0 (stx-get-balance current-contract)))
-    (match (update-stake-stx-juice amount-increase c none none)
+    (match (update-stake-stx-juice amount-increase c none none none)
       okv (let ((i0 (unwrap! info0 (err u9801)))
                 (info (unwrap! (contract-call? 'SP000000000000000000002Q6VF78.pox-5
                           get-staker-info current-contract) (err u9802))))

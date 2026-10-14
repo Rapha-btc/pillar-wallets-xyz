@@ -72,10 +72,13 @@ the rewritten SUT is regenerated on each invocation.
 
 # Rendezvous fuzzing: juice-autostake-safe
 
-Target: `contracts/juice-autostake-safe.clar` on main. The contract last
-changed in 611873c ("reset the keeper when the owner changes"). Nothing
-changed it between 611873c and 16ebb2c, so the fuzzed source is the final
-source. Its own project is in `juice-autostake-safe/`, with its own
+Target: `contracts/juice-autostake-safe.clar` on main. Current results are
+for 7724b0d (RV-F1 fix), the final source: its comment-stripped deploy bytes
+are jing-contracts-v3 `simulations/deploy-bytes-mv7dfb/juice-autostake-safe.clar`
+(51,812 B, sha256 599192e3...). The first campaign ran on 611873c (== 16ebb2c)
+and is kept below as history. Between the two, 99d69e8 added a trailing
+`signer-calldata` argument to `stake-stx-juice` / `update-stake-stx-juice`;
+the harness properties pass `none` for it. Its own project is in `juice-autostake-safe/`, with its own
 `Clarinet.toml`, simnet plan and build. The production `Clarinet.toml` and
 `contracts/*.clar` are not edited.
 
@@ -217,7 +220,43 @@ The post-oracle checks these properties on every successful call:
 | test-admin-only-config | Non-admin: propose-max-gas, propose-transfer, toggle-lock and signal-config all fail and change nothing. Admin: the values stay in bounds, and a signal does not apply the config |
 | test-zz-fund | Funding aid (STX, sBTC, NFT deltas) |
 
-## Results (2026-10-14, source 611873c == 16ebb2c)
+## Results (2026-10-14, source 7724b0d, final)
+
+Rebuilt with `build.sh` from 7724b0d (all 8 patches applied, 12 invariants,
+14 properties). Harness change since 611873c: `test-stake` and
+`test-update-stake` pass `none` as the new trailing `signer-calldata`
+argument (99d69e8). Without it every property run ends at the first
+`test-update-stake` with `IncorrectArgumentCount(5, 4)`. The dialer now
+also counts RV-F1 attempts: `f1Signed` is the number of valid passkey
+`confirm-transfer-wallet` calls signed while pending == owner, and `f1Ok`
+is how many of them succeeded. These calls are signed only with
+`RV_ALLOW_F1=1`.
+
+| Run | Seed 1 | Seed 2 | RV-F1 attempts (f1Signed / f1Ok) |
+|-----|--------|--------|------------------------|
+| quick: invariant 300, property 1000 | PASS / PASS | PASS / PASS | n/a (not signed) |
+| quick, `RV_ALLOW_F1=1` | PASS / PASS | PASS / PASS | seed 1: 0 / 0; seed 2: 7 / 0 |
+| full: invariant 2000, property 10000 | PASS / PASS | PASS / PASS | n/a (not signed) |
+| full, `RV_ALLOW_F1=1` | PASS / PASS | PASS / PASS | seed 1: 0 / 0; seed 2: 0 / 0 |
+
+Each run takes about 2 min (quick) or 13.5 min (full, both seeds).
+`invariant-single-admin-is-owner` holds in every run. In the quick
+`RV_ALLOW_F1=1` run on seed 2, rv signed the RV-F1 message 7 times and the
+fixed contract refused it every time. In the full runs the dialer never
+reached the pending == owner state. The `RV_ALLOW_F1=1` full run therefore
+made the same calls as the default run, with identical dialer stats. The
+fix is also proven without harness aids by
+`tests/juice-autostake-safe-rv-repro.test.ts` (the confirm is refused
+u4001) and on the stxer fork by `simul-juice-autostake-safe.js` step M2
+(stand-in 86/86; REAL_POOL 87/87, stxer 50de1e4ae75471c76f55673211c0be2c).
+
+Full-run successful state-changing calls (seed 1 / seed 2): valid-passkey
+successes 606/433; confirm-transfer-wallet 54/43; recover-inactive-wallet
+0/7; restake 26/37; stake 11/14; update-stake 13/18. Ops tracked 68/91,
+executed 10/27, vetoed 33/26. Property PASSED counts: stake 6/4,
+update-stake 104/97, restake 52/72, set-keeper 188/190.
+
+## Results, history (2026-10-14, source 611873c == 16ebb2c)
 
 | Suite | Seed 1 | Seed 2 |
 |-------|--------|--------|
@@ -245,7 +284,11 @@ Property PASSED counts (seed 1 / seed 2):
 - stake 6/4, update-stake 104/97, unstake 194/160, restake 52/72
 - set-keeper 188/190
 
-### RV-F1 (counterexample, production-reachable)
+### RV-F1 (counterexample on 611873c; FIXED in 7724b0d)
+
+**Status.** Fixed in 7724b0d. `confirm-transfer-wallet` now starts with
+`(asserts! (not (is-eq pending (var-get owner))) err-unauthorised)`
+(contract :1166). See the 7724b0d results above.
 
 **Finding.** `confirm-transfer-wallet` empties the admin set when
 `pending-transfer` equals the current owner.
@@ -301,7 +344,8 @@ No funds are lost.
 **Severity.** Low. It needs the owner to sign a transfer to itself, after
 an ownership round-trip that includes an inactivity recovery.
 
-**Fix options (not applied).** Either change could prevent it:
+**Fix options (as found on 611873c; the first one is now applied in 7724b0d).**
+Either change could prevent it:
 
 - In `confirm-transfer-wallet`, add
   `(asserts! (not (is-eq pending (var-get owner))) err-forbidden)`.
@@ -309,7 +353,8 @@ an ownership round-trip that includes an inactivity recovery.
 
 **Dialer setting.** After the finding, the dialer by default stops signing
 that one message, so the other invariants stay meaningful.
-`RV_ALLOW_F1=1` lets rv reach it again.
+`RV_ALLOW_F1=1` lets rv reach it again. On 7724b0d the message is refused
+(`f1Ok` 0), so `RV_ALLOW_F1=1` runs pass.
 
 ### Gaps
 
