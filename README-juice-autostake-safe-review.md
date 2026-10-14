@@ -54,7 +54,7 @@ Reviewed and accepted 2026-10-13. The commit adds a keeper to the deployed
   roll, set-keeper, unstake refusal and the recovery clock, on the exact
   pool source.
 - Clarinet SDK (vitest), this repo: `tests/juice-autostake-safe-keeper.test.ts`
-  (27 tests): get-keeper, set-keeper by admin and by passkey (helper hash,
+  (39 tests): get-keeper, set-keeper by admin and by passkey (helper hash,
   keeper and auth-id binding, replay, gas station), and every restake guard,
   the all-unlocked amount, the roll to `current + 1 + 96`, roll-only, the
   prepare phase and the untouched recovery clock, on the real simnet pox-5.
@@ -107,3 +107,57 @@ pins the hash (BE templates, a registered verified-contract entry) must be
 regenerated from this source before deploy. `simul-juice-autostake-safe.js`
 reads the repo file and registers the deployed safe on the fork, so the K
 user-copy check still compares like with like. Stxer was not re-run.
+
+## Bounty mv7dfb: Giant Moth F2, keeper reset on owner change (611873c)
+
+Finding. `confirm-transfer-wallet` and `recover-inactive-wallet` changed the
+owner but kept the keeper. The old keeper could then restake the new owner's
+STX for 96 cycles.
+
+Fix. Both functions now set the keeper to the new owner, next to
+`(var-set owner ...)`:
+
+```
+(var-set keeper pending)    ;; confirm-transfer-wallet
+(var-set keeper new-admin)  ;; recover-inactive-wallet
+```
+
+A new owner starts with auto-restake off. To turn it on, the new owner calls
+`set-keeper`. The same lines are in the coverage copy.
+
+Tests. `tests/juice-autostake-safe-keeper.test.ts`, new block "owner change
+resets the keeper" (8 tests, 39 total, all pass on both manifests):
+
+- transfer: the keeper is the new owner;
+- transfer: the old keeper, chavita and the old owner get u4001 on restake;
+- transfer: the default keeper (chavita) is reset too;
+- transfer: the old owner cannot set-keeper (u4001); the new owner sets
+  chavita and the restake works;
+- transfer: the new owner, as keeper, can restake;
+- recovery before the inactivity period is u4009, keeper unchanged;
+- recovery after 52560 burn blocks: the keeper is the new owner, the old
+  keeper and chavita get u4001;
+- recovery: the new owner sets a keeper, restake works and rolls the lock to
+  `current + 1 + 96`.
+
+Lcov hits both new lines.
+
+Stxer. `simul-juice-autostake-safe.js` adds scenarios L and M on a second
+user copy (`bob-autostake-safe`, same bytes, own passkey). It onboards
+against the canonical hash on the fork. L: the owner stakes and sets a
+keeper, then a relayer submits the passkey confirm-transfer. The keeper is
+the new owner. The old keeper, chavita and the old owner get u4001. The new
+owner sets chavita and the restake takes all free STX. M: the new owner sets
+a keeper, recovery before the period is u4009. The sim then advances 52,610
+burn blocks (13 steps), and recovery goes through. The keeper is the
+recovered owner, and the old keeper and chavita get u4001. Once the
+recovered owner sets chavita again, the restake adds the payout and extends
+25 cycles back to `current + 1 + 96`.
+
+Result: 82/82 (was 55/55),
+https://stxer.xyz/simulations/mainnet/837734f0b07aed2a07e62656af381ad0
+
+Stxer notes. The long advance makes one submit post too slow (504, socket
+closed). The sim now posts in chunks of 12 steps through `_chunked-submit.mjs`
+(copied from jing-contracts-v3). The STX whale holds about 2737 STX and A-K
+spend 2185, so bob gets 400 STX and stakes 200.

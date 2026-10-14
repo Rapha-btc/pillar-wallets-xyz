@@ -33,6 +33,13 @@
 //   J  passkey set-keeper paying gas through the gas station (safe pays sBTC)
 //   K  the production path: the relay deploys a USER COPY under its own name,
 //      which onboards against the canonical hash; a tampered copy is refused
+//   L  owner change resets the keeper (bounty mv7dfb, Giant Moth F2): a second
+//      user copy (own passkey, 400 STX) stakes 200, sets a keeper, then transfers by passkey;
+//      keeper = new owner, old keeper and chavita -> u4001; the new owner sets
+//      chavita again and the restake works
+//   M  same for recover-inactive-wallet: the new owner sets a keeper, the safe
+//      goes idle for INACTIVITY-PERIOD (52560 burn blocks), recovery moves it;
+//      keeper = recovered owner, old keeper -> u4001; set again, restake works
 //
 // Run: node simul-juice-autostake-safe.js
 import crypto from "node:crypto";
@@ -55,6 +62,9 @@ import {
 } from "@stacks/transactions";
 import { SimulationBuilder, getSimulationResult } from "stxer";
 import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
+import { installChunkedSubmit } from "./_chunked-submit.mjs";
+// the M idle advance (52560 burn blocks) is too slow for one stxer post
+installChunkedSubmit(12);
 
 // -- actors ------------------------------------------------------------------
 const DEPLOYER = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22"; // chavita.btc = default keeper
@@ -71,6 +81,8 @@ const GAS_STATION = "gas-station";   // SPV9K21....gas-station, get-gas u20
 const GAS_SATS = 20n;
 const USER_COPY = "alice-autostake-safe";
 const TAMPERED_COPY = "mallory-autostake-safe";
+const XFER_COPY = "bob-autostake-safe";
+const INACTIVITY = 52560;
 
 // -- contracts ---------------------------------------------------------------
 const WALLET_NAME = "juice-autostake-safe";
@@ -98,7 +110,10 @@ const PAYOUT_2 = 50_000_000;     // 50 STX (D)
 const PAYOUT_3 = 10_000_000;     // 10 STX (G)
 const PAYOUT_4 = 5_000_000;      // 5 STX (H)
 const PAYOUT_5 = 20_000_000;     // 20 STX (I)
-const WITHDRAW = 30_000_000;     // 30 STX out after the unlock (under threshold)
+const WITHDRAW = 30_000_000;
+// bob (L/M): small, the whale holds ~2737 STX and A-K spend 2185
+const BOB_FUND = 400_000_000;
+const BOB_STAKE = 200_000_000;     // 30 STX out after the unlock (under threshold)
 
 // -- SIP-018 (mirrors juice-autostake-safe-auth-helpers-v1) --------------------
 const SIP018_PREFIX = Buffer.from("534950303138", "hex");
@@ -107,14 +122,18 @@ const cvSha256 = (cv) => {
   const out = serializeCV(cv);
   return sha256(Buffer.from(typeof out === "string" ? out : Buffer.from(out).toString("hex"), "hex"));
 };
-const walletDomainHash = () =>
+const walletDomainHash = (wallet = WALLET) =>
   cvSha256(tupleCV({
     name: stringAsciiCV("smart-wallet-standard"),
     version: stringAsciiCV("1.0.0"),
     "chain-id": uintCV(1),
-    wallet: principalCV(WALLET),
+    wallet: principalCV(wallet),
   }));
-const buildChallenge = (t) => sha256(Buffer.concat([SIP018_PREFIX, walletDomainHash(), cvSha256(t)]));
+const buildChallenge = (t, wallet = WALLET) =>
+  sha256(Buffer.concat([SIP018_PREFIX, walletDomainHash(wallet), cvSha256(t)]));
+// mirrors smart-wallet-standard-auth-helpers-v7.build-confirm-transfer-hash
+const tConfirmTransfer = (authId, newAdmin) =>
+  tupleCV({ topic: stringAsciiCV("confirm-transfer"), "auth-id": uintCV(authId), "new-admin": principalCV(newAdmin) });
 const tSetKeeper = (authId, keeper) =>
   tupleCV({ topic: stringAsciiCV("set-keeper"), "auth-id": uintCV(authId), keeper: principalCV(keeper) });
 const strip = (h) => (h.startsWith("0x") ? h.slice(2) : h);
@@ -301,6 +320,75 @@ async function main() {
     [bufferCV(Buffer.from("02" + "ef".repeat(32), "hex")), standardPrincipalCV(OWNER), standardPrincipalCV(RECOVERY),
      uintCV(100_000_000), uintCV(100_000), uintCV(144)], /^\(err/);
 
+  // -- L: transfer resets the keeper (Giant Moth F2) ------------------------------
+  // bob = a second user copy with its own passkey, onboarded on the canonical hash
+  const BOB = `${FAKFUN_DEPLOYER}.${XFER_COPY}`;
+  const key2 = generateP256Keypair();
+  const pubkey2CV = bufferCV(Buffer.from(strip(key2.pubKeyHex), "hex"));
+  const sigXfer = signChallengeWithRpId(buildChallenge(tConfirmTransfer(21, RECIPIENT), BOB), key2.privKey, RP_ID);
+  const evalBob = (label, code, capture) => {
+    b.addEvalCode(BOB, code);
+    plan.push({ kind: "eval", label, capture });
+  };
+  const fundBob = (label, amount) => {
+    b.withSender(STX_WHALE).addSTXTransfer({ recipient: BOB, amount });
+    plan.push({ kind: "fund", label });
+  };
+  const restakeBob = (label, sender, expect, capture) => call(label, sender, BOB, "restake", [], expect, capture);
+  const snapBob = (tag) => {
+    evalBob(`${tag} stx-account`, `(stx-account '${BOB})`, `acct_${tag}`);
+    evalBob(`${tag} staker-info`, `(contract-call? '${POX5} get-staker-info '${BOB})`, `info_${tag}`);
+    evalBob(`${tag} current cycle`, `(contract-call? '${POX5} current-pox-reward-cycle)`, `cyc_${tag}`);
+  };
+  b.withSender(FAKFUN_DEPLOYER).addContractDeploy({ contract_name: XFER_COPY, source_code: walletSrc, clarity_version: CLARITY_6 });
+  plan.push({ kind: "fund", label: `L0 relay deploys ${BOB} (same bytes)` });
+  call("L0 onboard bob (canonical hash, own passkey)", FAKFUN_DEPLOYER, BOB, "onboard",
+    [pubkey2CV, standardPrincipalCV(OWNER), standardPrincipalCV(RECOVERY),
+     uintCV(100_000_000), uintCV(100_000), uintCV(144)], okre);
+  fundBob(`L0 fund bob ${BOB_FUND / 1e6} STX`, BOB_FUND);
+  call(`L1 owner stakes ${BOB_STAKE / 1e6} STX in bob`, OWNER, BOB, "stake-stx-juice", [uintCV(BOB_STAKE), noneCV(), noneCV()], okre);
+  call("L1 owner sets keeper RANDOM", OWNER, BOB, "set-keeper", [standardPrincipalCV(RANDOM), noneCV(), noneCV()], okre);
+  call("L2 owner proposes transfer to RECIPIENT", OWNER, BOB, "propose-transfer-wallet", [standardPrincipalCV(RECIPIENT)], okre);
+  call("L2 relayer submits the passkey confirm-transfer", RELAYER, BOB, "confirm-transfer-wallet",
+    [sigAuthTuple(21, key2.pubKeyHex, sigXfer), noneCV()], okre);
+  evalBob("L2 get-owner", "(get-owner)", "ownerL2");
+  evalBob("L2 get-keeper", "(get-keeper)", "keeperL2");
+  restakeBob("L3 old keeper RANDOM -> u4001", RANDOM, "(err u4001)");
+  restakeBob("L3 chavita -> u4001", DEPLOYER, "(err u4001)");
+  restakeBob("L3 old owner -> u4001", OWNER, "(err u4001)");
+  call("L4 old owner set-keeper -> u4001", OWNER, BOB, "set-keeper", [standardPrincipalCV(DEPLOYER), noneCV(), noneCV()], "(err u4001)");
+  call("L4 new owner sets chavita as keeper", RECIPIENT, BOB, "set-keeper", [standardPrincipalCV(DEPLOYER), noneCV(), noneCV()], okre);
+  restakeBob(`L5 chavita restakes the free ${(BOB_FUND - BOB_STAKE) / 1e6}`, DEPLOYER, okre, "rL5");
+  snapBob("L5");
+
+  // -- M: inactivity recovery resets the keeper -------------------------------------
+  call("M0 new owner sets keeper RANDOM (last owner action)", RECIPIENT, BOB, "set-keeper",
+    [standardPrincipalCV(RANDOM), noneCV(), noneCV()], okre);
+  call("M0 recovery before the period -> u4009", RECOVERY, BOB, "recover-inactive-wallet",
+    [standardPrincipalCV(RELAYER)], "(err u4009)");
+  {
+    // past INACTIVITY, landing near offset 1000 (clear of the prepare phase)
+    const base = INACTIVITY + 40;
+    const off = (burn + base - FIRST_BURN) % CYCLE;
+    let left = base + ((1000 - off + CYCLE) % CYCLE);
+    // in chunks: one huge advance step times out the stxer request
+    for (let k = 1; left > 0; k++) {
+      const n = Math.min(left, 2 * CYCLE);
+      advance(`M1 idle past the inactivity period, chunk ${k}`, n);
+      left -= n;
+    }
+  }
+  evalBob("M1 is-inactive", "(is-inactive)", "inactiveM1");
+  call("M2 recovery moves bob to RELAYER", RECOVERY, BOB, "recover-inactive-wallet", [standardPrincipalCV(RELAYER)], okre);
+  evalBob("M2 get-owner", "(get-owner)", "ownerM2");
+  evalBob("M2 get-keeper", "(get-keeper)", "keeperM2");
+  fundBob(`M3 payout ${PAYOUT_3 / 1e6} STX lands`, PAYOUT_3);
+  restakeBob("M3 old keeper RANDOM -> u4001", RANDOM, "(err u4001)");
+  restakeBob("M3 chavita -> u4001", DEPLOYER, "(err u4001)");
+  call("M4 recovered owner sets chavita as keeper", RELAYER, BOB, "set-keeper", [standardPrincipalCV(DEPLOYER), noneCV(), noneCV()], okre);
+  restakeBob("M5 chavita restakes the payout and rolls the lock", DEPLOYER, okre, "rM5");
+  snapBob("M5");
+
   // -- run + verify ---------------------------------------------------------------
   console.log("=== juice-autostake-safe - stxer harness ===");
   console.log(`start burn ${startBurn} (cycle ${cycleOf(startBurn)}), first move to cycle ${c1}\n`);
@@ -382,6 +470,15 @@ async function main() {
   chk("J1 keeper is chavita after the gas-paid passkey call", String(cap.keeperJ1).includes(DEPLOYER));
   chk("K2 the onboarded user copy defaults to chavita as keeper", String(cap.keeperK2).includes(DEPLOYER));
   chk("I5 owner withdrew after the unlock", bal(cap.rcpt1) - bal(cap.rcpt0) === BigInt(WITHDRAW));
+  chk("L2 owner is RECIPIENT after confirm-transfer", String(cap.ownerL2).includes(RECIPIENT));
+  chk("L2 keeper reset to the new owner", String(cap.keeperL2).includes(RECIPIENT));
+  chk("L5 restake by the re-set keeper: all free STX, extend 0", r("rL5").amount === BigInt(BOB_FUND - BOB_STAKE) && r("rL5").ext === 0n);
+  chk("L5 everything locked", locked("L5") === BigInt(BOB_FUND) && unlocked("L5") === 0n);
+  chk("M1 bob is inactive", String(cap.inactiveM1).trim() === "true");
+  chk("M2 owner is RELAYER after recovery", String(cap.ownerM2).includes(RELAYER));
+  chk("M2 keeper reset to the recovered owner", String(cap.keeperM2).includes(RELAYER));
+  chk("M5 restake after recovery: amount 10, extend > 0", r("rM5").amount === BigInt(PAYOUT_3) && r("rM5").ext > 0n);
+  chk("M5 unlock is back at current + 1 + 96", atMax("M5"));
 
   console.log("\n--- lock timeline (pox-5 amount-ustx / unlock cycle / current cycle) ---");
   for (const t of ["B2", "B5", "C1", "D1", "E1", "G2", "I1", "I3"]) {

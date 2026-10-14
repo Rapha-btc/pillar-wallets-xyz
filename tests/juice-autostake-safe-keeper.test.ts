@@ -29,7 +29,7 @@
 //   2. the (with-staking (+ (locked-ustx) amount)) allowance is not genuinely
 //      exercised -- locked-ustx is always u0 here.
 // The allowance = locked + amount, real STX locks and the exact unlocked delta are
-// covered on a mainnet fork by stxer: simul-juice-autostake-safe.js (55/55) and
+// covered on a mainnet fork by stxer: simul-juice-autostake-safe.js (82/82) and
 // juicestx simulations/pool-autostake-e2e-stxer.mjs (62/62).
 import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
@@ -681,5 +681,153 @@ describe("restake: allowance and activity", () => {
     // juicestx pool-autostake-e2e-stxer.mjs.
     expect(locked).toBeUint(0);
     expect(r.result).toBeOk(Cl.tuple({ amount: Cl.uint(FUND), "cycles-to-extend": Cl.uint(0) }));
+  });
+});
+
+// --- owner change resets the keeper (bounty mv7dfb, Giant Moth F2, 611873c) ------
+const NEW_OWNER = accounts.get("wallet_7")!;
+const INACTIVITY_PERIOD = 52560;
+const E_INACTIVE_REQUIRED = Number(
+  (fs.readFileSync("contracts/juice-autostake-safe.clar", "utf8")
+    .match(/\(define-constant err-inactive-required \(err u(\d+)\)\)/) ?? [])[1]);
+
+/** Mirrors smart-wallet-standard-auth-helpers-v7.build-confirm-transfer-hash. */
+function confirmTransferHash(authId: number, newAdmin: string): Buffer {
+  const struct = cvHash(Cl.tuple({
+    topic: Cl.stringAscii("confirm-transfer"), "auth-id": Cl.uint(authId), "new-admin": Cl.principal(newAdmin),
+  }));
+  return sha256(Buffer.concat([SIP018, walletDomain(), struct]));
+}
+/** The owner proposes NEW_OWNER and a relayer submits the passkey confirm. */
+function transferTo(newOwner: string) {
+  expect(simnet.callPublicFn(WALLET, "propose-transfer-wallet",
+    [Cl.principal(newOwner)], OWNER).result).toBeOk(Cl.bool(true));
+  return simnet.callPublicFn(WALLET, "confirm-transfer-wallet",
+    [sigAuth(101, confirmTransferHash(101, newOwner)), Cl.none()], RELAYER);
+}
+/** Mines past the inactivity period, to a block outside a prepare phase (so a
+ *  later restake is not u47). */
+function mineInactive() {
+  const target = Number(lastActivity()) + INACTIVITY_PERIOD + 1;
+  const off = target % CYCLE_LEN, cyc = Math.floor(target / CYCLE_LEN);
+  if (off < 20) mineTo(cyc, 20);
+  else if (off >= CYCLE_LEN - PREPARE_LEN) mineTo(cyc + 1, 20);
+  else mineTo(cyc, off);
+}
+function owner(): string {
+  return Cl.prettyPrint(simnet.callReadOnlyFn(WALLET, "get-owner", [], RANDOM).result)
+    .replace(/^\(ok '?/, "").replace(/\)$/, "");
+}
+
+describe("owner change resets the keeper (bounty mv7dfb, Giant Moth F2)", () => {
+  it("confirm-transfer-wallet: the keeper becomes the new owner", () => {
+    // arrange
+    stakedSafe();
+    expect(setKeeperAdmin(NEW_KEEPER).result).toBeOk(Cl.bool(true));
+    // act
+    const r = transferTo(NEW_OWNER);
+    // assert
+    expect(r.result).toBeOk(Cl.bool(true));
+    expect(owner()).toBe(NEW_OWNER);
+    expect(keeper()).toBe(NEW_OWNER);
+  });
+
+  it("confirm-transfer-wallet: the old keeper's restake is u4001", () => {
+    // arrange
+    stakedSafe();
+    expect(setKeeperAdmin(NEW_KEEPER).result).toBeOk(Cl.bool(true));
+    expect(transferTo(NEW_OWNER).result).toBeOk(Cl.bool(true));
+    // act
+    const byOld = restake(NEW_KEEPER);
+    const byDefault = restake(D);
+    const byOldOwner = restake(OWNER);
+    // assert
+    expect(byOld.result).toBeErr(Cl.uint(E_UNAUTH));
+    expect(byDefault.result).toBeErr(Cl.uint(E_UNAUTH));
+    expect(byOldOwner.result).toBeErr(Cl.uint(E_UNAUTH));
+  });
+
+  it("confirm-transfer-wallet: the default keeper (chavita) is also reset", () => {
+    // arrange
+    stakedSafe();
+    expect(keeper()).toBe(D);
+    // act
+    expect(transferTo(NEW_OWNER).result).toBeOk(Cl.bool(true));
+    // assert
+    expect(keeper()).toBe(NEW_OWNER);
+    expect(restake(D).result).toBeErr(Cl.uint(E_UNAUTH));
+  });
+
+  it("confirm-transfer-wallet: the new owner sets a keeper again and restake works", () => {
+    // arrange
+    stakedSafe();
+    expect(transferTo(NEW_OWNER).result).toBeOk(Cl.bool(true));
+    // act
+    const byOldOwnerSet = setKeeperAdmin(D, OWNER);
+    const set = setKeeperAdmin(D, NEW_OWNER);
+    const r = restake(D);
+    // assert
+    expect(byOldOwnerSet.result).toBeErr(Cl.uint(E_UNAUTH));
+    expect(set.result).toBeOk(Cl.bool(true));
+    expect(keeper()).toBe(D);
+    expect(r.result).toBeOk(Cl.tuple({ amount: Cl.uint(FUND), "cycles-to-extend": Cl.uint(0) }));
+  });
+
+  it("confirm-transfer-wallet: the new owner (as keeper) can restake directly", () => {
+    // arrange
+    stakedSafe();
+    expect(transferTo(NEW_OWNER).result).toBeOk(Cl.bool(true));
+    // act
+    const r = restake(NEW_OWNER);
+    // assert
+    expect(r.result).toBeOk(Cl.tuple({ amount: Cl.uint(FUND), "cycles-to-extend": Cl.uint(0) }));
+  });
+
+  it("recover-inactive-wallet: refused before the inactivity period, keeper unchanged", () => {
+    // arrange
+    stakedSafe();
+    expect(setKeeperAdmin(NEW_KEEPER).result).toBeOk(Cl.bool(true));
+    // act
+    const r = simnet.callPublicFn(WALLET, "recover-inactive-wallet", [Cl.principal(NEW_OWNER)], RECOVERY);
+    // assert
+    expect(r.result).toBeErr(Cl.uint(E_INACTIVE_REQUIRED));
+    expect(keeper()).toBe(NEW_KEEPER);
+  });
+
+  it("recover-inactive-wallet: the keeper becomes the new owner; the old keeper's restake is u4001", () => {
+    // arrange
+    stakedSafe();
+    expect(setKeeperAdmin(NEW_KEEPER).result).toBeOk(Cl.bool(true));
+    mineInactive();
+    expect(simnet.callReadOnlyFn(WALLET, "is-inactive", [], RANDOM).result).toBeBool(true);
+    // act
+    const r = simnet.callPublicFn(WALLET, "recover-inactive-wallet", [Cl.principal(NEW_OWNER)], RECOVERY);
+    const byOld = restake(NEW_KEEPER);
+    const byDefault = restake(D);
+    // assert
+    expect(r.result).toBeOk(Cl.bool(true));
+    expect(owner()).toBe(NEW_OWNER);
+    expect(keeper()).toBe(NEW_OWNER);
+    expect(byOld.result).toBeErr(Cl.uint(E_UNAUTH));
+    expect(byDefault.result).toBeErr(Cl.uint(E_UNAUTH));
+  });
+
+  it("recover-inactive-wallet: the new owner sets a keeper again and restake works", () => {
+    // arrange
+    stakedSafe();
+    expect(setKeeperAdmin(NEW_KEEPER).result).toBeOk(Cl.bool(true));
+    mineInactive();
+    expect(simnet.callPublicFn(WALLET, "recover-inactive-wallet",
+      [Cl.principal(NEW_OWNER)], RECOVERY).result).toBeOk(Cl.bool(true));
+    const unlockBefore = unlockCycle();
+    // act
+    const set = setKeeperAdmin(NEW_KEEPER, NEW_OWNER);
+    const r = restake(NEW_KEEPER);
+    // assert
+    expect(set.result).toBeOk(Cl.bool(true));
+    expect(keeper()).toBe(NEW_KEEPER);
+    const ext = currentCycle() + 1n + BigInt(NUM_CYCLES) - unlockBefore;
+    expect(r.result).toBeOk(Cl.tuple({ amount: Cl.uint(FUND), "cycles-to-extend": Cl.uint(ext) }));
+    expect(unlockCycle()).toBe(currentCycle() + 1n + BigInt(NUM_CYCLES));
   });
 });
