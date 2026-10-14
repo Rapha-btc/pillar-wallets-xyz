@@ -59,6 +59,9 @@ import {
   cvToString,
   ClarityVersion,
   PostConditionMode,
+  randomPrivateKey,
+  privateKeyToPublic,
+  signMessageHashRsv,
 } from "@stacks/transactions";
 import { SimulationBuilder, getSimulationResult } from "stxer";
 import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
@@ -155,7 +158,11 @@ async function main() {
   const helperSrc = fs.readFileSync(`contracts/${HELPER_NAME}.clar`, "utf8");
   const prodSrc = fs.readFileSync(`contracts/${WALLET_NAME}.clar`, "utf8");
   if (!prodSrc.includes(PROD_POOL)) throw new Error("safe source no longer names the production pool");
-  const walletSrc = prodSrc.split(PROD_POOL).join(SIM_POOL);
+  // REAL_POOL=1: keep the production pool binding and deploy the pool (with
+  // the Jing stack, trait-v2 and autoswap its deploy needs) on the fork, from
+  // jing-contracts-v3 simulations/deploy-bytes-mv7dfb (the exact deploy bytes).
+  const REAL_POOL = !!process.env.REAL_POOL;
+  const walletSrc = REAL_POOL ? prodSrc : prodSrc.split(PROD_POOL).join(SIM_POOL);
 
   const pox = await (await fetch(`${STACKS_NODE_API}/v2/pox`)).json();
   if (pox.first_burnchain_block_height !== FIRST_BURN || pox.reward_cycle_length !== CYCLE ||
@@ -206,6 +213,20 @@ async function main() {
   };
   const okre = /^\(ok/;
 
+  if (REAL_POOL) {
+    const DB = `${process.env.HOME}/projects/jing-contracts-v3/simulations/deploy-bytes-mv7dfb`;
+    for (const [n, v] of [["jing-core-v6", ClarityVersion.Clarity5], ["jing-ladder-v1", ClarityVersion.Clarity5], ["markets-sbtc-stx-jing-v6-3", ClarityVersion.Clarity5],
+      ["swap-router-sbtc-stx-jing-v5-3", ClarityVersion.Clarity5], ["juice-swap-vault-trait-v2", CLARITY_6], ["juice-sbtc-autoswap", CLARITY_6], ["juice-pool-sbtc-signer", CLARITY_6]]) {
+      b.withSender(DEPLOYER).addContractDeploy({ contract_name: n, source_code: fs.readFileSync(`${DB}/${n}.clar`, "utf8"), clarity_version: v });
+      plan.push({ kind: "fund", label: `REAL_POOL: deploy ${n} (deploy bytes)` });
+    }
+    const priv = randomPrivateKey(), skey = privateKeyToPublic(priv);
+    const gr = await (await fetch(`${STACKS_NODE_API}/v2/contracts/call-read/SP000000000000000000002Q6VF78/pox-5/get-signer-grant-message-hash`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sender: DEPLOYER, arguments: [contractPrincipalCV(DEPLOYER, "juice-pool-sbtc-signer"), uintCV(7)].map((c) => "0x" + serializeCV(c).replace(/^0x/, "")) }) })).json();
+    const ssig = signMessageHashRsv({ messageHash: gr.result.replace(/^0x/, "").slice(2 + 8), privateKey: priv });
+    call("REAL_POOL: register-self (real pox-5 grant)", DEPLOYER, PROD_POOL, "register-self",
+      [contractPrincipalCV(DEPLOYER, "juice-pool-sbtc-signer"), bufferCV(Buffer.from(skey.replace(/^0x/, ""), "hex")), uintCV(7), bufferCV(Buffer.from(ssig.replace(/^0x/, ""), "hex"))], okre);
+  }
   // -- A: deploy, verify, fund, onboard -------------------------------------
   b.withSender(DEPLOYER).addContractDeploy({ contract_name: HELPER_NAME, source_code: helperSrc, clarity_version: ClarityVersion.Clarity4 });
   plan.push({ kind: "fund", label: `deploy ${HELPER_NAME} (Clarity 4)` });
