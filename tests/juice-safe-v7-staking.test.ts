@@ -22,6 +22,9 @@ import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
+// juice-autostake-safe (99d69e8) takes a trailing signer-calldata (unsigned) on
+// stake and update-stake; the 9-file autostake coverage run passes none.
+const XA = process.env.AUTOSTAKE_WALLET_NAME ? [Cl.none()] : [];
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
@@ -160,7 +163,7 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
     registerSigner(); onboarded(); fundSTX();
 
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(STAKE), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeOk(Cl.bool(true));
     expect(stakerInfo()).toContain("amount-ustx: u1000000000");
     // IMPORTANT SIMNET LIMIT. pox-5's Clarity records the position, but the actual
     // STX lock, the STXLockEvent and the stacking asset-map entry all come from the
@@ -173,14 +176,14 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
 
     // top-up: the allowance is the RESULTING TOTAL, not the delta
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(100_000_000), Cl.uint(0), Cl.none(), Cl.none()], OWNER).result)
+      [Cl.uint(100_000_000), Cl.uint(0), Cl.none(), Cl.none(), ...XA], OWNER).result)
       .toBeOk(Cl.bool(true));
     expect(stakerInfo()).toContain("amount-ustx: u1100000000");
 
     // a fresh position is already at NUM-CYCLES u96 = pox-5 max, so extending
     // must be rejected until cycles elapse
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(0), Cl.uint(2), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(20));
+      [Cl.uint(0), Cl.uint(2), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeErr(Cl.uint(20));
 
     expect(simnet.callPublicFn(WALLET, "unstake", [Cl.none(), Cl.none()], OWNER).result)
       .toBeOk(Cl.bool(true));
@@ -191,13 +194,13 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
   it("rejects a stake from a non-admin, a zero amount, and a no-op update", () => {
     registerSigner(); onboarded(); fundSTX();
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(STAKE), Cl.none(), Cl.none()], RANDOM).result).toBeErr(Cl.uint(E_UNAUTH));
+      [Cl.uint(STAKE), Cl.none(), Cl.none(), ...XA], RANDOM).result).toBeErr(Cl.uint(E_UNAUTH));
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ZERO));
+      [Cl.uint(0), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeErr(Cl.uint(E_ZERO));
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(STAKE), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(0), Cl.uint(0), Cl.none(), Cl.none()], OWNER).result).toBeErr(Cl.uint(E_ZERO));
+      [Cl.uint(0), Cl.uint(0), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeErr(Cl.uint(E_ZERO));
   });
 
   it("stakes on the PASSKEY path through a relayer", () => {
@@ -206,13 +209,13 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
       [Cl.uint(STAKE),
        Cl.some(sign(topic("stake-stx-juice-pox5",
          { "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(STAKE) }), 1)),
-       Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
+       Cl.none(), ...XA], RELAYER).result).toBeOk(Cl.bool(true));
     expect(stakerInfo()).toContain("amount-ustx: u1000000000");
   });
 
   it("unstakes on the PASSKEY path, and rejects a random caller", () => {
     registerSigner(); onboarded(); fundSTX();
-    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER);
+    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none(), ...XA], OWNER);
     expect(simnet.callPublicFn(WALLET, "unstake", [Cl.none(), Cl.none()], RANDOM).result)
       .toBeErr(Cl.uint(E_UNAUTH));
     expect(simnet.callPublicFn(WALLET, "unstake",
@@ -222,7 +225,7 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
 
   it("tops up on the PASSKEY path with a live gas station", () => {
     registerSigner(); onboarded(); fundSTX();
-    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER);
+    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none(), ...XA], OWNER);
     // the station needs the wallet to hold sBTC; mint through the real deposit path
     const h = simnet.burnBlockHeight - 1;
     const hash = Cl.prettyPrint(simnet.callReadOnlyFn(`${DEPLOYER}.zz-nft`, "burn-hash",
@@ -243,14 +246,14 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
          "auth-id": Cl.uint(3), "amount-increase": Cl.uint(50_000_000),
          "cycles-to-extend": Cl.uint(0),
        }), 3)),
-       Cl.some(Cl.contractPrincipal(DEPLOYER, "zz-gas-station"))], RELAYER).result)
+       Cl.some(Cl.contractPrincipal(DEPLOYER, "zz-gas-station")), ...XA], RELAYER).result)
       .toBeOk(Cl.bool(true));
     expect(gas() - before).toBe(20n);
   });
 
   it("after unstake and the unlock cycle, pox-5 shows the position GONE", () => {
     registerSigner(); onboarded(); fundSTX();
-    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none()], OWNER);
+    simnet.callPublicFn(WALLET, "stake-stx-juice", [Cl.uint(STAKE), Cl.none(), Cl.none(), ...XA], OWNER);
     expect(stakerInfo()).toContain("amount-ustx: u1000000000");
 
     expect(simnet.callPublicFn(WALLET, "unstake", [Cl.none(), Cl.none()], OWNER).result)
@@ -308,7 +311,7 @@ describe("v6 rewards: the full payout chain, sBTC -> pox-5 -> signer -> staker",
     const BIG_STAKE = 51_000_000_000; // 51k STX, just over the 50k floor
     registerSigner(); onboarded(); fundSTX(60_000_000_000);
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(BIG_STAKE), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(BIG_STAKE), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeOk(Cl.bool(true));
 
     // The safe's shares begin at first-reward-cycle, so read it rather than guess.
     // Claiming for the cycle BEFORE it earns nothing and pox-5 answers
@@ -363,7 +366,7 @@ describe("v6 rewards: the full payout chain, sBTC -> pox-5 -> signer -> staker",
     registerSigner(); onboarded(); fundSTX(60_000_000_000);
     // one uSTX short of SIGNER_SET_MIN_USTX
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(49_999_999_999), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(49_999_999_999), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeOk(Cl.bool(true));
 
     // the position is real and visible...
     expect(stakerInfo()).toContain("amount-ustx: u49999999999");

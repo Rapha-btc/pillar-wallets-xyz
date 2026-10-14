@@ -17,6 +17,9 @@ import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
+// juice-autostake-safe (99d69e8) takes a trailing signer-calldata (unsigned) on
+// stake and update-stake; the 9-file autostake coverage run passes none.
+const XA = process.env.AUTOSTAKE_WALLET_NAME ? [Cl.none()] : [];
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
@@ -227,7 +230,7 @@ describe("v6 gaps: gas on the sites nothing had ever paid on", () => {
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(AMT), Cl.some(sign(topic("stake-stx-juice-pox5",
         { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT) }), id)),
-       Cl.some(stationCV)], RELAYER).result).toBeOk(Cl.bool(true));
+       Cl.some(stationCV), ...XA], RELAYER).result).toBeOk(Cl.bool(true));
     expect(gasCounter() - g0).toBe(BigInt(GAS_FEE));
 
     g0 = gasCounter();
@@ -279,12 +282,12 @@ describe("v6 gaps: branches measured coverage caught that error codes could not"
     // the staking suite always passed a station on this path
     onboarded(); fundSTX(); registerSigner();
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(1_000_000_000), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(1_000_000_000), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeOk(Cl.bool(true));
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
       [Cl.uint(50_000_000), Cl.uint(0),
        Cl.some(sign(topic("update-stake-stx-juice", { "auth-id": Cl.uint(++id),
          "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0) }), id)),
-       Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
+       Cl.none(), ...XA], RELAYER).result).toBeOk(Cl.bool(true));
   });
 
   it(":780 sip010-transfer of a NON-sBTC token skips the sBTC accounting", () => {

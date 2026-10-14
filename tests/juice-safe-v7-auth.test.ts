@@ -15,6 +15,9 @@ import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
+// juice-autostake-safe (99d69e8) takes a trailing signer-calldata (unsigned) on
+// stake and update-stake; the 9-file autostake coverage run passes none.
+const XA = process.env.AUTOSTAKE_WALLET_NAME ? [Cl.none()] : [];
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
@@ -428,17 +431,17 @@ describe("v6 auth: an orphaned passkey is refused on every passkey path", () => 
     const AMT = 1_000_000_000;
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(AMT), orphan(topic("stake-stx-juice-pox5",
-        { "auth-id": Cl.uint(id + 1), "amount-ustx": Cl.uint(AMT) })), Cl.none()],
+        { "auth-id": Cl.uint(id + 1), "amount-ustx": Cl.uint(AMT) })), Cl.none(), ...XA],
       RELAYER).result, "stake").toBeErr(Cl.uint(E_NOT_ADMIN_PUBKEY));
 
     // the live admin stakes so update/unstake have a position to act on
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(AMT), Cl.none(), Cl.none()], NEW_OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(AMT), Cl.none(), Cl.none(), ...XA], NEW_OWNER).result).toBeOk(Cl.bool(true));
 
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
       [Cl.uint(50_000_000), Cl.uint(0), orphan(topic("update-stake-stx-juice",
         { "auth-id": Cl.uint(id + 1), "amount-increase": Cl.uint(50_000_000),
-          "cycles-to-extend": Cl.uint(0) })), Cl.none()],
+          "cycles-to-extend": Cl.uint(0) })), Cl.none(), ...XA],
       RELAYER).result, "update-stake").toBeErr(Cl.uint(E_NOT_ADMIN_PUBKEY));
 
     expect(simnet.callPublicFn(WALLET, "unstake",

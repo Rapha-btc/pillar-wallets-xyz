@@ -19,6 +19,9 @@ import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { generateP256Keypair, signChallengeWithRpId } from "../lib-webauthn-test-signer.mjs";
+// juice-autostake-safe (99d69e8) takes a trailing signer-calldata (unsigned) on
+// stake and update-stake; the 9-file autostake coverage run passes none.
+const XA = process.env.AUTOSTAKE_WALLET_NAME ? [Cl.none()] : [];
 
 const D = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 // V7_DEPLOYER lets the coverage harness (tests/cl-v7-cov) deploy the wallet
@@ -205,18 +208,18 @@ describe("v6 limits: the token lock freezes the passkey on every asset path", ()
     const AMT = 1_000_000_000;
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(AMT), Cl.some(sign(topic("stake-stx-juice-pox5",
-        { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT) }), id)), Cl.none()],
+        { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT) }), id)), Cl.none(), ...XA],
       RELAYER).result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
 
     // admin path is not gated -- staking locks STX in pox-5, it does not leave the safe
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(AMT), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
+      [Cl.uint(AMT), Cl.none(), Cl.none(), ...XA], OWNER).result).toBeOk(Cl.bool(true));
 
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
       [Cl.uint(50_000_000), Cl.uint(0),
        Cl.some(sign(topic("update-stake-stx-juice", { "auth-id": Cl.uint(++id),
          "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0) }), id)),
-       Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
+       Cl.none(), ...XA], RELAYER).result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
 
     expect(simnet.callPublicFn(WALLET, "unstake",
       [Cl.some(sign(topic("unstake-stx-juice", { "auth-id": Cl.uint(++id) }), id)), Cl.none()],
