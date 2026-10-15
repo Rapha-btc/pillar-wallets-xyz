@@ -27,6 +27,7 @@
 (define-constant err-token-locked (err u4023))
 
 (define-constant err-zero-amount (err u4026))
+(define-constant err-memo-mismatch (err u4041))
 (define-constant err-not-staking (err u4040))
 
 (define-constant INACTIVITY-PERIOD u52560)
@@ -630,7 +631,8 @@
     )
     (if (would-exceed-stx-threshold amount)
       (begin
-        (unwrap-panic (create-pending-operation "stx-transfer" amount recipient none none none
+        (unwrap-panic (create-pending-operation "stx-transfer" amount recipient none none
+          (some (unwrap-panic (to-consensus-buff? memo)))
           (is-some sig-auth)
         ))
         (ok true)
@@ -693,6 +695,9 @@
     (asserts! (is-eq (get op-type op) "stx-transfer") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
+    (asserts! (is-eq (get payload op) (to-consensus-buff? memo))
+      err-memo-mismatch
+    )
 
     (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
@@ -773,7 +778,9 @@
     (if (and (is-eq (contract-of sip010) SBTC-CONTRACT) (would-exceed-sbtc-threshold amount))
       (begin
         (unwrap-panic (create-pending-operation "sbtc-transfer" amount recipient
-          (some SBTC-CONTRACT) none none (is-some sig-auth)
+          (some SBTC-CONTRACT) none
+          (some (unwrap-panic (to-consensus-buff? memo)))
+          (is-some sig-auth)
         ))
         (ok true)
       )
@@ -837,6 +844,9 @@
     (asserts! (is-eq (get op-type op) "sbtc-transfer") err-invalid-operation)
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
+    (asserts! (is-eq (get payload op) (to-consensus-buff? memo))
+      err-memo-mismatch
+    )
 
     (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
