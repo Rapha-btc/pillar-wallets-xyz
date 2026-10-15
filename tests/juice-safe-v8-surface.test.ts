@@ -11,8 +11,9 @@
 //               propose-recovery, toggle-token-lock
 //   helpers-v8  sbtc-withdrawal
 //   helpers-v10 set-wallet-config, confirm-max-gas-amount
-//   juice-safe-auth-helpers-v1  stake-stx-juice-pox5, update-stake-stx-juice,
-//               unstake-stx-juice
+//   juice-safe-auth-helpers-v2  stake-stx-juice-pox5, update-stake-stx-juice
+//               (both bind signer-calldata)
+//   juice-safe-auth-helpers-v1  unstake-stx-juice
 import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";

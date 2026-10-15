@@ -223,7 +223,7 @@ describe("v6 gaps: gas on the sites nothing had ever paid on", () => {
     let g0 = gasCounter();
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(AMT), Cl.some(sign(topic("stake-stx-juice-pox5",
-        { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT) }), id)),
+        { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT), "signer-calldata": Cl.none() }), id)),
        Cl.some(stationCV), Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
     expect(gasCounter() - g0).toBe(BigInt(GAS_FEE));
 
@@ -280,7 +280,8 @@ describe("v6 gaps: branches measured coverage caught that error codes could not"
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
       [Cl.uint(50_000_000), Cl.uint(0),
        Cl.some(sign(topic("update-stake-stx-juice", { "auth-id": Cl.uint(++id),
-         "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0) }), id)),
+         "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0),
+         "signer-calldata": Cl.none() }), id)),
        Cl.none(), Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
   });
 

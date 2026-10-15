@@ -5,7 +5,9 @@
 // stake-stx-juice and update-stake-stx-juice take a last (optional (buff 500))
 // argument. The safe passes it to pox-5 stake / stake-update, pox-5 hands it to
 // juice-pool-stx-signer validate-stake!, and the deployed pool prints it. The
-// safe prints it in its own event too. Setup mirrors juice-safe-v8-staking.
+// safe prints it in its own event too. Since helpers-v2 the passkey challenge
+// includes signer-calldata, so a relayer cannot swap or strip it. Setup mirrors
+// juice-safe-v8-staking.
 import { describe, expect, it } from "vitest";
 import { Cl } from "@stacks/transactions";
 import crypto from "node:crypto";
@@ -122,6 +124,8 @@ const fundSTX = (n = 3_000_000_000) => simnet.transferSTX(n, WALLET, DEPLOYER);
 const TELEGRAM = Buffer.from("telegram:@juice_staker", "utf8");
 const TELEGRAM_CV = Cl.some(Cl.buffer(TELEGRAM));
 const TELEGRAM_HEX = `0x${TELEGRAM.toString("hex")}`;
+const OTHER_CV = Cl.some(Cl.buffer(Buffer.from("telegram:@someone_else", "utf8")));
+const E_INVALID_SIG = 4002;
 
 function prints(events: any[], contract: string): string[] {
   return events
@@ -169,19 +173,43 @@ describe("v8 signer-calldata: stake", () => {
     expect(safeEvent(r.events, "stake-stx-juice")[0]).toContain("signer-calldata: none");
   });
 
-  it("passkey stake: the signature does NOT bind the calldata, so the relayer picks it", () => {
-    // arrange: the passkey signs only {auth-id, amount-ustx}
+  it("passkey stake: the signature binds the calldata (helpers-v2)", () => {
+    // arrange: the passkey signs {auth-id, amount-ustx, signer-calldata: X}
     registerSigner(); onboarded(); fundSTX();
-    const auth = sign(topic("stake-stx-juice-pox5",
-      { "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(STAKE) }), 1);
+    const auth = sign(topic("stake-stx-juice-pox5", {
+      "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(STAKE), "signer-calldata": TELEGRAM_CV,
+    }), 1);
+    const stake = (calldata: any) => simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(STAKE), Cl.some(auth), Cl.none(), calldata], RELAYER);
 
-    // act: the relayer attaches calldata the owner never saw
-    const r = simnet.callPublicFn(WALLET, "stake-stx-juice",
-      [Cl.uint(STAKE), Cl.some(auth), Cl.none(), TELEGRAM_CV], RELAYER);
+    // act + assert: a relayer swapping in calldata Y, or stripping it, is u4002
+    const swapped = stake(OTHER_CV);
+    expect(swapped.result).toBeErr(Cl.uint(E_INVALID_SIG));
+    expect(poolValidate(swapped.events)).toHaveLength(0);
+    expect(stake(Cl.none()).result).toBeErr(Cl.uint(E_INVALID_SIG));
 
-    // assert
+    // act + assert: the signed calldata X goes through (auth-id 1 was not burned)
+    const r = stake(TELEGRAM_CV);
     expect(r.result).toBeOk(Cl.bool(true));
     expect(poolValidate(r.events)[0]).toContain(`signer-calldata: (some ${TELEGRAM_HEX})`);
+    expect(safeEvent(r.events, "stake-stx-juice")[0]).toContain(`signer-calldata: (some ${TELEGRAM_HEX})`);
+  });
+
+  it("passkey stake signed over none rejects any attached calldata", () => {
+    // arrange
+    registerSigner(); onboarded(); fundSTX();
+    const auth = sign(topic("stake-stx-juice-pox5", {
+      "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(STAKE), "signer-calldata": Cl.none(),
+    }), 1);
+
+    // act + assert
+    expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(STAKE), Cl.some(auth), Cl.none(), TELEGRAM_CV], RELAYER).result)
+      .toBeErr(Cl.uint(E_INVALID_SIG));
+    const r = simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(STAKE), Cl.some(auth), Cl.none(), Cl.none()], RELAYER);
+    expect(r.result).toBeOk(Cl.bool(true));
+    expect(poolValidate(r.events)[0]).toContain("signer-calldata: none");
   });
 
   it("refuses calldata over 500 bytes", () => {
@@ -216,18 +244,24 @@ describe("v8 signer-calldata: update-stake", () => {
     expect(safe[0]).toContain(`signer-calldata: (some ${TELEGRAM_HEX})`);
   });
 
-  it("passkey top-up with some calldata reaches the pool print", () => {
+  it("passkey top-up: the signature binds the calldata (helpers-v2)", () => {
     // arrange
     registerSigner(); onboarded(); fundSTX();
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(STAKE), Cl.none(), Cl.none(), Cl.none()], OWNER).result).toBeOk(Cl.bool(true));
     const auth = sign(topic("update-stake-stx-juice", {
       "auth-id": Cl.uint(1), "amount-increase": Cl.uint(100_000_000), "cycles-to-extend": Cl.uint(0),
+      "signer-calldata": TELEGRAM_CV,
     }), 1);
+    const update = (calldata: any) => simnet.callPublicFn(WALLET, "update-stake-stx-juice",
+      [Cl.uint(100_000_000), Cl.uint(0), Cl.some(auth), Cl.none(), calldata], RELAYER);
+
+    // act + assert: calldata Y or none against a signature over X is u4002
+    expect(update(OTHER_CV).result).toBeErr(Cl.uint(E_INVALID_SIG));
+    expect(update(Cl.none()).result).toBeErr(Cl.uint(E_INVALID_SIG));
 
     // act
-    const r = simnet.callPublicFn(WALLET, "update-stake-stx-juice",
-      [Cl.uint(100_000_000), Cl.uint(0), Cl.some(auth), Cl.none(), TELEGRAM_CV], RELAYER);
+    const r = update(TELEGRAM_CV);
 
     // assert
     expect(r.result).toBeOk(Cl.bool(true));

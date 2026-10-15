@@ -202,7 +202,7 @@ describe("v6 limits: the token lock freezes the passkey on every asset path", ()
     const AMT = 1_000_000_000;
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(AMT), Cl.some(sign(topic("stake-stx-juice-pox5",
-        { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT) }), id)), Cl.none(), Cl.none()],
+        { "auth-id": Cl.uint(++id), "amount-ustx": Cl.uint(AMT), "signer-calldata": Cl.none() }), id)), Cl.none(), Cl.none()],
       RELAYER).result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
 
     // admin path is not gated -- staking locks STX in pox-5, it does not leave the safe
@@ -212,7 +212,8 @@ describe("v6 limits: the token lock freezes the passkey on every asset path", ()
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
       [Cl.uint(50_000_000), Cl.uint(0),
        Cl.some(sign(topic("update-stake-stx-juice", { "auth-id": Cl.uint(++id),
-         "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0) }), id)),
+         "amount-increase": Cl.uint(50_000_000), "cycles-to-extend": Cl.uint(0),
+         "signer-calldata": Cl.none() }), id)),
        Cl.none(), Cl.none()], RELAYER).result).toBeErr(Cl.uint(E_TOKEN_LOCKED));
 
     expect(simnet.callPublicFn(WALLET, "unstake",

@@ -1349,10 +1349,11 @@
         (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
           message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2
             build-stake-stx-juice-pox5-hash {
             auth-id: (get auth-id sig-auth-details),
             amount-ustx: amount-ustx,
+            signer-calldata: signer-calldata,
           }),
           pubkey: (get pubkey sig-auth-details),
           signature: (get signature sig-auth-details),
@@ -1409,11 +1410,12 @@
         (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
           message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2
             build-update-stake-stx-juice-hash {
             auth-id: (get auth-id sig-auth-details),
             amount-increase: amount-increase,
             cycles-to-extend: cycles-to-extend,
+            signer-calldata: signer-calldata,
           }),
           pubkey: (get pubkey sig-auth-details),
           signature: (get signature sig-auth-details),

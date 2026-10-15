@@ -202,7 +202,7 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(STAKE),
        Cl.some(sign(topic("stake-stx-juice-pox5",
-         { "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(STAKE) }), 1)),
+         { "auth-id": Cl.uint(1), "amount-ustx": Cl.uint(STAKE), "signer-calldata": Cl.none() }), 1)),
        Cl.none(), Cl.none()], RELAYER).result).toBeOk(Cl.bool(true));
     expect(stakerInfo()).toContain("amount-ustx: u1000000000");
   });
@@ -238,7 +238,7 @@ describe("v6 staking: the full lifecycle at burn height 6", () => {
       [Cl.uint(50_000_000), Cl.uint(0),
        Cl.some(sign(topic("update-stake-stx-juice", {
          "auth-id": Cl.uint(3), "amount-increase": Cl.uint(50_000_000),
-         "cycles-to-extend": Cl.uint(0),
+         "cycles-to-extend": Cl.uint(0), "signer-calldata": Cl.none(),
        }), 3)),
        Cl.some(Cl.contractPrincipal(DEPLOYER, "zz-gas-station")), Cl.none()], RELAYER).result)
       .toBeOk(Cl.bool(true));

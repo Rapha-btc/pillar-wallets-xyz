@@ -699,6 +699,65 @@ describe("stake-stx-juice: signer-calldata", () => {
     expect(ev).toBeDefined();
     expect((ev!.data.value as any).value["signer-calldata"]).toStrictEqual(calldata);
   });
+
+  // juice-safe-auth-helpers-v2 binds signer-calldata into the passkey challenge,
+  // so a relayer can neither swap nor strip what the owner signed.
+  const X = Cl.some(Cl.bufferFromAscii("telegram:@owner"));
+  const Y = Cl.some(Cl.bufferFromAscii("telegram:@relayer"));
+  /** Mirrors juice-safe-auth-helpers-v2.build-stake-stx-juice-pox5-hash. */
+  function stakeHash(authId: number, amount: number, calldata: any): Buffer {
+    const struct = cvHash(Cl.tuple({
+      topic: Cl.stringAscii("stake-stx-juice-pox5"), "auth-id": Cl.uint(authId),
+      "amount-ustx": Cl.uint(amount), "signer-calldata": calldata,
+    }));
+    return sha256(Buffer.concat([SIP018, walletDomain(), struct]));
+  }
+  /** Mirrors juice-safe-auth-helpers-v2.build-update-stake-stx-juice-hash. */
+  function updateHash(authId: number, inc: number, cycles: number, calldata: any): Buffer {
+    const struct = cvHash(Cl.tuple({
+      topic: Cl.stringAscii("update-stake-stx-juice"), "auth-id": Cl.uint(authId),
+      "amount-increase": Cl.uint(inc), "cycles-to-extend": Cl.uint(cycles), "signer-calldata": calldata,
+    }));
+    return sha256(Buffer.concat([SIP018, walletDomain(), struct]));
+  }
+
+  it("passkey stake signed over calldata X: Y and none are u4002, X goes through", () => {
+    // arrange
+    readySafe();
+    const auth = sigAuth(1, stakeHash(1, STAKE, X));
+    const stake = (calldata: any) => simnet.callPublicFn(WALLET, "stake-stx-juice",
+      [Cl.uint(STAKE), Cl.some(auth), Cl.none(), calldata], RELAYER);
+    // act
+    const withY = stake(Y);
+    const withNone = stake(Cl.none());
+    const withX = stake(X);
+    // assert
+    expect(withY.result).toBeErr(Cl.uint(E_INVALID_SIG));
+    expect(withNone.result).toBeErr(Cl.uint(E_INVALID_SIG));
+    expect(withX.result).toBeOk(Cl.bool(true));
+    const ev = withX.events.find((e: any) => e.event === "print_event"
+      && Cl.prettyPrint(e.data.value).includes('event: "stake-stx-juice"'));
+    expect((ev!.data.value as any).value["signer-calldata"]).toStrictEqual(X);
+    expect(infoField("amount-ustx")).toBe(BigInt(STAKE));
+  });
+
+  it("passkey top-up signed over calldata X: Y and none are u4002, X goes through", () => {
+    // arrange
+    stakedSafe();
+    const INC = 100_000_000;
+    const auth = sigAuth(1, updateHash(1, INC, 0, X));
+    const update = (calldata: any) => simnet.callPublicFn(WALLET, "update-stake-stx-juice",
+      [Cl.uint(INC), Cl.uint(0), Cl.some(auth), Cl.none(), calldata], RELAYER);
+    // act
+    const withY = update(Y);
+    const withNone = update(Cl.none());
+    const withX = update(X);
+    // assert
+    expect(withY.result).toBeErr(Cl.uint(E_INVALID_SIG));
+    expect(withNone.result).toBeErr(Cl.uint(E_INVALID_SIG));
+    expect(withX.result).toBeOk(Cl.bool(true));
+    expect(infoField("amount-ustx")).toBe(BigInt(STAKE + INC));
+  });
 });
 
 // --- owner change resets the keeper (bounty mv7dfb, Giant Moth F2, 611873c) ------

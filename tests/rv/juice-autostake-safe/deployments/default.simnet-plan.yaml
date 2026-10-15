@@ -136,6 +136,11 @@ plan:
       path: ../../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1.clar
       clarity-version: 5
     - transaction-type: emulated-contract-publish
+      contract-name: juice-safe-auth-helpers-v2
+      emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
+      path: ../../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2.clar
+      clarity-version: 4
+    - transaction-type: emulated-contract-publish
       contract-name: smart-wallet-standard-auth-helpers-v10
       emulated-sender: SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22
       path: ../../../.cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10.clar

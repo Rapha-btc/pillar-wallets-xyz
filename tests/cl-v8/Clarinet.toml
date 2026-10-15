@@ -53,6 +53,13 @@ contract_id = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal"
 [[project.requirements]]
 contract_id = "SP000000000000000000002Q6VF78.pox-5"
 
+# juice-safe-auth-helpers-v2 is NOT deployed yet either (v8 calls it for the
+# two pox-5 stake builders). Same cache-symlink trick, Clarity 4:
+#   ln -s ../../contracts/juice-safe-auth-helpers-v2.clar .cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2.clar
+#   printf '{\n  "epoch": "Epoch40",\n  "clarity_version": "Clarity4"\n}\n' > .cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2.json
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2"
+
 # juice-safe-v8 is NOT deployed yet. It loads as a requirement at its real
 # address through a local cache symlink to contracts/juice-safe-v8.clar:
 #   ln -s ../../contracts/juice-safe-v8.clar .cache/requirements/SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8.clar

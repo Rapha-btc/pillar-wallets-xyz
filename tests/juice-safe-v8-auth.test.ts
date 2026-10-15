@@ -425,7 +425,7 @@ describe("v6 auth: an orphaned passkey is refused on every passkey path", () => 
     const AMT = 1_000_000_000;
     expect(simnet.callPublicFn(WALLET, "stake-stx-juice",
       [Cl.uint(AMT), orphan(topic("stake-stx-juice-pox5",
-        { "auth-id": Cl.uint(id + 1), "amount-ustx": Cl.uint(AMT) })), Cl.none(), Cl.none()],
+        { "auth-id": Cl.uint(id + 1), "amount-ustx": Cl.uint(AMT), "signer-calldata": Cl.none() })), Cl.none(), Cl.none()],
       RELAYER).result, "stake").toBeErr(Cl.uint(E_NOT_ADMIN_PUBKEY));
 
     // the live admin stakes so update/unstake have a position to act on
@@ -435,7 +435,7 @@ describe("v6 auth: an orphaned passkey is refused on every passkey path", () => 
     expect(simnet.callPublicFn(WALLET, "update-stake-stx-juice",
       [Cl.uint(50_000_000), Cl.uint(0), orphan(topic("update-stake-stx-juice",
         { "auth-id": Cl.uint(id + 1), "amount-increase": Cl.uint(50_000_000),
-          "cycles-to-extend": Cl.uint(0) })), Cl.none(), Cl.none()],
+          "cycles-to-extend": Cl.uint(0), "signer-calldata": Cl.none() })), Cl.none(), Cl.none()],
       RELAYER).result, "update-stake").toBeErr(Cl.uint(E_NOT_ADMIN_PUBKEY));
 
     expect(simnet.callPublicFn(WALLET, "unstake",

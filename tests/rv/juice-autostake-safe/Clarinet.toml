@@ -36,6 +36,12 @@ contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station-trait"
 [[project.requirements]]
 contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1"
 
+# NOT deployed yet: loads from the .cache symlink to contracts/juice-safe-auth-helpers-v2.clar
+# (setup in tests/cl-v8/Clarinet.toml). juice-autostake-safe / juice-safe-v8 call it for
+# the two pox-5 stake builders.
+[[project.requirements]]
+contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2"
+
 [[project.requirements]]
 contract_id = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1"
 
