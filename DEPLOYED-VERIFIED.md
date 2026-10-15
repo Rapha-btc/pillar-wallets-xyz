@@ -16,3 +16,19 @@ Verified by Rapha: GREEN.
 juice-safe-v8 registered as verified in `fakfun-wallet-core-v2`
 (`set-verified-contract`, tx `0xb11b0e6297e08b9170eac9bd18d7d5b2623d8a5d353ec9972222cce5a40c015f`,
 block 9218451).
+
+## 2026-10-15 (later): v9 + autostake (bounty mv8wal fixes)
+
+Verified by Rapha: GREEN.
+
+| Contract | Tx | Block | Hash | Source |
+|---|---|---|---|---|
+| `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9` | `0x89b18069f659f2d1695f0d8a6df41292e52da9a32b1aec85411c3baba144e147` | 9219780 | `6962a7d89c2bc8d04e6bd89c9814f417ac9e281b00cbde5e9b5f41634e1fbec1` | `contracts/juice-safe-v9.clar` at `d4eda1c` |
+| `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1` | `0x99d6958017db47d77c72e8317bc53f4f8baf1e20cf7f3e33de55bd813f668d49` | 9219792 | `766bd83014e8b2476ff54d68a04860edee17548ead98d001277a8f9333492692` | `contracts/juice-autostake-safe-auth-helpers-v1.clar` |
+| `SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe` | `0xa6e9ab26104bf83c0bc7daf59e63a9ed10cdc9620b8dddf7211087f59890eb81` | 9219793 | `b575f372e3a75b9fd4bdf8732c1bf3ad4a8f1a7ae630faf6fdb3144b3232ac86` | `contracts/juice-autostake-safe.clar` at `d4eda1c` |
+
+Registered as verified in `fakfun-wallet-core-v2` (`set-verified-contract`):
+juice-safe-v9 tx `0xe15235fd193768ef554b0e67ff5fda1c5e61de1f7a589c2f2458fc5ef60fa402`
+(block 9219781), juice-autostake-safe tx
+`0xaa4814b57c7d984c968030a4a3724b5db2f2bc95f6171866a8d221b2f965ac32` (block 9219794).
+stxer: memo binding 283/283, regressions green (harness 5076348).
