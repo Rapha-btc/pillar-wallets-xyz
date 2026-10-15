@@ -69,6 +69,7 @@ import {
 import { SimulationBuilder, getSimulationResult } from "stxer";
 import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
 import { installChunkedSubmit } from "./_chunked-submit.mjs";
+import { SAFE_BYTES_DIR, bytesTag, loadBytes, liveIdentical } from "./_safe-bytes.mjs";
 // the M idle advance (52560 burn blocks) is too slow for one stxer post
 installChunkedSubmit(12);
 
@@ -158,8 +159,9 @@ const cycleStart = (c) => FIRST_BURN + c * CYCLE;
 
 async function main() {
   // Sources: the exact repo files, with only the pool swapped (see header).
-  const helperSrc = fs.readFileSync(`contracts/${HELPER_NAME}.clar`, "utf8");
-  const prodSrc = fs.readFileSync(`contracts/${WALLET_NAME}.clar`, "utf8");
+  const helperSrc = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, HELPER_NAME).s : fs.readFileSync(`contracts/${HELPER_NAME}.clar`, "utf8");
+  const prodSrc = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, WALLET_NAME).s : fs.readFileSync(`contracts/${WALLET_NAME}.clar`, "utf8");
+  if (SAFE_BYTES_DIR) console.log(`safe + helper bytes: ${SAFE_BYTES_DIR}`);
   if (!prodSrc.includes(PROD_POOL)) throw new Error("safe source no longer names the production pool");
   // REAL_POOL=1: keep the production pool binding and deploy the pool (with
   // the Jing stack, trait-v2 and autoswap its deploy needs) on the fork, from
@@ -220,6 +222,7 @@ async function main() {
     const DB = `${process.env.HOME}/projects/jing-contracts-v3/simulations/deploy-bytes-mv7dfb`;
     for (const [n, v] of [["jing-core-v6", ClarityVersion.Clarity5], ["jing-ladder-v1", ClarityVersion.Clarity5], ["markets-sbtc-stx-jing-v6-3", ClarityVersion.Clarity5],
       ["swap-router-sbtc-stx-jing-v5-3", ClarityVersion.Clarity5], ["juice-swap-vault-trait-v2", CLARITY_6], ["juice-sbtc-autoswap", CLARITY_6], ["juice-pool-sbtc-signer", CLARITY_6]]) {
+      if (await liveIdentical(STACKS_NODE_API, `${DEPLOYER}.${n}`, fs.readFileSync(`${DB}/${n}.clar`, "utf8"))) { console.log(`${n}: live, identical bytes, not redeployed`); continue; }
       b.withSender(DEPLOYER).addContractDeploy({ contract_name: n, source_code: fs.readFileSync(`${DB}/${n}.clar`, "utf8"), clarity_version: v });
       plan.push({ kind: "fund", label: `REAL_POOL: deploy ${n} (deploy bytes)` });
     }

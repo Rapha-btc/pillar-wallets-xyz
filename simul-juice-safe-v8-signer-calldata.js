@@ -30,6 +30,7 @@ import {
 } from "@stacks/transactions";
 import { SimulationBuilder, getSimulationResult } from "stxer";
 import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
+import { SAFE_BYTES_DIR, bytesTag, loadBytes } from "./_safe-bytes.mjs";
 
 const DEPLOYER = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
 const FAKFUN_DEPLOYER = "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK";
@@ -38,8 +39,12 @@ const RECOVERY = "SP3HXJJMJQ06GNAZ8XWDN1QM48JEDC6PP6W3YZPZJ";
 const RELAYER = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM";
 const STX_WHALE = "SP354663MXNWN2B6HKNBYD8JBNJK2ZNBZE764X1RR";
 const POX5 = "SP000000000000000000002Q6VF78.pox-5";
-const A = `${DEPLOYER}.juice-safe-v8`;
-const B_NAME = "juice-safe-v8-user";
+// SAFE_BYTES_DIR=deploy-bytes-memofix SAFE_NAME=juice-safe-v9: same scenario on other deploy bytes;
+// A is deployed from <dir>/<name>.clar and verified in core-v2, B is a relay copy of
+// the same bytes, and both hashes must equal those bytes' sha512/256.
+const SAFE_NAME = process.env.SAFE_NAME || "juice-safe-v8";
+const A = `${DEPLOYER}.${SAFE_NAME}`;
+const B_NAME = `${SAFE_NAME}-user`;
 const B = `${FAKFUN_DEPLOYER}.${B_NAME}`;
 const HELPERS = `${DEPLOYER}.juice-safe-auth-helpers-v2`;
 const POOL = `${DEPLOYER}.juice-pool-stx-signer`;
@@ -67,9 +72,12 @@ const stakeT = (authId, amt, cd) => tupleCV({ topic: stringAsciiCV("stake-stx-ju
 const cycleOf = (h) => Math.floor((h - FIRST_BURN) / CYCLE);
 
 async function main() {
-  const tpl = fs.readFileSync(TEMPLATE, "utf8").match(/JUICE_SAFE_V8_TEMPLATE = `([\s\S]*?)`;/)[1];
+  const alt = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, SAFE_NAME) : null;
+  const tpl = alt ? alt.s : fs.readFileSync(TEMPLATE, "utf8").match(/JUICE_SAFE_V8_TEMPLATE = `([\s\S]*?)`;/)[1];
   const tplHash = crypto.createHash("sha512-256").update(tpl).digest("hex");
-  if (tplHash !== CANON_HASH) throw new Error(`BE template sha512/256 ${tplHash} != canonical ${CANON_HASH}`);
+  const WANT_HASH = alt ? alt.h512 : CANON_HASH;
+  if (tplHash !== WANT_HASH) throw new Error(`BE template sha512/256 ${tplHash} != canonical ${CANON_HASH}`);
+  if (alt) console.log(`${A}: deploy bytes ${SAFE_BYTES_DIR}/${SAFE_NAME}.clar (sha512/256 ${tplHash.slice(0, 12)})`);
 
   const pox = await (await fetch(`${STACKS_NODE_API}/v2/pox`)).json();
   if (pox.first_burnchain_block_height !== FIRST_BURN || pox.reward_cycle_length !== CYCLE || pox.prepare_phase_block_length !== PREPARE)
@@ -102,6 +110,11 @@ async function main() {
     cyc: (contract-call? '${POX5} current-pox-reward-cycle) }`, tag);
 
   // -- setup: canonical A onboarded; user copy B deployed from the BE template -------------
+  if (alt) {
+    b.withSender(DEPLOYER).addContractDeploy({ contract_name: SAFE_NAME, source_code: tpl, clarity_version: CLARITY_6 });
+    step(`deploy ${A} (deploy bytes)`);
+    call(`core-v2 set-verified-contract(${SAFE_NAME})`, DEPLOYER, `${DEPLOYER}.fakfun-wallet-core-v2`, "set-verified-contract", [principalCV(A), noneCV()], /^\(ok/);
+  }
   evalw(A, "A canonical contract-hash? on chain", `(contract-hash? '${A})`, "hashA");
   b.withSender(FAKFUN_DEPLOYER).addContractDeploy({ contract_name: B_NAME, source_code: tpl, clarity_version: CLARITY_6 });
   step(`relay deploys ${B} from the BE template (${Buffer.byteLength(tpl)} bytes)`);
@@ -174,8 +187,8 @@ async function main() {
   const num = (t, f) => BigInt((String(cap[t]).match(new RegExp(`\\(${f} u(\\d+)\\)`)) || [])[1] ?? "-1");
   const cyc = (t) => BigInt((String(cap[t]).match(/\(cyc u(\d+)\)/) || [])[1] ?? "-1");
   const xHex = `0x${X.toString("hex")}`;
-  chk(`A canonical on-chain hash = ${CANON_HASH.slice(0, 12)}`, String(cap.hashA) === `(ok 0x${CANON_HASH})`, cap.hashA);
-  chk(`B user copy (BE template) hash = canonical`, String(cap.hashB) === `(ok 0x${CANON_HASH})`, cap.hashB);
+  chk(`A canonical on-chain hash = ${WANT_HASH.slice(0, 12)}`, String(cap.hashA) === `(ok 0x${WANT_HASH})`, cap.hashA);
+  chk(`B user copy (${alt ? "same deploy bytes" : "BE template"}) hash = canonical`, String(cap.hashB) === `(ok 0x${WANT_HASH})`, cap.hashB);
   for (const k of ["A", "B"]) {
     const amt = BigInt(STAKE[k]);
     chk(`${k} live helpers-v2 hash over X = JS challenge signed by the passkey`, String(cap[`h${k}`]) === `0x${js[k]}`, `${cap[`h${k}`]} vs 0x${js[k]}`);
@@ -199,9 +212,9 @@ async function main() {
   const total = pass + fail;
   console.log(`\n=== ${pass} passed, ${fail} failed (${total}) ===\nView: ${url}`);
   fs.mkdirSync("fixtures", { recursive: true });
-  fs.writeFileSync("fixtures/simul-juice-safe-v8-signer-calldata-result.json", JSON.stringify({
+  fs.writeFileSync(`fixtures/simul-juice-safe-v8-signer-calldata${alt ? `-${SAFE_NAME}${bytesTag()}` : ""}-result.json`, JSON.stringify({
     simulation: url, passed: pass, total, startBurn,
-    sources: { [A]: "live canonical", [B]: { form: "faktory-dao juice-safe-v8-template.ts", bytes: Buffer.byteLength(tpl), sha512_256: tplHash, clarity: 6 } },
+    sources: { [A]: alt ? `${SAFE_BYTES_DIR}/${SAFE_NAME}.clar` : "live canonical", [B]: { form: alt ? "same deploy bytes" : "faktory-dao juice-safe-v8-template.ts", bytes: Buffer.byteLength(tpl), sha512_256: tplHash, clarity: 6 } },
     checks,
   }, null, 1) + "\n");
   if (fail > 0) process.exit(1);

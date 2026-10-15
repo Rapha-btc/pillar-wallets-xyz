@@ -1,0 +1,1437 @@
+{
+ "simulation": "https://stxer.xyz/simulations/mainnet/0045bdc7275beb18376ae5c7814cc860",
+ "passed": 283,
+ "total": 283,
+ "notes": [
+  "jing-core-v6: live on mainnet, identical to mv7dfb bytes, not redeployed",
+  "jing-ladder-v1: live on mainnet, identical to mv7dfb bytes, not redeployed",
+  "markets-sbtc-stx-jing-v6-3: live on mainnet, identical to mv7dfb bytes, not redeployed",
+  "swap-router-sbtc-stx-jing-v5-3: live on mainnet, identical to mv7dfb bytes, not redeployed"
+ ],
+ "hashes": {
+  "F9": "6829f457223c518f5388a1cceb124692bfd485d0bc8023df718fc6ee9ee0d38a",
+  "CA": "e892e430542231f1f0b15b2ff1eef3563a707accb0b790f43de40b6054801d85",
+  "FA": "9a83154930220adc6bd87ae32486a555050a804904f1d00b412300f744a7bef5",
+  "C8js": "61e0a2b72658f9ea0ff71dd6c950564de68012fa24e95e335c1a6fd5c6b081bf",
+  "F9js": "94cfcd2ac6e7b8541725f21b239a6331bf319c38b3a2a88531761bbc1b4bc177",
+  "CAjs": "eb758ed8160cf4e0cdce4d0c880a2ac6ac1d0e3e880ce58d2d1960683e73882b",
+  "FAjs": "352b7636f4ea9782cd89cdd71d05bf4428b02f21ac01ca583c1fee01ec27b16a"
+ },
+ "checks": [
+  {
+   "label": "deploy juice-swap-vault-trait-v2 (mv7dfb deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-sbtc-autoswap (mv7dfb deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-pool-sbtc-signer (mv7dfb deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "deploy juice-autostake-safe-auth-helpers-v1 (Clarity 4)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 fund 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 fund 400000 sats sBTC",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 onboard (passkey, 100 STX / 100k sats / 144)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 deploy SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9 (juice-safe-v9, sha512/256 6829f457223c)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 core-v2 set-verified-contract(juice-safe-v9)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 fund 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 fund 400000 sats sBTC",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 onboard (passkey, 100 STX / 100k sats / 144)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA deploy SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe (juice-autostake-safe-prefix, sha512/256 e892e4305422)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA core-v2 set-verified-contract(.juice-autostake-safe, pre-fix hash)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA fund 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA fund 400000 sats sBTC",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA onboard (passkey, 100 STX / 100k sats / 144)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA deploy SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe (juice-autostake-safe, sha512/256 9a8315493022)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA core-v2 set-verified-contract(.juice-autostake-safe) -> fixed hash",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA fund 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA fund 400000 sats sBTC",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA onboard (passkey, 100 STX / 100k sats / 144)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 op0 admin stx-transfer 400 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 -now with memo X -> ok (bug: broadcaster's memo)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 -now with memo M, same sig -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "C8 op1 admin stx-transfer 300 STX memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op1 (none) -now with memo X -> ok (bug: memo injected)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 op2 admin sip010-transfer 150000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc -now with memo X -> ok (bug)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc -now with memo M, same sig -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "C8 op3 admin sip010-transfer 120000 sats memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op3 sbtc (none) -now with memo X -> ok (bug)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 op4 admin stx-transfer 200 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 op5 admin sip010-transfer 110000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 admin execute-pending-stx-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op5 admin execute-pending-sbtc-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "F9 op0 admin stx-transfer 400 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo M, same sig -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 op1 admin stx-transfer 300 STX memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with none -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 op2 admin sip010-transfer 150000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo M, same sig -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 op3 admin sip010-transfer 120000 sats memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with none -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 op4 admin stx-transfer 200 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 op5 admin sip010-transfer 110000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 admin execute-pending-stx-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op5 admin execute-pending-sbtc-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "CA op0 admin stx-transfer 400 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 -now with memo X -> ok (bug: broadcaster's memo)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 -now with memo M, same sig -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "CA op1 admin stx-transfer 300 STX memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op1 (none) -now with memo X -> ok (bug: memo injected)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA op2 admin sip010-transfer 150000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc -now with memo X -> ok (bug)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc -now with memo M, same sig -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "CA op3 admin sip010-transfer 120000 sats memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op3 sbtc (none) -now with memo X -> ok (bug)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA op4 admin stx-transfer 200 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA op5 admin sip010-transfer 110000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 admin execute-pending-stx-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op5 admin execute-pending-sbtc-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "FA op0 admin stx-transfer 400 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo M, same sig -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA op1 admin stx-transfer 300 STX memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with none -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA op2 admin sip010-transfer 150000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo M, same sig -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA op3 admin sip010-transfer 120000 sats memo none -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with memo X -> u4041",
+   "actual": "(err u4041)",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with none -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA op4 admin stx-transfer 200 STX memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA op5 admin sip010-transfer 110000 sats memo M -> queued",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 admin execute-pending-stx-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op5 admin execute-pending-sbtc-transfer before the cooldown -> u4017",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 admin execute-pending-stx-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 admin execute-pending-stx-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 admin execute-pending-stx-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 admin execute-pending-stx-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 again -> u4014",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 -now with memo X -> ok (bug: broadcaster's memo): ws moved -400000000",
+   "actual": "got -400000000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 -now with memo X -> ok (bug: broadcaster's memo): rs moved 400000000",
+   "actual": "got 400000000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 -now with memo X -> ok (bug: broadcaster's memo): wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 -now with memo X -> ok (bug: broadcaster's memo): rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op1 (none) -now with memo X -> ok (bug: memo injected): ws moved -300000000",
+   "actual": "got -300000000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op1 (none) -now with memo X -> ok (bug: memo injected): rs moved 300000000",
+   "actual": "got 300000000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op1 (none) -now with memo X -> ok (bug: memo injected): wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op1 (none) -now with memo X -> ok (bug: memo injected): rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc -now with memo X -> ok (bug): ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc -now with memo X -> ok (bug): rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc -now with memo X -> ok (bug): wb moved -150000",
+   "actual": "got -150000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc -now with memo X -> ok (bug): rb moved 150000",
+   "actual": "got 150000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op3 sbtc (none) -now with memo X -> ok (bug): ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op3 sbtc (none) -now with memo X -> ok (bug): rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op3 sbtc (none) -now with memo X -> ok (bug): wb moved -120000",
+   "actual": "got -120000",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op3 sbtc (none) -now with memo X -> ok (bug): rb moved 120000",
+   "actual": "got 120000",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo M, same sig -> ok: ws moved -400000000",
+   "actual": "got -400000000",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo M, same sig -> ok: rs moved 400000000",
+   "actual": "got 400000000",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo M, same sig -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 -now with memo M, same sig -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with none -> ok: ws moved -300000000",
+   "actual": "got -300000000",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with none -> ok: rs moved 300000000",
+   "actual": "got 300000000",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with none -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 (none) -now with none -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo M, same sig -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo M, same sig -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo M, same sig -> ok: wb moved -150000",
+   "actual": "got -150000",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc -now with memo M, same sig -> ok: rb moved 150000",
+   "actual": "got 150000",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with none -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with none -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with none -> ok: wb moved -120000",
+   "actual": "got -120000",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sbtc (none) -now with none -> ok: rb moved 120000",
+   "actual": "got 120000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 -now with memo X -> ok (bug: broadcaster's memo): ws moved -400000000",
+   "actual": "got -400000000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 -now with memo X -> ok (bug: broadcaster's memo): rs moved 400000000",
+   "actual": "got 400000000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 -now with memo X -> ok (bug: broadcaster's memo): wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 -now with memo X -> ok (bug: broadcaster's memo): rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op1 (none) -now with memo X -> ok (bug: memo injected): ws moved -300000000",
+   "actual": "got -300000000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op1 (none) -now with memo X -> ok (bug: memo injected): rs moved 300000000",
+   "actual": "got 300000000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op1 (none) -now with memo X -> ok (bug: memo injected): wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op1 (none) -now with memo X -> ok (bug: memo injected): rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc -now with memo X -> ok (bug): ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc -now with memo X -> ok (bug): rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc -now with memo X -> ok (bug): wb moved -150000",
+   "actual": "got -150000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc -now with memo X -> ok (bug): rb moved 150000",
+   "actual": "got 150000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op3 sbtc (none) -now with memo X -> ok (bug): ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op3 sbtc (none) -now with memo X -> ok (bug): rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op3 sbtc (none) -now with memo X -> ok (bug): wb moved -120000",
+   "actual": "got -120000",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op3 sbtc (none) -now with memo X -> ok (bug): rb moved 120000",
+   "actual": "got 120000",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo M, same sig -> ok: ws moved -400000000",
+   "actual": "got -400000000",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo M, same sig -> ok: rs moved 400000000",
+   "actual": "got 400000000",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo M, same sig -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 -now with memo M, same sig -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with none -> ok: ws moved -300000000",
+   "actual": "got -300000000",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with none -> ok: rs moved 300000000",
+   "actual": "got 300000000",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with none -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 (none) -now with none -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo M, same sig -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo M, same sig -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo M, same sig -> ok: wb moved -150000",
+   "actual": "got -150000",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc -now with memo M, same sig -> ok: rb moved 150000",
+   "actual": "got 150000",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with memo X -> u4041: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with memo X -> u4041: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with memo X -> u4041: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with memo X -> u4041: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with none -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with none -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with none -> ok: wb moved -120000",
+   "actual": "got -120000",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sbtc (none) -now with none -> ok: rb moved 120000",
+   "actual": "got 120000",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 admin execute-pending-stx-transfer memo M -> ok: ws moved -200000000",
+   "actual": "got -200000000",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 admin execute-pending-stx-transfer memo M -> ok: rs moved 200000000",
+   "actual": "got 200000000",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 admin execute-pending-stx-transfer memo M -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op4 admin execute-pending-stx-transfer memo M -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: wb moved -110000",
+   "actual": "got -110000",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rb moved 110000",
+   "actual": "got 110000",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 admin execute-pending-stx-transfer memo M -> ok: ws moved -200000000",
+   "actual": "got -200000000",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 admin execute-pending-stx-transfer memo M -> ok: rs moved 200000000",
+   "actual": "got 200000000",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 admin execute-pending-stx-transfer memo M -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op4 admin execute-pending-stx-transfer memo M -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: wb moved -110000",
+   "actual": "got -110000",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rb moved 110000",
+   "actual": "got 110000",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 admin execute-pending-stx-transfer memo M -> ok: ws moved -200000000",
+   "actual": "got -200000000",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 admin execute-pending-stx-transfer memo M -> ok: rs moved 200000000",
+   "actual": "got 200000000",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 admin execute-pending-stx-transfer memo M -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op4 admin execute-pending-stx-transfer memo M -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: wb moved -110000",
+   "actual": "got -110000",
+   "passed": true
+  },
+  {
+   "label": "CA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rb moved 110000",
+   "actual": "got 110000",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 admin execute-pending-stx-transfer memo M -> ok: ws moved -200000000",
+   "actual": "got -200000000",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 admin execute-pending-stx-transfer memo M -> ok: rs moved 200000000",
+   "actual": "got 200000000",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 admin execute-pending-stx-transfer memo M -> ok: wb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op4 admin execute-pending-stx-transfer memo M -> ok: rb moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: ws moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rs moved 0",
+   "actual": "got 0",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: wb moved -110000",
+   "actual": "got -110000",
+   "passed": true
+  },
+  {
+   "label": "FA (d) op5 admin execute-pending-sbtc-transfer memo M -> ok: rb moved 110000",
+   "actual": "got 110000",
+   "passed": true
+  },
+  {
+   "label": "advance moved burn-block-height by >= 145",
+   "actual": "u971628 -> u971773",
+   "passed": true
+  },
+  {
+   "label": "C8 is the LIVE juice-safe-v8 (contract-hash? = b3d74b90)",
+   "actual": "(ok 0xb3d74b90efebba24a28e3c8d5101fd7c56208deb1699088f18206565f1c0ba15)",
+   "passed": true
+  },
+  {
+   "label": "F9 on-chain hash = deploy-bytes sha512/256",
+   "actual": "(ok 0x6829f457223c518f5388a1cceb124692bfd485d0bc8023df718fc6ee9ee0d38a)",
+   "passed": true
+  },
+  {
+   "label": "CA on-chain hash = deploy-bytes sha512/256",
+   "actual": "(ok 0xe892e430542231f1f0b15b2ff1eef3563a707accb0b790f43de40b6054801d85)",
+   "passed": true
+  },
+  {
+   "label": "FA on-chain hash = deploy-bytes sha512/256",
+   "actual": "(ok 0x9a83154930220adc6bd87ae32486a555050a804904f1d00b412300f744a7bef5)",
+   "passed": true
+  },
+  {
+   "label": "C8 live mm helper hash = JS execute-now challenge",
+   "actual": "0x61e0a2b72658f9ea0ff71dd6c950564de68012fa24e95e335c1a6fd5c6b081bf",
+   "passed": true
+  },
+  {
+   "label": "C8 op0 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u400000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "C8 op1 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u300000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "C8 op2 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u150000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "C8 op3 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u120000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op0 STX event memo = X (broadcaster's), not M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000017d78400056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7638\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x68ce1c293b5647eed8edf23efd508567a454840109486db1c2ecf76e68743c80\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"400000000\",\"memo\":\"61747461636b65722d616363742d36363636\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8\"},\"txid\":\"0x68ce1c293b5647eed8edf23efd508567a454840109486db1c2ecf76e68743c80\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op1 (queued none) STX event memo = X",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000011e1a300056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7638\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xd86b20b6f9584db13658d65be3cd6e0ac30e6a705c76a7ffaf4f69877e710a58\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"300000000\",\"memo\":\"61747461636b65722d616363742d36363636\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8\"},\"txid\":\"0xd86b20b6f9584db13658d65be3cd6e0ac30e6a705c76a7ffaf4f69877e710a58\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op2 sbtc-token print = X, not M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e7401000000000000000000000000000249f0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7638\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x405473be748ce0283e2cb17e2679fcec1513badb4b4484ef98daeea457b3925f\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"150000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8\"},\"txid\":\"0x405473be748ce0283e2cb17e2679fcec1513badb4b4484ef98daeea457b3925f\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000001261747461636b65722d616363742d36363636\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x405473be748ce0283e2cb17e2679fcec1513badb4b4484ef98daeea457b3925f\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "C8 (a) op3 (queued none) sbtc-token print = X",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001d4c0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7638\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x78a0f1c8f1866daae2426bc6a02c9b2779f1871d55d2cb69aa735d20a606e91f\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"120000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8\"},\"txid\":\"0x78a0f1c8f1866daae2426bc6a02c9b2779f1871d55d2cb69aa735d20a606e91f\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000001261747461636b65722d616363742d36363636\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x78a0f1c8f1866daae2426bc6a02c9b2779f1871d55d2cb69aa735d20a606e91f\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) admin op4 STX event memo = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e74010000000000000000000000000bebc200056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7638\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x69601593e8f75f666026e864568a0e92f1930cbd4561e108213fa472d28affdd\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"200000000\",\"memo\":\"6f776e65722d616363742d31303031\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8\"},\"txid\":\"0x69601593e8f75f666026e864568a0e92f1930cbd4561e108213fa472d28affdd\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "C8 (d) admin op5 sbtc-token print = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001adb0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7638\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x4a74db87593d6643132a16997b5c8adee16562231c485fa14f046dde1eb7cc29\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"110000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v8\"},\"txid\":\"0x4a74db87593d6643132a16997b5c8adee16562231c485fa14f046dde1eb7cc29\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000000f6f776e65722d616363742d31303031\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x4a74db87593d6643132a16997b5c8adee16562231c485fa14f046dde1eb7cc29\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "F9 live mm helper hash = JS execute-now challenge",
+   "actual": "0x94cfcd2ac6e7b8541725f21b239a6331bf319c38b3a2a88531761bbc1b4bc177",
+   "passed": true
+  },
+  {
+   "label": "F9 op0 payload = consensus(some M)",
+   "actual": "(some (tuple (amount u400000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "F9 op1 payload = consensus(none) 0x09",
+   "actual": "(some (tuple (amount u300000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x09)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "F9 op2 payload = consensus(some M)",
+   "actual": "(some (tuple (amount u150000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "F9 op3 payload = consensus(none) 0x09",
+   "actual": "(some (tuple (amount u120000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload (some 0x09)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "F9 b0x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "F9 c1x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "F9 b2x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "F9 c3x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "F9 op0 still pending after the X attempt (executed false, vetoed false)",
+   "actual": "(some (tuple (amount u400000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "F9 op2 still pending after the X attempt",
+   "actual": "(some (tuple (amount u150000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op0 STX event memo = M, no X anywhere",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000017d78400056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7639\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x26778fc8930b7aff06ea390615dec11d2637f526bb5e67beb81ee7b66f6562de\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"400000000\",\"memo\":\"6f776e65722d616363742d31303031\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9\"},\"txid\":\"0x26778fc8930b7aff06ea390615dec11d2637f526bb5e67beb81ee7b66f6562de\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "F9 (b) op2 sbtc-token print = M, no X anywhere",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e7401000000000000000000000000000249f0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7639\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x662b891b71a250b5a9563c7aa622479b358f5b4729fa53c7d6bc241e2e86fb20\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"150000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9\"},\"txid\":\"0x662b891b71a250b5a9563c7aa622479b358f5b4729fa53c7d6bc241e2e86fb20\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000000f6f776e65722d616363742d31303031\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x662b891b71a250b5a9563c7aa622479b358f5b4729fa53c7d6bc241e2e86fb20\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op1 STX event has no memo",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000011e1a300056576656e740d0000000c7374782d7472616e73666572046d656d6f0909726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7639\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xeec03fc19b18b591ad373db92e41f2bf179ca3f8bd3fcd4e9fdc63db91f90b37\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"300000000\",\"memo\":\"\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9\"},\"txid\":\"0xeec03fc19b18b591ad373db92e41f2bf179ca3f8bd3fcd4e9fdc63db91f90b37\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "F9 (c) op3 sBTC transfer printed no memo",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001d4c0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0909726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7639\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x0ed93e20b1b2578b68dc339c60885b38c4393605b5436a02433ecd01fbe5d3ff\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"120000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9\"},\"txid\":\"0x0ed93e20b1b2578b68dc339c60885b38c4393605b5436a02433ecd01fbe5d3ff\",\"type\":\"ft_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) admin op4 STX event memo = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e74010000000000000000000000000bebc200056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7639\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x64e1975961b39d18cec2bd2e28affa44bcea5dc6012fe60d031417531e7065eb\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"200000000\",\"memo\":\"6f776e65722d616363742d31303031\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9\"},\"txid\":\"0x64e1975961b39d18cec2bd2e28affa44bcea5dc6012fe60d031417531e7065eb\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "F9 (d) admin op5 sbtc-token print = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001adb0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e0d6a756963652d736166652d7639\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xb1dc44ff06e3ae271980be171f5a2b0368fae8ddf96624e7fa94b395101e5091\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"110000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9\"},\"txid\":\"0xb1dc44ff06e3ae271980be171f5a2b0368fae8ddf96624e7fa94b395101e5091\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000000f6f776e65722d616363742d31303031\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0xb1dc44ff06e3ae271980be171f5a2b0368fae8ddf96624e7fa94b395101e5091\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "CA live mm helper hash = JS execute-now challenge",
+   "actual": "0xeb758ed8160cf4e0cdce4d0c880a2ac6ac1d0e3e880ce58d2d1960683e73882b",
+   "passed": true
+  },
+  {
+   "label": "CA op0 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u400000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "CA op1 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u300000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "CA op2 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u150000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "CA op3 payload none (memo dropped)",
+   "actual": "(some (tuple (amount u120000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload none) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op0 STX event memo = X (broadcaster's), not M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000017d78400056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c65740616914b06376cb9753f37954515ababdd8f13ea2d0f1b6d656d6f2d636f6e74726f6c2d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xd83be4f04e5f9c6cb0aa2ead88d8eb492ee40b77512f9b2fb942ace62dfa3acb\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"400000000\",\"memo\":\"61747461636b65722d616363742d36363636\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe\"},\"txid\":\"0xd83be4f04e5f9c6cb0aa2ead88d8eb492ee40b77512f9b2fb942ace62dfa3acb\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op1 (queued none) STX event memo = X",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000011e1a300056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c65740616914b06376cb9753f37954515ababdd8f13ea2d0f1b6d656d6f2d636f6e74726f6c2d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x51c9fa5c56d044aacc377864ed2317141dc9fe9733dcb48a0a53e20f31cfbb88\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"300000000\",\"memo\":\"61747461636b65722d616363742d36363636\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe\"},\"txid\":\"0x51c9fa5c56d044aacc377864ed2317141dc9fe9733dcb48a0a53e20f31cfbb88\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op2 sbtc-token print = X, not M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e7401000000000000000000000000000249f0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c65740616914b06376cb9753f37954515ababdd8f13ea2d0f1b6d656d6f2d636f6e74726f6c2d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xe707918ca646aa5fb045980e3083ed7b825e73630d500faa227610b23258c1e8\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"150000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe\"},\"txid\":\"0xe707918ca646aa5fb045980e3083ed7b825e73630d500faa227610b23258c1e8\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000001261747461636b65722d616363742d36363636\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0xe707918ca646aa5fb045980e3083ed7b825e73630d500faa227610b23258c1e8\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "CA (a) op3 (queued none) sbtc-token print = X",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001d4c0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000001261747461636b65722d616363742d3636363609726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c65740616914b06376cb9753f37954515ababdd8f13ea2d0f1b6d656d6f2d636f6e74726f6c2d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xf8dd1083c800042f435e45b95cde683337684b77649accc447a84a3f77de6622\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"120000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe\"},\"txid\":\"0xf8dd1083c800042f435e45b95cde683337684b77649accc447a84a3f77de6622\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000001261747461636b65722d616363742d36363636\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0xf8dd1083c800042f435e45b95cde683337684b77649accc447a84a3f77de6622\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "CA (d) admin op4 STX event memo = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e74010000000000000000000000000bebc200056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c65740616914b06376cb9753f37954515ababdd8f13ea2d0f1b6d656d6f2d636f6e74726f6c2d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x1c067a6490255e1bc54094f822573c6f0646ae0c2f05017a0fa5e72e12d9ff4b\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"200000000\",\"memo\":\"6f776e65722d616363742d31303031\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe\"},\"txid\":\"0x1c067a6490255e1bc54094f822573c6f0646ae0c2f05017a0fa5e72e12d9ff4b\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "CA (d) admin op5 sbtc-token print = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001adb0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c65740616914b06376cb9753f37954515ababdd8f13ea2d0f1b6d656d6f2d636f6e74726f6c2d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x2e44b0f323a6d10d52a156040cd027a38294664ab4958d7bb2356721c304e6b6\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"110000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.memo-control-autostake-safe\"},\"txid\":\"0x2e44b0f323a6d10d52a156040cd027a38294664ab4958d7bb2356721c304e6b6\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000000f6f776e65722d616363742d31303031\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x2e44b0f323a6d10d52a156040cd027a38294664ab4958d7bb2356721c304e6b6\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "FA live mm helper hash = JS execute-now challenge",
+   "actual": "0x352b7636f4ea9782cd89cdd71d05bf4428b02f21ac01ca583c1fee01ec27b16a",
+   "passed": true
+  },
+  {
+   "label": "FA op0 payload = consensus(some M)",
+   "actual": "(some (tuple (amount u400000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "FA op1 payload = consensus(none) 0x09",
+   "actual": "(some (tuple (amount u300000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x09)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "FA op2 payload = consensus(some M)",
+   "actual": "(some (tuple (amount u150000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "FA op3 payload = consensus(none) 0x09",
+   "actual": "(some (tuple (amount u120000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload (some 0x09)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "FA b0x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "FA c1x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "FA b2x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "FA c3x refused tx emitted no events",
+   "actual": "[]",
+   "passed": true
+  },
+  {
+   "label": "FA op0 still pending after the X attempt (executed false, vetoed false)",
+   "actual": "(some (tuple (amount u400000000) (execute-after u971772) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token none) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "FA op2 still pending after the X attempt",
+   "actual": "(some (tuple (amount u150000) (execute-after u971772) (executed false) (extension none) (op-type \"sbtc-transfer\") (passkey-created false) (payload (some 0x0a020000000f6f776e65722d616363742d31303031)) (recipient SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B) (token (some SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)) (vetoed false)))",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op0 STX event memo = M, no X anywhere",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000017d78400056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e146a756963652d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x71711cc0e854c25b36aee3a44e74f2a771aeae8e96deb6d9a55d7925bf184564\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"400000000\",\"memo\":\"6f776e65722d616363742d31303031\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe\"},\"txid\":\"0x71711cc0e854c25b36aee3a44e74f2a771aeae8e96deb6d9a55d7925bf184564\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "FA (b) op2 sbtc-token print = M, no X anywhere",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e7401000000000000000000000000000249f0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e146a756963652d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x30a3baa986e026f0e2fd04ac90f861261f4f1abd9adc078ca012f5f775d66642\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"150000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe\"},\"txid\":\"0x30a3baa986e026f0e2fd04ac90f861261f4f1abd9adc078ca012f5f775d66642\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000000f6f776e65722d616363742d31303031\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x30a3baa986e026f0e2fd04ac90f861261f4f1abd9adc078ca012f5f775d66642\",\"type\":\"contract_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op1 STX event has no memo",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e740100000000000000000000000011e1a300056576656e740d0000000c7374782d7472616e73666572046d656d6f0909726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e146a756963652d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xe4c97933a3eaffbe590ec38a68755dd2f9872ec0f890147c938bc6006a254b58\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"300000000\",\"memo\":\"\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe\"},\"txid\":\"0xe4c97933a3eaffbe590ec38a68755dd2f9872ec0f890147c938bc6006a254b58\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "FA (c) op3 sBTC transfer printed no memo",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001d4c0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0909726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e146a756963652d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0xc840e79bd59692e6df9338a25bd2801008b30c6086bf10fea372ceda780c41af\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"120000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe\"},\"txid\":\"0xc840e79bd59692e6df9338a25bd2801008b30c6086bf10fea372ceda780c41af\",\"type\":\"ft_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "FA (d) admin op4 STX event memo = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000506616d6f756e74010000000000000000000000000bebc200056576656e740d0000000c7374782d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e200677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e146a756963652d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x315d39c06b9f0745dbcb984444b317d8a117b7e0ceb84300c366cfc6f8bf1f67\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"stx_transfer_event\":{\"amount\":\"200000000\",\"memo\":\"6f776e65722d616363742d31303031\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe\"},\"txid\":\"0x315d39c06b9f0745dbcb984444b317d8a117b7e0ceb84300c366cfc6f8bf1f67\",\"type\":\"stx_transfer_event\"}]",
+   "passed": true
+  },
+  {
+   "label": "FA (d) admin op5 sbtc-token print = M",
+   "actual": "[{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"raw_value\":\"0x0c0000000606616d6f756e74010000000000000000000000000001adb0056576656e740d0000000f7369703031302d7472616e73666572046d656d6f0a020000000f6f776e65722d616363742d3130303109726563697069656e74051685c89475ca49bc1aa1217fd39d732640ee3d6e2005746f6b656e0614f6decc7cfff2a413bd7cd4f53c25ad7fd1899acc0a736274632d746f6b656e0677616c6c657406163699883a5bd5324eb8975e56bec8a9f843409b4e146a756963652d6175746f7374616b652d73616665\",\"topic\":\"print\"},\"event_index\":0,\"txid\":\"0x12ea522562dadaad1041f5aa2ddfc892af3362cf9a2e86c280624f9700196d06\",\"type\":\"contract_event\"},{\"committed\":true,\"event_index\":1,\"ft_transfer_event\":{\"amount\":\"110000\",\"asset_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token\",\"recipient\":\"SP22WH53NS94VR6N145ZX77BK4S0EWFBE41VW3Z6B\",\"sender\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe\"},\"txid\":\"0x12ea522562dadaad1041f5aa2ddfc892af3362cf9a2e86c280624f9700196d06\",\"type\":\"ft_transfer_event\"},{\"committed\":true,\"contract_event\":{\"contract_identifier\":\"SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token\",\"raw_value\":\"0x020000000f6f776e65722d616363742d31303031\",\"topic\":\"print\"},\"event_index\":2,\"txid\":\"0x12ea522562dadaad1041f5aa2ddfc892af3362cf9a2e86c280624f9700196d06\",\"type\":\"contract_event\"}]",
+   "passed": true
+  }
+ ]
+}

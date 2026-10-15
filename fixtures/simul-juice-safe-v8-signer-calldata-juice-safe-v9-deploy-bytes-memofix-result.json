@@ -1,0 +1,192 @@
+{
+ "simulation": "https://stxer.xyz/simulations/mainnet/7374a756d49f927b1f8a34968e893e41",
+ "passed": 35,
+ "total": 35,
+ "startBurn": 971628,
+ "sources": {
+  "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9": "/home/raphastacks/projects/pillar/contracts/pillar-wallets/deploy-bytes-memofix/juice-safe-v9.clar",
+  "SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.juice-safe-v9-user": {
+   "form": "same deploy bytes",
+   "bytes": 49279,
+   "sha512_256": "6829f457223c518f5388a1cceb124692bfd485d0bc8023df718fc6ee9ee0d38a",
+   "clarity": 6
+  }
+ },
+ "checks": [
+  {
+   "label": "deploy SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9 (deploy bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "core-v2 set-verified-contract(juice-safe-v9)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "relay deploys SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.juice-safe-v9-user from the BE template (49279 bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "onboard A",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "fund A 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "onboard B",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "fund B 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A1 passkey sig over X, relayer submits calldata Y -> (err u4002)",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "A2 passkey sig over X, relayer submits calldata none -> (err u4002)",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "A3 passkey sig over X, relayer submits calldata X -> (ok true), pox-5 stake 500 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "A4 same sig + X replayed -> (err u4006)",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "label": "B1 passkey sig over X, relayer submits calldata Y -> (err u4002)",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "B2 passkey sig over X, relayer submits calldata none -> (err u4002)",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "label": "B3 passkey sig over X, relayer submits calldata X -> (ok true), pox-5 stake 300 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "label": "B4 same sig + X replayed -> (err u4006)",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "label": "A canonical on-chain hash = 6829f457223c",
+   "actual": "(ok 0x6829f457223c518f5388a1cceb124692bfd485d0bc8023df718fc6ee9ee0d38a)",
+   "passed": true
+  },
+  {
+   "label": "B user copy (same deploy bytes) hash = canonical",
+   "actual": "(ok 0x6829f457223c518f5388a1cceb124692bfd485d0bc8023df718fc6ee9ee0d38a)",
+   "passed": true
+  },
+  {
+   "label": "A live helpers-v2 hash over X = JS challenge signed by the passkey",
+   "actual": "0xc503e6f06f32f86d81e4ccc3aadd1db6c78ca75c785095eab9189267d7a81561 vs 0xc503e6f06f32f86d81e4ccc3aadd1db6c78ca75c785095eab9189267d7a81561",
+   "passed": true
+  },
+  {
+   "label": "A0 nothing staked before",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u1000000000))) (cyc u145) (info none))",
+   "passed": true
+  },
+  {
+   "label": "A1 rejected call printed nothing (pool, safe)",
+   "actual": "{\"pool\":[],\"safe\":[]}",
+   "passed": true
+  },
+  {
+   "label": "A2 rejected call printed nothing (pool, safe)",
+   "actual": "{\"pool\":[],\"safe\":[]}",
+   "passed": true
+  },
+  {
+   "label": "A1s still nothing staked after Y / none",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u1000000000))) (cyc u145) (info none))",
+   "passed": true
+  },
+  {
+   "label": "A3 pox-5 locked exactly 500000000 for 96 cycles from next cycle, unlocked = fund - stake",
+   "actual": "(tuple (acct (tuple (locked u500000000) (unlock-height u1174250) (unlocked u500000000))) (cyc u145) (info (some (tuple (amount-ustx u500000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)))))",
+   "passed": true
+  },
+  {
+   "label": "A3 staker-info names juice-pool-stx-signer",
+   "actual": "(tuple (acct (tuple (locked u500000000) (unlock-height u1174250) (unlocked u500000000))) (cyc u145) (info (some (tuple (amount-ustx u500000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)))))",
+   "passed": true
+  },
+  {
+   "label": "A3 pool validate-stake print carries X, staker = safe, amount = stake",
+   "actual": "[\"(tuple (amount-sats u0) (amount-ustx u500000000) (first-index u146) (is-bond false) (num-indexes u96) (signer-calldata (some 0x74656c656772616d3a406a756963655f7374616b6572)) (staker SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9) (topic \\\"validate-stake\\\"))\"]",
+   "passed": true
+  },
+  {
+   "label": "A3 safe stake-stx-juice print carries X",
+   "actual": "[\"(tuple (amount-ustx u500000000) (event \\\"stake-stx-juice\\\") (num-cycles u96) (signer-calldata (some 0x74656c656772616d3a406a756963655f7374616b6572)))\"]",
+   "passed": true
+  },
+  {
+   "label": "B live helpers-v2 hash over X = JS challenge signed by the passkey",
+   "actual": "0x2fd96207995e356d24ec2045d26af45cfaa2e9d40f3355705719d6976fdb15e5 vs 0x2fd96207995e356d24ec2045d26af45cfaa2e9d40f3355705719d6976fdb15e5",
+   "passed": true
+  },
+  {
+   "label": "B0 nothing staked before",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u1000000000))) (cyc u145) (info none))",
+   "passed": true
+  },
+  {
+   "label": "B1 rejected call printed nothing (pool, safe)",
+   "actual": "{\"pool\":[],\"safe\":[]}",
+   "passed": true
+  },
+  {
+   "label": "B2 rejected call printed nothing (pool, safe)",
+   "actual": "{\"pool\":[],\"safe\":[]}",
+   "passed": true
+  },
+  {
+   "label": "B1s still nothing staked after Y / none",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u1000000000))) (cyc u145) (info none))",
+   "passed": true
+  },
+  {
+   "label": "B3 pox-5 locked exactly 300000000 for 96 cycles from next cycle, unlocked = fund - stake",
+   "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u1174250) (unlocked u700000000))) (cyc u145) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)))))",
+   "passed": true
+  },
+  {
+   "label": "B3 staker-info names juice-pool-stx-signer",
+   "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u1174250) (unlocked u700000000))) (cyc u145) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u146) (num-cycles u96) (signer SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)))))",
+   "passed": true
+  },
+  {
+   "label": "B3 pool validate-stake print carries X, staker = safe, amount = stake",
+   "actual": "[\"(tuple (amount-sats u0) (amount-ustx u300000000) (first-index u146) (is-bond false) (num-indexes u96) (signer-calldata (some 0x74656c656772616d3a406a756963655f7374616b6572)) (staker SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.juice-safe-v9-user) (topic \\\"validate-stake\\\"))\"]",
+   "passed": true
+  },
+  {
+   "label": "B3 safe stake-stx-juice print carries X",
+   "actual": "[\"(tuple (amount-ustx u300000000) (event \\\"stake-stx-juice\\\") (num-cycles u96) (signer-calldata (some 0x74656c656772616d3a406a756963655f7374616b6572)))\"]",
+   "passed": true
+  }
+ ]
+}

@@ -55,6 +55,7 @@ import {
 import { SimulationBuilder, getSimulationResult } from "stxer";
 import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
 import { installChunkedSubmit } from "./_chunked-submit.mjs";
+import { SAFE_BYTES_DIR, bytesTag, loadBytes, liveIdentical } from "./_safe-bytes.mjs";
 installChunkedSubmit(30);
 
 const DEPLOYER = "SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22";
@@ -99,9 +100,11 @@ const cvSha256 = (cv) => {
 const challenge = (wallet, t) => sha256(Buffer.concat([SIP018_PREFIX, cvSha256(tupleCV({
   name: stringAsciiCV("smart-wallet-standard"), version: stringAsciiCV("1.0.0"), "chain-id": uintCV(1), wallet: principalCV(wallet),
 })), cvSha256(t)]));
+const HV2 = { on: false };
 const T = {
-  stake: (a, amt) => tupleCV({ topic: stringAsciiCV("stake-stx-juice-pox5"), "auth-id": uintCV(a), "amount-ustx": uintCV(amt) }),
-  update: (a, inc, ext) => tupleCV({ topic: stringAsciiCV("update-stake-stx-juice"), "auth-id": uintCV(a), "amount-increase": uintCV(inc), "cycles-to-extend": uintCV(ext) }),
+  // helpers-v2 (safe source since b1ecb09/d4b4ff0) also hashes signer-calldata; helpers-v1 (mv7dfb bytes) does not
+  stake: (a, amt, cd = noneCV()) => tupleCV({ topic: stringAsciiCV("stake-stx-juice-pox5"), "auth-id": uintCV(a), "amount-ustx": uintCV(amt), ...(HV2.on ? { "signer-calldata": cd } : {}) }),
+  update: (a, inc, ext, cd = noneCV()) => tupleCV({ topic: stringAsciiCV("update-stake-stx-juice"), "auth-id": uintCV(a), "amount-increase": uintCV(inc), "cycles-to-extend": uintCV(ext), ...(HV2.on ? { "signer-calldata": cd } : {}) }),
   unstake: (a) => tupleCV({ topic: stringAsciiCV("unstake-stx-juice"), "auth-id": uintCV(a) }),
 };
 const strip = (h) => (h.startsWith("0x") ? h.slice(2) : h);
@@ -125,7 +128,10 @@ async function main() {
     if (sums[`${n}.clar`] !== h) throw new Error(`${n}: sha256 ${h} != SHA256SUMS (${sums[`${n}.clar`]})`);
     return { s, h };
   };
-  const safe = src(WALLET_NAME), helper = src(HELPER_NAME);
+  const safe = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, WALLET_NAME) : src(WALLET_NAME), helper = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, HELPER_NAME) : src(HELPER_NAME);
+  const FORM = SAFE_BYTES_DIR ? SAFE_BYTES_DIR.split("/").pop() : "deploy-bytes-mv7dfb";
+  HV2.on = safe.s.includes(".juice-safe-auth-helpers-v2");
+  console.log(`safe bytes: ${FORM} (sha256 ${safe.h.slice(0, 12)}), stake hashes via ${HV2.on ? "helpers-v2 (with signer-calldata)" : "helpers-v1"}`);
 
   const pox = await (await fetch(`${STACKS_NODE_API}/v2/pox`)).json();
   if (pox.first_burnchain_block_height !== FIRST_BURN || pox.reward_cycle_length !== CYCLE || pox.prepare_phase_block_length !== PREPARE)
@@ -164,6 +170,7 @@ async function main() {
   // -- deploys + pool registration ------------------------------------------------------
   for (const [n, v] of [["jing-core-v6", ClarityVersion.Clarity5], ["jing-ladder-v1", ClarityVersion.Clarity5], ["markets-sbtc-stx-jing-v6-3", ClarityVersion.Clarity5],
     ["swap-router-sbtc-stx-jing-v5-3", ClarityVersion.Clarity5], ["juice-swap-vault-trait-v2", CLARITY_6], ["juice-sbtc-autoswap", CLARITY_6], [POOL, CLARITY_6]]) {
+    if (await liveIdentical(STACKS_NODE_API, `${DEPLOYER}.${n}`, src(n).s)) { console.log(`${n}: live, identical bytes, not redeployed`); continue; }
     b.withSender(DEPLOYER).addContractDeploy({ contract_name: n, source_code: src(n).s, clarity_version: v });
     step(`deploy ${n} (deploy bytes)`);
   }
@@ -201,10 +208,10 @@ async function main() {
   call("A6 owner stake 0 -> u4026", OWNER, A, "stake-stx-juice", [uintCV(0), noneCV(), noneCV(), noneCV()], "(err u4026)");
   call("A7 passkey stake signed for another amount -> u4002", RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 4, T.stake(4, STAKE + 1)), noneCV(), noneCV()], "(err u4002)");
   snap(A, "a0");
-  call(`A8 passkey stake ${STAKE / 1e6} STX, no gas, signer-calldata "${CALLDATA}"`, RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 5, T.stake(5, STAKE)), noneCV(), CALLDATA_CV], okre, undefined, "A8");
+  call(`A8 passkey stake ${STAKE / 1e6} STX, no gas, signer-calldata "${CALLDATA}"`, RELAYER, A, "stake-stx-juice", [uintCV(STAKE), sAuth(A, keyA, 5, T.stake(5, STAKE, CALLDATA_CV)), noneCV(), CALLDATA_CV], okre, undefined, "A8");
   snap(A, "a1");
   call("A9 owner update 0/0 -> u4026", OWNER, A, "update-stake-stx-juice", [uintCV(0), uintCV(0), noneCV(), noneCV(), noneCV()], "(err u4026)");
-  call(`A10 passkey update +${INC1 / 1e6} STX, with gas, signer-calldata "${CALLDATA}"`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 6, T.update(6, INC1, 0)), GASCV, CALLDATA_CV], okre, undefined, "A10");
+  call(`A10 passkey update +${INC1 / 1e6} STX, with gas, signer-calldata "${CALLDATA}"`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC1), uintCV(0), sAuth(A, keyA, 6, T.update(6, INC1, 0, CALLDATA_CV)), GASCV, CALLDATA_CV], okre, undefined, "A10");
   snap(A, "a2");
   const upd2 = sAuth(A, keyA, 7, T.update(7, INC2, 0));
   call(`A11 passkey update +${INC2 / 1e6} STX, no gas, signer-calldata none`, RELAYER, A, "update-stake-stx-juice", [uintCV(INC2), uintCV(0), upd2, noneCV(), noneCV()], okre, undefined, "A11");
@@ -294,12 +301,12 @@ async function main() {
   const total = pass + fail;
   console.log(`\n=== ${pass} passed, ${fail} failed (${total}) ===\nView: ${url}`);
   fs.mkdirSync("fixtures", { recursive: true });
-  fs.writeFileSync("fixtures/simul-juice-autostake-safe-stake-passkey-result.json", JSON.stringify({
+  fs.writeFileSync(`fixtures/simul-juice-autostake-safe-stake-passkey${bytesTag()}-result.json`, JSON.stringify({
     simulation: url, passed: pass, total,
     sources: {
-      [A]: { form: "deploy-bytes-mv7dfb", bytes: Buffer.byteLength(safe.s), sha256: safe.h, clarity: 6 },
-      [B]: { form: "deploy-bytes-mv7dfb", bytes: Buffer.byteLength(safe.s), sha256: safe.h, clarity: 6 },
-      [`${DEPLOYER}.${HELPER_NAME}`]: { form: "deploy-bytes-mv7dfb", bytes: Buffer.byteLength(helper.s), sha256: helper.h, clarity: 4 },
+      [A]: { form: FORM, bytes: Buffer.byteLength(safe.s), sha256: safe.h, clarity: 6 },
+      [B]: { form: FORM, bytes: Buffer.byteLength(safe.s), sha256: safe.h, clarity: 6 },
+      [`${DEPLOYER}.${HELPER_NAME}`]: { form: FORM, bytes: Buffer.byteLength(helper.s), sha256: helper.h, clarity: 4 },
     },
     gasSats: String(GAS), startBurn, checks,
   }, null, 1) + "\n");

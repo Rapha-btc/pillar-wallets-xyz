@@ -66,6 +66,7 @@ import {
 import { SimulationBuilder, getSimulationResult } from "stxer";
 import { generateP256Keypair, signChallengeWithRpId } from "./lib-webauthn-test-signer.mjs";
 import { installChunkedSubmit } from "./_chunked-submit.mjs";
+import { SAFE_BYTES_DIR, bytesTag, loadBytes, liveIdentical } from "./_safe-bytes.mjs";
 installChunkedSubmit(60);
 
 // -- actors ------------------------------------------------------------------
@@ -159,7 +160,9 @@ async function main() {
     if (sums[`${n}.clar`] !== h) throw new Error(`${n}: sha256 ${h} != SHA256SUMS (${sums[`${n}.clar`]})`);
     return { s, h };
   };
-  const safe = src(WALLET_NAME), helper = src(HELPER_NAME);
+  const safe = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, WALLET_NAME) : src(WALLET_NAME), helper = SAFE_BYTES_DIR ? loadBytes(SAFE_BYTES_DIR, HELPER_NAME) : src(HELPER_NAME);
+  const FORM = SAFE_BYTES_DIR ? SAFE_BYTES_DIR.split("/").pop() : "deploy-bytes-mv7dfb";
+  console.log(`safe bytes: ${FORM} (sha256 ${safe.h.slice(0, 12)})`);
 
   const GAS = BigInt((await readOnly(`${DEPLOYER}.${GAS_STATION}`, "get-gas")).replace(/^u/, ""));
   console.log(`live gas-station fee: ${GAS} sats`);
@@ -212,6 +215,7 @@ async function main() {
   // -- 0: deploy the stack, the helper and the safe (exact bytes) -------------
   for (const [n, v] of [["jing-core-v6", ClarityVersion.Clarity5], ["jing-ladder-v1", ClarityVersion.Clarity5], ["markets-sbtc-stx-jing-v6-3", ClarityVersion.Clarity5],
     ["swap-router-sbtc-stx-jing-v5-3", ClarityVersion.Clarity5], ["juice-swap-vault-trait-v2", CLARITY_6], ["juice-sbtc-autoswap", CLARITY_6], ["juice-pool-sbtc-signer", CLARITY_6]]) {
+    if (await liveIdentical(STACKS_NODE_API, `${DEPLOYER}.${n}`, src(n).s)) { console.log(`${n}: live, identical bytes, not redeployed`); continue; }
     b.withSender(DEPLOYER).addContractDeploy({ contract_name: n, source_code: src(n).s, clarity_version: v });
     step(`deploy ${n} (deploy bytes)`);
   }
@@ -414,7 +418,9 @@ async function main() {
 
   // -- G: the no-gas arms of the passkey "now" paths, the stx-now memo arm, and
   //    a passkey toggle / sip009 without gas (op10..op12)
-  w("G1 owner stx-transfer 150 STX -> op10", OWNER, "stx-transfer", stxArgs(STX_OVER, null, noneCV()), okre);
+  // op10 is queued WITH the memo: since the memo fix (d4eda1c) -now must pass the queued memo
+  // (u4041 otherwise), so G2 still exercises the stx-now memo arm
+  w("G1 owner stx-transfer 150 STX with memo -> op10", OWNER, "stx-transfer", stxArgs(STX_OVER, MEMO, noneCV()), okre);
   w("G1 owner sip010-transfer 150000 sats -> op11", OWNER, "sip010-transfer", sbtcArgs(SBTC_OVER, noneCV()), okre);
   w("G1 owner withdrawal 120000 + 1000 -> op12", OWNER, "sbtc-initiate-withdrawal", wdArgs(WD_OVER, WD_OVER_FEE, noneCV()), okre);
   valued("G2 execute-stx-now op10 with memo, no gas", RELAYER, "execute-pending-stx-transfer-now",
@@ -542,11 +548,11 @@ async function main() {
   const total = pass + fail;
   console.log(`\n=== ${pass} passed, ${fail} failed (${total}) ===\nView: ${url}`);
   fs.mkdirSync("fixtures", { recursive: true });
-  fs.writeFileSync("fixtures/simul-juice-autostake-safe-ops-coverage-result.json", JSON.stringify({
+  fs.writeFileSync(`fixtures/simul-juice-autostake-safe-ops-coverage${bytesTag()}-result.json`, JSON.stringify({
     simulation: url, passed: pass, total,
     sources: {
-      [WALLET]: { form: "deploy-bytes-mv7dfb", bytes: Buffer.byteLength(safe.s), sha256: safe.h, clarity: 6 },
-      [`${DEPLOYER}.${HELPER_NAME}`]: { form: "deploy-bytes-mv7dfb", bytes: Buffer.byteLength(helper.s), sha256: helper.h, clarity: 4 },
+      [WALLET]: { form: FORM, bytes: Buffer.byteLength(safe.s), sha256: safe.h, clarity: 6 },
+      [`${DEPLOYER}.${HELPER_NAME}`]: { form: FORM, bytes: Buffer.byteLength(helper.s), sha256: helper.h, clarity: 4 },
     },
     gasSats: String(GAS),
     checks,
