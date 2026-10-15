@@ -161,3 +161,32 @@ Stxer notes. The long advance makes one submit post too slow (504, socket
 closed). The sim now posts in chunks of 12 steps through `_chunked-submit.mjs`
 (copied from jing-contracts-v3). The STX whale holds about 2737 STX and A-K
 spend 2185, so bob gets 400 STX and stakes 200.
+
+## Bounty mv7dfb: Frosty Narwhal, none holds
+
+Checked at `611873c`+ (`contracts/juice-autostake-safe.clar`); the same at
+the pinned `c910c1b`. No change.
+
+- **M-1 `execute-*-now` hash has only auth-id and op-id: by design.** The
+  `-now` paths refuse an op the passkey created (L697, L841, L999), so the
+  admin key set the amount, recipient and type when it queued the op. The
+  op-id is a nonce that never repeats (L476, L490), and the stored op cannot
+  change, so the op-id commits to all of it. The passkey only lifts the
+  cooldown of that one op; each `-now` also checks `op-type` in storage.
+  Same as the deployed juice-safe-v7.
+- **M-2 the admin key resets the inactivity clock: by design.** Inactivity
+  recovery (L1308) is for an owner who does nothing for a year. Any owner
+  call is activity (`update-activity`, L1247). The safe cannot tell an owner
+  from a holder of the owner key. Keeper `restake` does not reset the clock.
+- **M-3 `execute-pending-*` skips the token lock: does not hold.** The lock
+  shuts the passkey out: every sig-auth branch checks it (for example L608)
+  and only the admin key can turn it off (L344). `execute-pending-*` is
+  admin-only (`is-authorized none`, L665). A passkey alone cannot run a
+  queued op, and the owner can veto it during the cooldown.
+- **L-1 zero thresholds queue every transfer: by design.** Only the owner
+  can set them (`signal-config-change` L355, then `set-wallet-config` after
+  the cooldown). Threshold 0 is the strictest mode: every send waits for
+  the cooldown or a passkey `-now`.
+- **L-2 other SIP-010 tokens and NFTs skip the threshold queue: by design.**
+  The queue covers STX and sBTC, the assets this safe holds (L773). Other
+  assets move on one admin or passkey signature, as in juice-safe-v7.
