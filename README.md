@@ -19,6 +19,8 @@ primitives.
 
 ---
 
+> **WebAuthn library:** use `clarity-5-webauthn-v4`. Coming from v3? See [MIGRATION-webauthn-v3-v4.md](MIGRATION-webauthn-v3-v4.md) (no client change needed).
+
 ## Test status
 
 **[README-TEST-STATUS.md](README-TEST-STATUS.md)** is the one-page answer: 246 vitest
