@@ -50,7 +50,7 @@
 (define-constant USDCX-CONTRACT 'SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx)
 
 ;; Live Jing routers. sbtc-stx v6 has a Zest leg; sbtc-usdcx v5-6 has none.
-(define-constant ROUTER-SBTC-STX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-stx-jing-v6)
+(define-constant ROUTER-SBTC-STX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-stx-jing-v6-1)
 (define-constant ROUTER-SBTC-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-usdcx-jing-v5-6)
 (define-constant ROUTER-STX-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-stx-usdcx-jing-v6)
 
