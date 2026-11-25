@@ -1697,7 +1697,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-wallet
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-savings
       ))
     ))
     (try! (contract-call?
