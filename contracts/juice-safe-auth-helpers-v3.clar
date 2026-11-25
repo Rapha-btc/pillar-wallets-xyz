@@ -60,3 +60,26 @@
       })))
     )))
 )
+
+;; juice-trading jing-swap: what the user signs is what they sell and the worst
+;; they accept (min-out, Jing limit-price). The route split and the Pyth update
+;; are filled in at send time; min-out still protects the user.
+(define-read-only (build-jing-swap-hash (details {
+  auth-id: uint,
+  action: (string-ascii 10),
+  amount: uint,
+  limit-price: uint,
+  min-out: uint,
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "jing-swap",
+        auth-id: (get auth-id details),
+        action: (get action details),
+        amount: (get amount details),
+        limit-price: (get limit-price details),
+        min-out: (get min-out details),
+      })))
+    )))
+)

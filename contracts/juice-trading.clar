@@ -36,6 +36,7 @@
 (define-constant err-memo-mismatch (err u4021))
 (define-constant err-limit-not-hit (err u4022))
 (define-constant err-router-not-approved (err u4023))
+(define-constant err-bad-action (err u4024))
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-GAS-CEILING u10000)
@@ -45,6 +46,12 @@
 (define-constant MIN-COOLDOWN u144)
 (define-constant DEPLOYED-BURNT-BLOCK burn-block-height)
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
+(define-constant USDCX-CONTRACT 'SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx)
+
+;; Live Jing routers. sbtc-stx v6 has a Zest leg; sbtc-usdcx v5-6 has none.
+(define-constant ROUTER-SBTC-STX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-stx-jing-v6)
+(define-constant ROUTER-SBTC-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-usdcx-jing-v5-6)
+(define-constant ROUTER-STX-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-stx-usdcx-jing-v6)
 (define-constant FAKFUN-DEPLOYER 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK)
 
 (define-constant RP-ID-HASH-JUICEOFBTC-COM 0x1516f9ea2a21f961d99143eedf2aeeab86e3784a34a401b038bb97a7631e668b)
@@ -2063,6 +2070,147 @@
     (as-contract? ((with-ft (contract-of token) token-name amount))
       (try! (contract-call? smart sell-for-sbtc amount min-out fak-ratio flag))
     )
+  )
+)
+
+;; jing-swap: best-route swap through the live Jing routers, by the admin
+;; wallet or a passkey (helpers-v3 build-jing-swap-hash). The bought asset
+;; lands back here. The routers key off tx-sender, so we call them as the safe and
+;; allow only `amount` of the sold asset out.
+;; action: "sbtc-stx" "stx-sbtc" "sbtc-usdcx" "usdcx-sbtc" "stx-usdcx" "usdcx-stx"
+;;         (first asset is what the safe sells)
+(define-public (jing-swap
+    (action (string-ascii 10))
+    (amount uint)
+    (jing-amount uint)
+    (limit-price uint)
+    (update (optional (buff 8192)))
+    (fallback (optional uint))
+    (amm-amounts {
+      zest: uint,
+      dlmm: uint,
+      xyk: uint,
+      velar: uint,
+    })
+    (amm-mins {
+      zest: uint,
+      dlmm: uint,
+      xyk: uint,
+      velar: uint,
+    })
+    (min-out uint)
+    (zest-route {
+      ticks: (list 32 int),
+      price: uint,
+    })
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
+            build-jing-swap-hash {
+            auth-id: (get auth-id sig-auth-details),
+            action: action,
+            amount: amount,
+            limit-price: limit-price,
+            min-out: min-out,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (print {
+      event: "jing-swap",
+      action: action,
+      amount: amount,
+      min-out: min-out,
+    })
+    (if (is-eq action "sbtc-stx")
+      (begin
+        (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" amount))
+          (try! (contract-call? ROUTER-SBTC-STX swap-sbtc-for-stx amount jing-amount
+            limit-price update fallback amm-amounts amm-mins min-out zest-route
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq action "stx-sbtc")
+      (begin
+        (try! (as-contract? ((with-stx amount))
+          (try! (contract-call? ROUTER-SBTC-STX swap-stx-for-sbtc amount jing-amount
+            limit-price update fallback amm-amounts amm-mins min-out zest-route
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq action "stx-usdcx")
+      (begin
+        (try! (as-contract? ((with-stx amount))
+          (try! (contract-call? ROUTER-STX-USDCX swap-stx-for-usdcx amount jing-amount
+            limit-price update fallback amm-amounts amm-mins min-out zest-route
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq action "usdcx-stx")
+      (begin
+        (try! (as-contract? ((with-ft USDCX-CONTRACT "usdcx-token" amount))
+          (try! (contract-call? ROUTER-STX-USDCX swap-usdcx-for-stx amount jing-amount
+            limit-price update fallback amm-amounts amm-mins min-out zest-route
+          ))
+        ))
+        (ok true)
+      )
+    ;; sbtc-usdcx router (v5-6) has no Zest leg: zest amounts are dropped.
+    (if (is-eq action "sbtc-usdcx")
+          (begin
+            (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" amount))
+              (try! (contract-call? ROUTER-SBTC-USDCX swap-sbtc-for-usdcx amount
+                jing-amount limit-price update fallback
+                { dlmm: (get dlmm amm-amounts), xyk: (get xyk amm-amounts), velar: (get velar amm-amounts) }
+                { dlmm: (get dlmm amm-mins), xyk: (get xyk amm-mins), velar: (get velar amm-mins) }
+                min-out
+              ))
+            ))
+            (ok true)
+          )
+        (if (is-eq action "usdcx-sbtc")
+          (begin
+            (try! (as-contract? ((with-ft USDCX-CONTRACT "usdcx-token" amount))
+              (try! (contract-call? ROUTER-SBTC-USDCX swap-usdcx-for-sbtc amount
+                jing-amount limit-price update fallback
+                { dlmm: (get dlmm amm-amounts), xyk: (get xyk amm-amounts), velar: (get velar amm-amounts) }
+                { dlmm: (get dlmm amm-mins), xyk: (get xyk amm-mins), velar: (get velar amm-mins) }
+                min-out
+              ))
+            ))
+            (ok true)
+          )
+          err-bad-action
+        ))
+    ))))
   )
 )
 
