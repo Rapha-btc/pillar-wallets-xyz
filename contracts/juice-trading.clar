@@ -8,6 +8,7 @@
 (use-trait token-trait 'SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2.faktory-trait-v1.sip-010-trait)
 (use-trait nftmarket-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nftmarket-trait.nftmarket-trait)
 (use-trait smart-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.faktory-smart-trait-v1.smart-trait)
+(use-trait rung-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.jing-rung-deposit-trait.rung-trait)
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -52,6 +53,11 @@
 (define-constant ROUTER-SBTC-STX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-stx-jing-v6)
 (define-constant ROUTER-SBTC-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-usdcx-jing-v5-6)
 (define-constant ROUTER-STX-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-stx-usdcx-jing-v6)
+
+;; Jing ladder dispatchers (pegged limit orders), one per pair.
+(define-constant DISPATCH-SBTC-STX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.jing-ladder-dispatch)
+(define-constant DISPATCH-SBTC-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.jing-ladder-dispatch-sbtc-usdcx)
+(define-constant DISPATCH-STX-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.jing-ladder-dispatch-stx-usdcx)
 (define-constant FAKFUN-DEPLOYER 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK)
 
 (define-constant RP-ID-HASH-JUICEOFBTC-COM 0x1516f9ea2a21f961d99143eedf2aeeab86e3784a34a401b038bb97a7631e668b)
@@ -2211,6 +2217,289 @@
           err-bad-action
         ))
     ))))
+  )
+)
+
+;; place-ladder: deposit into Jing ladder rungs through the pair's dispatcher,
+;; by the admin wallet or a passkey (helpers-v3 build-place-ladder-hash).
+;; The rung records the safe as the member; only `total` of the deposited
+;; asset leaves the safe.
+;; pair: "sbtc-stx" "sbtc-usdcx" "stx-usdcx"
+;; buy deposits: sbtc-stx = sBTC, sbtc-usdcx = USDCx, stx-usdcx = USDCx
+;; sell deposits: sbtc-stx = STX, sbtc-usdcx = sBTC, stx-usdcx = STX
+(define-private (rung-entry (a {
+  rung: <rung-trait>,
+  amount: uint,
+}))
+  {
+    rung: (contract-of (get rung a)),
+    amount: (get amount a),
+  }
+)
+
+(define-public (place-ladder
+    (pair (string-ascii 10))
+    (buy bool)
+    (total uint)
+    (allocations (list 10 {
+      rung: <rung-trait>,
+      amount: uint,
+    }))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
+            build-place-ladder-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pair: pair,
+            buy: buy,
+            total: total,
+            allocations: (map rung-entry allocations),
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (print {
+      event: "place-ladder",
+      pair: pair,
+      buy: buy,
+      total: total,
+    })
+    (if (is-eq pair "sbtc-stx")
+      (begin
+        (if buy
+          (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" total))
+            (try! (contract-call? DISPATCH-SBTC-STX deposit-buy total allocations))
+          ))
+          (try! (as-contract? ((with-stx total))
+            (try! (contract-call? DISPATCH-SBTC-STX deposit-sell total allocations))
+          ))
+        )
+        (ok true)
+      )
+    (if (is-eq pair "sbtc-usdcx")
+      (begin
+        (if buy
+          (try! (as-contract? ((with-ft USDCX-CONTRACT "usdcx-token" total))
+            (try! (contract-call? DISPATCH-SBTC-USDCX deposit-buy total allocations))
+          ))
+          (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" total))
+            (try! (contract-call? DISPATCH-SBTC-USDCX deposit-sell total allocations))
+          ))
+        )
+        (ok true)
+      )
+    (if (is-eq pair "stx-usdcx")
+      (begin
+        (if buy
+          (try! (as-contract? ((with-ft USDCX-CONTRACT "usdcx-token" total))
+            (try! (contract-call? DISPATCH-STX-USDCX deposit-buy total allocations))
+          ))
+          (try! (as-contract? ((with-stx total))
+            (try! (contract-call? DISPATCH-STX-USDCX deposit-sell total allocations))
+          ))
+        )
+        (ok true)
+      )
+      err-bad-action
+    )))
+  )
+)
+
+;; withdraw-ladder / claim-ladder: take funds back from Jing ladder rungs into
+;; the safe. Same auth as place-ladder. withdraw allows all assets so a future
+;; Pyth fee (STX, paid by the caller) cannot block it; claim allows nothing.
+(define-public (withdraw-ladder
+    (pair (string-ascii 10))
+    (buy bool)
+    (requests (list 10 {
+      rung: <rung-trait>,
+      amount: uint,
+    }))
+    (update (optional (buff 8192)))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
+            build-withdraw-ladder-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pair: pair,
+            buy: buy,
+            requests: (map rung-entry requests),
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (print {
+      event: "withdraw-ladder",
+      pair: pair,
+      buy: buy,
+    })
+    (if (is-eq pair "sbtc-stx")
+      (begin
+        (try! (as-contract? ((with-all-assets-unsafe))
+          (try! (if buy
+            (contract-call? DISPATCH-SBTC-STX withdraw-buy requests update)
+            (contract-call? DISPATCH-SBTC-STX withdraw-sell requests update)
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq pair "sbtc-usdcx")
+      (begin
+        (try! (as-contract? ((with-all-assets-unsafe))
+          (try! (if buy
+            (contract-call? DISPATCH-SBTC-USDCX withdraw-buy requests update)
+            (contract-call? DISPATCH-SBTC-USDCX withdraw-sell requests update)
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq pair "stx-usdcx")
+      (begin
+        (try! (as-contract? ((with-all-assets-unsafe))
+          (try! (if buy
+            (contract-call? DISPATCH-STX-USDCX withdraw-buy requests update)
+            (contract-call? DISPATCH-STX-USDCX withdraw-sell requests update)
+          ))
+        ))
+        (ok true)
+      )
+      err-bad-action
+    )))
+  )
+)
+
+(define-private (rung-principal (r <rung-trait>))
+  (contract-of r)
+)
+
+(define-public (claim-ladder
+    (pair (string-ascii 10))
+    (buy bool)
+    (targets (list 10 <rung-trait>))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
+            build-claim-ladder-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pair: pair,
+            buy: buy,
+            rungs: (map rung-principal targets),
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (print {
+      event: "claim-ladder",
+      pair: pair,
+      buy: buy,
+    })
+    (if (is-eq pair "sbtc-stx")
+      (begin
+        (try! (as-contract? ()
+          (try! (if buy
+            (contract-call? DISPATCH-SBTC-STX claim-buy targets)
+            (contract-call? DISPATCH-SBTC-STX claim-sell targets)
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq pair "sbtc-usdcx")
+      (begin
+        (try! (as-contract? ()
+          (try! (if buy
+            (contract-call? DISPATCH-SBTC-USDCX claim-buy targets)
+            (contract-call? DISPATCH-SBTC-USDCX claim-sell targets)
+          ))
+        ))
+        (ok true)
+      )
+    (if (is-eq pair "stx-usdcx")
+      (begin
+        (try! (as-contract? ()
+          (try! (if buy
+            (contract-call? DISPATCH-STX-USDCX claim-buy targets)
+            (contract-call? DISPATCH-STX-USDCX claim-sell targets)
+          ))
+        ))
+        (ok true)
+      )
+      err-bad-action
+    )))
   )
 )
 

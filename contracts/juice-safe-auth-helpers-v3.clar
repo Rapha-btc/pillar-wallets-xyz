@@ -83,3 +83,69 @@
       })))
     )))
 )
+
+;; juice-trading place-ladder: the pair, side, total and each rung + amount.
+(define-read-only (build-place-ladder-hash (details {
+  auth-id: uint,
+  pair: (string-ascii 10),
+  buy: bool,
+  total: uint,
+  allocations: (list 10 {
+    rung: principal,
+    amount: uint,
+  }),
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "place-ladder",
+        auth-id: (get auth-id details),
+        pair: (get pair details),
+        buy: (get buy details),
+        total: (get total details),
+        allocations: (get allocations details),
+      })))
+    )))
+)
+
+;; juice-trading withdraw-ladder: the pair, side and each rung + amount
+;; (the Pyth update is filled in at send time).
+(define-read-only (build-withdraw-ladder-hash (details {
+  auth-id: uint,
+  pair: (string-ascii 10),
+  buy: bool,
+  requests: (list 10 {
+    rung: principal,
+    amount: uint,
+  }),
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "withdraw-ladder",
+        auth-id: (get auth-id details),
+        pair: (get pair details),
+        buy: (get buy details),
+        requests: (get requests details),
+      })))
+    )))
+)
+
+;; juice-trading claim-ladder: the pair, side and the rungs claimed from.
+(define-read-only (build-claim-ladder-hash (details {
+  auth-id: uint,
+  pair: (string-ascii 10),
+  buy: bool,
+  rungs: (list 10 principal),
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "claim-ladder",
+        auth-id: (get auth-id details),
+        pair: (get pair details),
+        buy: (get buy details),
+        rungs: (get rungs details),
+      })))
+    )))
+)
