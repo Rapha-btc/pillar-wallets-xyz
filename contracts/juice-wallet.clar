@@ -1435,6 +1435,8 @@
 )
 
 (define-public (update-stake-stx-juice
+    (signer <signer-manager-trait>)
+    (old-signer <signer-manager-trait>)
     (amount-increase uint)
     (cycles-to-extend uint)
     (sig-auth (optional {
@@ -1455,11 +1457,12 @@
         (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
           message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2
-            build-update-stake-stx-juice-hash {
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
+            build-update-stake-stx-juice-pool-hash {
             auth-id: (get auth-id sig-auth-details),
             amount-increase: amount-increase,
             cycles-to-extend: cycles-to-extend,
+            pool: (contract-of signer),
             signer-calldata: signer-calldata,
           }),
           pubkey: (get pubkey sig-auth-details),
@@ -1476,19 +1479,24 @@
       (try! (is-authorized none))
     )
 
-    (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)) err-zero-amount)
+    ;; 0 / 0 is fine when switching pools (moves the locked STX as is).
+    (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)
+      (not (is-eq (contract-of signer) (contract-of old-signer)))
+    ) err-zero-amount)
+    (asserts! (is-allowed-pool (contract-of signer)) err-invalid-pool)
     (try! (contract-call?
       'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-stake-stx amount-increase
     ))
 
     (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
-      (try! (contract-call? POX5 stake-update JUICE-SIGNER JUICE-SIGNER
+      (try! (contract-call? POX5 stake-update signer old-signer
         cycles-to-extend amount-increase signer-calldata
       ))
     ))
     (print {
       event: "update-stake-stx-juice",
+      pool: (contract-of signer),
       amount-increase: amount-increase,
       cycles-to-extend: cycles-to-extend,
       signer-calldata: signer-calldata,

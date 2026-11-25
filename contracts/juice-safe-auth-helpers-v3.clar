@@ -38,3 +38,25 @@
       })))
     )))
 )
+
+;; juice-wallet update-stake-stx-juice: like helpers-v2's update hash, plus the
+;; pool the stake moves to (or stays in).
+(define-read-only (build-update-stake-stx-juice-pool-hash (details {
+  auth-id: uint,
+  amount-increase: uint,
+  cycles-to-extend: uint,
+  pool: principal,
+  signer-calldata: (optional (buff 500)),
+}))
+  (sha256 (concat SIP018_MSG_PREFIX
+    (concat (get-domain-hash)
+      (sha256 (unwrap-panic (to-consensus-buff? {
+        topic: "update-stake-stx-juice-pool",
+        auth-id: (get auth-id details),
+        amount-increase: (get amount-increase details),
+        cycles-to-extend: (get cycles-to-extend details),
+        pool: (get pool details),
+        signer-calldata: (get signer-calldata details),
+      })))
+    )))
+)
