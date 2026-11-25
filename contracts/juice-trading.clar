@@ -7,6 +7,7 @@
 (use-trait pre-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.prelaunch-faktory-trait-v1.prelaunch-trait)
 (use-trait token-trait 'SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2.faktory-trait-v1.sip-010-trait)
 (use-trait nftmarket-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nftmarket-trait.nftmarket-trait)
+(use-trait smart-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.faktory-smart-trait-v1.smart-trait)
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -34,6 +35,7 @@
 
 (define-constant err-memo-mismatch (err u4021))
 (define-constant err-limit-not-hit (err u4022))
+(define-constant err-router-not-approved (err u4023))
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-GAS-CEILING u10000)
@@ -1888,6 +1890,178 @@
       (try! (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2-4
         deposit token amount pubkey
       ))
+    )
+  )
+)
+
+;; smart routers, copied as is from fakfun-wallet-v19.
+(define-private (authorize-smart
+    (op (buff 1))
+    (smart principal)
+    (amount uint)
+    (min-out uint)
+    (fak-ratio uint)
+    (flag bool)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (asserts!
+      (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-smart-router-registry
+        is-approved-router smart
+      )
+      err-router-not-approved
+    )
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-execute-auth-helper
+            build-smart-execute-hash {
+            auth-id: (get auth-id sig-auth-details),
+            op: op,
+            smart: smart,
+            amount: amount,
+            min-out: min-out,
+            fak-ratio: fak-ratio,
+            flag: flag,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+        (ok true)
+      )
+      (begin
+        (try! (is-authorized none))
+        (ok true)
+      )
+    )
+  )
+)
+
+(define-public (smart-buy-stx
+    (smart <smart-trait>)
+    (amount uint)
+    (min-out uint)
+    (fak-ratio uint)
+    (flag bool)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (try! (authorize-smart 0x01 (contract-of smart) amount min-out fak-ratio flag
+      sig-auth gas
+    ))
+    (as-contract? ((with-stx amount))
+      (try! (contract-call? smart buy-with-stx amount min-out fak-ratio flag))
+    )
+  )
+)
+
+(define-public (smart-sell-stx
+    (smart <smart-trait>)
+    (token <sip-010-trait>)
+    (token-name (string-ascii 128))
+    (amount uint)
+    (min-out uint)
+    (fak-ratio uint)
+    (flag bool)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (try! (authorize-smart 0x03 (contract-of smart) amount min-out fak-ratio flag
+      sig-auth gas
+    ))
+    (as-contract? ((with-ft (contract-of token) token-name amount))
+      (try! (contract-call? smart sell-for-stx amount min-out fak-ratio flag))
+    )
+  )
+)
+
+(define-public (smart-buy-sbtc
+    (smart <smart-trait>)
+    (amount uint)
+    (min-out uint)
+    (fak-ratio uint)
+    (flag bool)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (try! (authorize-smart 0x00 (contract-of smart) amount min-out fak-ratio flag
+      sig-auth gas
+    ))
+    (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" amount))
+      (try! (contract-call? smart buy-with-sbtc amount min-out fak-ratio flag))
+    )
+  )
+)
+
+(define-public (smart-sell-sbtc
+    (smart <smart-trait>)
+    (token <sip-010-trait>)
+    (token-name (string-ascii 128))
+    (amount uint)
+    (min-out uint)
+    (fak-ratio uint)
+    (flag bool)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (try! (authorize-smart 0x02 (contract-of smart) amount min-out fak-ratio flag
+      sig-auth gas
+    ))
+    (as-contract? ((with-ft (contract-of token) token-name amount))
+      (try! (contract-call? smart sell-for-sbtc amount min-out fak-ratio flag))
     )
   )
 )
