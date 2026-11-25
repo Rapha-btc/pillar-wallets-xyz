@@ -2,6 +2,7 @@
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
+(use-trait signer-manager-trait 'SP000000000000000000002Q6VF78.pox-5.signer-manager-trait)
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -29,6 +30,7 @@
 (define-constant err-zero-amount (err u4026))
 (define-constant err-memo-mismatch (err u4041))
 (define-constant err-not-staking (err u4040))
+(define-constant err-invalid-pool (err u4042))
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-GAS-CEILING u10000)
@@ -45,6 +47,16 @@
 (define-constant POX5 'SP000000000000000000002Q6VF78.pox-5)
 
 (define-constant JUICE-SIGNER 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)
+(define-constant JUICE-STX-SIGNER 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
+(define-constant FASTPOOL-SIGNER 'SPMPMA1V6P430M8C91QS1G9XJ95S59JS1TZFZ4Q4.fastpool-max500-signer-manager)
+
+(define-read-only (is-allowed-pool (pool principal))
+  (or
+    (is-eq pool JUICE-SIGNER)
+    (is-eq pool JUICE-STX-SIGNER)
+    (is-eq pool FASTPOOL-SIGNER)
+  )
+)
 
 (define-constant NUM-CYCLES u96)
 
@@ -1358,6 +1370,7 @@
 )
 
 (define-public (stake-stx-juice
+    (signer <signer-manager-trait>)
     (amount-ustx uint)
     (sig-auth (optional {
       auth-id: uint,
@@ -1377,10 +1390,11 @@
         (asserts! (not (var-get token-lock-enabled)) err-token-locked)
         (try! (is-authorized (some {
           message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v2
-            build-stake-stx-juice-pox5-hash {
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
+            build-stake-stx-juice-pool-hash {
             auth-id: (get auth-id sig-auth-details),
             amount-ustx: amount-ustx,
+            pool: (contract-of signer),
             signer-calldata: signer-calldata,
           }),
           pubkey: (get pubkey sig-auth-details),
@@ -1397,6 +1411,7 @@
       (try! (is-authorized none))
     )
     (asserts! (> amount-ustx u0) err-zero-amount)
+    (asserts! (is-allowed-pool (contract-of signer)) err-invalid-pool)
 
     (try! (contract-call?
       'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
@@ -1404,12 +1419,13 @@
     ))
 
     (try! (as-contract? ((with-staking amount-ustx))
-      (try! (contract-call? POX5 stake JUICE-SIGNER amount-ustx NUM-CYCLES
+      (try! (contract-call? POX5 stake signer amount-ustx NUM-CYCLES
         burn-block-height signer-calldata
       ))
     ))
     (print {
       event: "stake-stx-juice",
+      pool: (contract-of signer),
       amount-ustx: amount-ustx,
       num-cycles: NUM-CYCLES,
       signer-calldata: signer-calldata,

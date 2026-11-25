@@ -19,18 +19,20 @@
   })))
 )
 
-;; set-pool: the target pool and the signer-calldata forwarded to its
-;; validate-stake! are the caller-supplied arguments.
-(define-read-only (build-set-pool-hash (details {
+;; juice-wallet stake-stx-juice: like helpers-v2's stake hash, plus the pool
+;; the user picked, so a submitter cannot swap it.
+(define-read-only (build-stake-stx-juice-pool-hash (details {
   auth-id: uint,
+  amount-ustx: uint,
   pool: principal,
   signer-calldata: (optional (buff 500)),
 }))
   (sha256 (concat SIP018_MSG_PREFIX
     (concat (get-domain-hash)
       (sha256 (unwrap-panic (to-consensus-buff? {
-        topic: "set-pool",
+        topic: "stake-stx-juice-pool",
         auth-id: (get auth-id details),
+        amount-ustx: (get amount-ustx details),
         pool: (get pool details),
         signer-calldata: (get signer-calldata details),
       })))
