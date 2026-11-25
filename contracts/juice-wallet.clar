@@ -1506,6 +1506,7 @@
 )
 
 (define-public (unstake
+    (old-signer <signer-manager-trait>)
     (sig-auth (optional {
       auth-id: uint,
       pubkey: (buff 33),
@@ -1545,7 +1546,7 @@
       log-revoke-fast-pool
     ))
 
-    (try! (as-contract? ((with-pox)) (try! (contract-call? POX5 unstake JUICE-SIGNER))))
+    (try! (as-contract? ((with-pox)) (try! (contract-call? POX5 unstake old-signer))))
     (print { event: "unstake" })
     (ok true)
   )
