@@ -2,6 +2,11 @@
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
+(use-trait pool-trait 'SP2ZNGJ85ENDY6QRHQ5P2D4FXKGZWCKTB2T0Z55KS.dexterity-traits-v0.liquidity-pool-trait)
+(use-trait dex-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.faktory-dex-trait-v2.dex-trait)
+(use-trait pre-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.prelaunch-faktory-trait-v1.prelaunch-trait)
+(use-trait token-trait 'SP3XXMS38VTAWTVPE5682XSBFXPTH7XCPEBTX8AN2.faktory-trait-v1.sip-010-trait)
+(use-trait nftmarket-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nftmarket-trait.nftmarket-trait)
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -25,8 +30,10 @@
 (define-constant err-no-pending-transfer (err u4018))
 
 (define-constant err-token-locked (err u4019))
+(define-constant err-limit-expired (err u4020))
 
 (define-constant err-memo-mismatch (err u4021))
+(define-constant err-limit-not-hit (err u4022))
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-GAS-CEILING u10000)
@@ -39,6 +46,22 @@
 (define-constant FAKFUN-DEPLOYER 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK)
 
 (define-constant RP-ID-HASH-JUICEOFBTC-COM 0x1516f9ea2a21f961d99143eedf2aeeab86e3784a34a401b038bb97a7631e668b)
+
+(define-constant OPCODE-BUY 0x00)
+(define-constant OPCODE-SELL 0x01)
+(define-constant OPCODE-BUY-SEATS 0x02)
+(define-constant OPCODE-REFUND 0x03)
+
+(define-constant EXECUTE-OP-BUY 0x00)
+(define-constant EXECUTE-OP-SELL 0x01)
+(define-constant EXECUTE-OP-ADD-LIQ 0x02)
+(define-constant EXECUTE-OP-REMOVE-LIQ 0x03)
+
+(define-constant NFT-OP-LIST 0x00)
+(define-constant NFT-OP-BUY 0x01)
+(define-constant NFT-OP-UNLIST 0x02)
+(define-constant NFT-OP-UPDATE-PRICE 0x03)
+(define-constant NFT-OP-UPDATE-FT 0x04)
 
 (define-data-var last-activity-block uint burn-block-height)
 (define-data-var recovery-address principal 'SP000000000000000000002Q6VF78)
@@ -1353,6 +1376,519 @@
       log-recover-inactive-wallet new-admin tx-sender
     ))
     (ok true)
+  )
+)
+
+;; fak.fun functions, copied as is from fakfun-wallet-v19.
+(define-private (get-byte
+    (opcode (buff 16))
+    (position uint)
+  )
+  (default-to 0x00 (element-at? opcode position))
+)
+
+(define-public (faktory-execute
+    (pool <pool-trait>)
+    (amount uint)
+    (opcode (optional (buff 16)))
+    (sip010 <sip-010-trait>)
+    (sip010-name (string-ascii 128))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-faktory-execute-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pool: (contract-of pool),
+            amount: amount,
+            opcode: opcode,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (let ((op (get-byte (default-to 0x00 opcode) u0)))
+      (if (or
+          (is-eq op EXECUTE-OP-BUY)
+          (is-eq op EXECUTE-OP-SELL)
+          (is-eq op EXECUTE-OP-REMOVE-LIQ)
+        )
+        (as-contract? ((with-ft (contract-of sip010) sip010-name amount))
+          (try! (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 execute
+            pool amount opcode
+          ))
+        )
+        (if (is-eq op EXECUTE-OP-ADD-LIQ)
+          (let ((liq-quote (unwrap! (contract-call? pool quote amount (some 0x02))
+              err-invalid-operation
+            )))
+            (as-contract?
+              (
+                (with-ft SBTC-CONTRACT "sbtc-token" (get dx liq-quote))
+                (with-ft (contract-of sip010) sip010-name (get dy liq-quote))
+              )
+              (try! (contract-call?
+                'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2
+                execute pool amount opcode
+              ))
+            )
+          )
+          err-invalid-operation
+        )
+      )
+    )
+  )
+)
+
+(define-public (faktory-execute-limit
+    (pool <pool-trait>)
+    (amount uint)
+    (opcode (optional (buff 16)))
+    (sip010 <sip-010-trait>)
+    (sip010-name (string-ascii 128))
+    (limit-out uint)
+    (expiry-burn-block uint)
+    (sig-auth {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    })
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (asserts! (not (var-get token-lock-enabled)) err-token-locked)
+    (asserts! (<= burn-block-height expiry-burn-block) err-limit-expired)
+    (try! (is-authorized (some {
+      message-hash: (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+        build-faktory-execute-limit-hash {
+        auth-id: (get auth-id sig-auth),
+        pool: (contract-of pool),
+        amount: amount,
+        opcode: opcode,
+        limit-out: limit-out,
+        expiry-burn-block: expiry-burn-block,
+      }),
+      pubkey: (get pubkey sig-auth),
+      signature: (get signature sig-auth),
+      authenticator-data: (get authenticator-data sig-auth),
+      client-data-prefix: (get client-data-prefix sig-auth),
+      client-data-suffix: (get client-data-suffix sig-auth),
+    })))
+    (match gas
+      g (try! (pay-gas-accounted g GAS-ENFORCED))
+      true
+    )
+    (let ((op (get-byte (default-to 0x00 opcode) u0)))
+      (if (or (is-eq op EXECUTE-OP-BUY) (is-eq op EXECUTE-OP-SELL))
+        (let ((result (try! (as-contract? ((with-ft (contract-of sip010) sip010-name amount))
+            (try! (contract-call?
+              'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 execute
+              pool amount opcode
+            ))
+          ))))
+          (asserts! (>= (get dy result) limit-out) err-limit-not-hit)
+          (ok result)
+        )
+        err-invalid-operation
+      )
+    )
+  )
+)
+
+(define-public (faktory-place-order
+    (dex <dex-trait>)
+    (token <token-trait>)
+    (token-name (string-ascii 128))
+    (amount uint)
+    (opcode (optional (buff 16)))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-faktory-place-order-hash {
+            auth-id: (get auth-id sig-auth-details),
+            dex: (contract-of dex),
+            amount: amount,
+            opcode: opcode,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (let ((op (get-byte (default-to 0x00 opcode) u0)))
+      (if (is-eq op OPCODE-BUY)
+        (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" amount))
+          (try! (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2
+            place-order dex token amount opcode
+          ))
+        )
+        (if (is-eq op OPCODE-SELL)
+          (as-contract? ((with-ft (contract-of token) token-name amount))
+            (try! (contract-call?
+              'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2
+              place-order dex token amount opcode
+            ))
+          )
+          err-invalid-operation
+        )
+      )
+    )
+  )
+)
+
+(define-public (faktory-process
+    (pre <pre-trait>)
+    (seat-count uint)
+    (opcode (optional (buff 16)))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-faktory-process-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pre: (contract-of pre),
+            seat-count: seat-count,
+            opcode: opcode,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (let ((operation (get-byte (default-to 0x02 opcode) u0)))
+      (if (is-eq operation OPCODE-BUY-SEATS)
+        (let ((seat-price (try! (contract-call? pre get-seat-price))))
+          (as-contract?
+            ((with-ft SBTC-CONTRACT "sbtc-token" (* seat-count seat-price)))
+            (try! (contract-call?
+              'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 process
+              pre seat-count (some current-contract) opcode
+            ))
+          )
+        )
+        (if (is-eq operation OPCODE-REFUND)
+          (as-contract? ()
+            (try! (contract-call?
+              'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2 process
+              pre seat-count (some current-contract) opcode
+            ))
+          )
+          err-invalid-operation
+        )
+      )
+    )
+  )
+)
+
+(define-public (faktory-process-claim
+    (pre <pre-trait>)
+    (token <token-trait>)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-faktory-process-claim-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pre: (contract-of pre),
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (as-contract? ()
+      (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2
+        process-claim pre token (some current-contract)
+      ))
+    )
+  )
+)
+
+(define-public (faktory-fee-airdrop
+    (pre <pre-trait>)
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-faktory-fee-airdrop-hash {
+            auth-id: (get auth-id sig-auth-details),
+            pre: (contract-of pre),
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (as-contract? ()
+      (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-core-v2
+        process-fee-airdrop pre
+      ))
+    )
+  )
+)
+
+(define-public (faktory-nft-execute
+    (marketplace <nftmarket-trait>)
+    (token-id uint)
+    (nft-contract <sip-009-trait>)
+    (nft-name (string-ascii 128))
+    (ft-contract <sip-010-trait>)
+    (ft-name (string-ascii 128))
+    (price uint)
+    (opcode (optional (buff 16)))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-faktory-nft-execute-hash {
+            auth-id: (get auth-id sig-auth-details),
+            marketplace: (contract-of marketplace),
+            token-id: token-id,
+            ft-contract: (contract-of ft-contract),
+            price: price,
+            opcode: opcode,
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (let ((op (get-byte (default-to 0x00 opcode) u0)))
+      (if (is-eq op NFT-OP-LIST)
+        (as-contract?
+          ((with-nft (contract-of nft-contract) nft-name (list token-id)))
+          (try! (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nfts-core
+            list-nft marketplace token-id nft-contract ft-contract price
+          ))
+        )
+        (if (is-eq op NFT-OP-BUY)
+          (as-contract? ((with-ft (contract-of ft-contract) ft-name price))
+            (try! (contract-call?
+              'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nfts-core
+              buy-nft marketplace token-id nft-contract ft-contract
+            ))
+          )
+          (if (is-eq op NFT-OP-UNLIST)
+            (as-contract? ()
+              (try! (contract-call?
+                'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nfts-core
+                unlist-nft marketplace token-id nft-contract
+              ))
+            )
+            (if (is-eq op NFT-OP-UPDATE-PRICE)
+              (as-contract? ()
+                (try! (contract-call?
+                  'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nfts-core
+                  update-price marketplace token-id price
+                ))
+              )
+              (if (is-eq op NFT-OP-UPDATE-FT)
+                (as-contract? ()
+                  (try! (contract-call?
+                    'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nfts-core
+                    update-listing-ft marketplace token-id ft-contract price
+                  ))
+                )
+                err-invalid-operation
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+)
+
+(define-public (wager-deposit
+    (token <sip-010-trait>)
+    (token-name (string-ascii 128))
+    (amount uint)
+    (pubkey (buff 33))
+    (sig-auth (optional {
+      auth-id: uint,
+      pubkey: (buff 33),
+      signature: (buff 64),
+      authenticator-data: (buff 256),
+      client-data-prefix: (buff 128),
+      client-data-suffix: (buff 512),
+    }))
+    (gas (optional <gas-trait>))
+  )
+  (begin
+    (update-activity)
+    (match sig-auth
+      sig-auth-details (begin
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v7
+            build-wager-deposit-hash {
+            auth-id: (get auth-id sig-auth-details),
+            amount: amount,
+            pubkey: pubkey,
+            token: (contract-of token),
+          }),
+          pubkey: (get pubkey sig-auth-details),
+          signature: (get signature sig-auth-details),
+          authenticator-data: (get authenticator-data sig-auth-details),
+          client-data-prefix: (get client-data-prefix sig-auth-details),
+          client-data-suffix: (get client-data-suffix sig-auth-details),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
+      (try! (is-authorized none))
+    )
+    (asserts!
+      (is-eq (some current-contract)
+        (contract-call?
+          'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2-4
+          get-registered-wallet pubkey
+        ))
+      err-unauthorised
+    )
+    (as-contract? ((with-ft (contract-of token) token-name amount))
+      (try! (contract-call? 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.game-wager-v2-4
+        deposit token amount pubkey
+      ))
+    )
   )
 )
 
