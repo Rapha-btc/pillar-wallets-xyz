@@ -2,7 +2,6 @@
 
 (use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
 (use-trait sip-009-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
-(use-trait signer-manager-trait 'SP000000000000000000002Q6VF78.pox-5.signer-manager-trait)
 
 (impl-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
 
@@ -27,10 +26,7 @@
 
 (define-constant err-token-locked (err u4019))
 
-(define-constant err-zero-amount (err u4020))
 (define-constant err-memo-mismatch (err u4021))
-(define-constant err-not-staking (err u4022))
-(define-constant err-invalid-pool (err u4023))
 
 (define-constant INACTIVITY-PERIOD u52560)
 (define-constant MAX-GAS-CEILING u10000)
@@ -43,24 +39,6 @@
 (define-constant FAKFUN-DEPLOYER 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK)
 
 (define-constant RP-ID-HASH-JUICEOFBTC-COM 0x1516f9ea2a21f961d99143eedf2aeeab86e3784a34a401b038bb97a7631e668b)
-
-(define-constant POX5 'SP000000000000000000002Q6VF78.pox-5)
-
-(define-constant JUICE-SIGNER 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-sbtc-signer)
-(define-constant JUICE-STX-SIGNER 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
-(define-constant FASTPOOL-SIGNER 'SPMPMA1V6P430M8C91QS1G9XJ95S59JS1TZFZ4Q4.fastpool-max500-signer-manager)
-
-(define-read-only (is-allowed-pool (pool principal))
-  (or
-    (is-eq pool JUICE-SIGNER)
-    (is-eq pool JUICE-STX-SIGNER)
-    (is-eq pool FASTPOOL-SIGNER)
-  )
-)
-
-(define-constant NUM-CYCLES u96)
-
-(define-data-var keeper principal 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22)
 
 (define-data-var last-activity-block uint burn-block-height)
 (define-data-var recovery-address principal 'SP000000000000000000002Q6VF78)
@@ -1217,7 +1195,6 @@
     (map-set admins pending true)
     (map-delete admins (var-get owner))
     (var-set owner pending)
-    (var-set keeper pending)
     (var-set pending-transfer 'SP000000000000000000002Q6VF78)
     (update-activity)
     (try! (contract-call?
@@ -1370,292 +1347,12 @@
     (asserts! (not (is-eq new-admin current-contract)) err-unauthorised)
     (map-set admins new-admin true)
     (var-set owner new-admin)
-    (var-set keeper new-admin)
     (var-set last-activity-block burn-block-height)
     (try! (contract-call?
       'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-recover-inactive-wallet new-admin tx-sender
     ))
     (ok true)
-  )
-)
-
-(define-read-only (locked-ustx)
-  (get locked (stx-account current-contract))
-)
-
-(define-public (stake-stx-juice
-    (signer <signer-manager-trait>)
-    (amount-ustx uint)
-    (sig-auth (optional {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    }))
-    (gas (optional <gas-trait>))
-    (signer-calldata (optional (buff 500)))
-  )
-  (begin
-    (update-activity)
-    (match sig-auth
-      sig-auth-details (begin
-        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
-        (try! (is-authorized (some {
-          message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
-            build-stake-stx-juice-pool-hash {
-            auth-id: (get auth-id sig-auth-details),
-            amount-ustx: amount-ustx,
-            pool: (contract-of signer),
-            signer-calldata: signer-calldata,
-          }),
-          pubkey: (get pubkey sig-auth-details),
-          signature: (get signature sig-auth-details),
-          authenticator-data: (get authenticator-data sig-auth-details),
-          client-data-prefix: (get client-data-prefix sig-auth-details),
-          client-data-suffix: (get client-data-suffix sig-auth-details),
-        })))
-        (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
-          true
-        )
-      )
-      (try! (is-authorized none))
-    )
-    (asserts! (> amount-ustx u0) err-zero-amount)
-    (asserts! (is-allowed-pool (contract-of signer)) err-invalid-pool)
-
-    (try! (contract-call?
-      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
-      log-stake-stx amount-ustx
-    ))
-
-    (try! (as-contract? ((with-staking amount-ustx))
-      (try! (contract-call? POX5 stake signer amount-ustx NUM-CYCLES
-        burn-block-height signer-calldata
-      ))
-    ))
-    (print {
-      event: "stake-stx-juice",
-      pool: (contract-of signer),
-      amount-ustx: amount-ustx,
-      num-cycles: NUM-CYCLES,
-      signer-calldata: signer-calldata,
-    })
-    (ok true)
-  )
-)
-
-(define-public (update-stake-stx-juice
-    (signer <signer-manager-trait>)
-    (old-signer <signer-manager-trait>)
-    (amount-increase uint)
-    (cycles-to-extend uint)
-    (sig-auth (optional {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    }))
-    (gas (optional <gas-trait>))
-    (signer-calldata (optional (buff 500)))
-  )
-  (begin
-    (update-activity)
-    (match sig-auth
-      sig-auth-details (begin
-        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
-        (try! (is-authorized (some {
-          message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v3
-            build-update-stake-stx-juice-pool-hash {
-            auth-id: (get auth-id sig-auth-details),
-            amount-increase: amount-increase,
-            cycles-to-extend: cycles-to-extend,
-            pool: (contract-of signer),
-            signer-calldata: signer-calldata,
-          }),
-          pubkey: (get pubkey sig-auth-details),
-          signature: (get signature sig-auth-details),
-          authenticator-data: (get authenticator-data sig-auth-details),
-          client-data-prefix: (get client-data-prefix sig-auth-details),
-          client-data-suffix: (get client-data-suffix sig-auth-details),
-        })))
-        (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
-          true
-        )
-      )
-      (try! (is-authorized none))
-    )
-
-    ;; 0 / 0 is fine when switching pools (moves the locked STX as is).
-    (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)
-      (not (is-eq (contract-of signer) (contract-of old-signer)))
-    ) err-zero-amount)
-    (asserts! (is-allowed-pool (contract-of signer)) err-invalid-pool)
-    (try! (contract-call?
-      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
-      log-stake-stx amount-increase
-    ))
-
-    (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
-      (try! (contract-call? POX5 stake-update signer old-signer
-        cycles-to-extend amount-increase signer-calldata
-      ))
-    ))
-    (print {
-      event: "update-stake-stx-juice",
-      pool: (contract-of signer),
-      amount-increase: amount-increase,
-      cycles-to-extend: cycles-to-extend,
-      signer-calldata: signer-calldata,
-    })
-    (ok true)
-  )
-)
-
-(define-public (unstake
-    (old-signer <signer-manager-trait>)
-    (sig-auth (optional {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    }))
-    (gas (optional <gas-trait>))
-  )
-  (begin
-    (update-activity)
-    (match sig-auth
-      sig-auth-details (begin
-        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
-        (try! (is-authorized (some {
-          message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-auth-helpers-v1
-            build-unstake-stx-juice-hash { auth-id: (get auth-id sig-auth-details) }
-          ),
-          pubkey: (get pubkey sig-auth-details),
-          signature: (get signature sig-auth-details),
-          authenticator-data: (get authenticator-data sig-auth-details),
-          client-data-prefix: (get client-data-prefix sig-auth-details),
-          client-data-suffix: (get client-data-suffix sig-auth-details),
-        })))
-        (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
-          true
-        )
-      )
-      (try! (is-authorized none))
-    )
-
-    (try! (contract-call?
-      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
-      log-revoke-fast-pool
-    ))
-
-    (try! (as-contract? ((with-pox)) (try! (contract-call? POX5 unstake old-signer))))
-    (print { event: "unstake" })
-    (ok true)
-  )
-)
-
-(define-read-only (get-keeper)
-  (var-get keeper)
-)
-
-(define-public (set-keeper
-    (new-keeper principal)
-    (sig-auth (optional {
-      auth-id: uint,
-      pubkey: (buff 33),
-      signature: (buff 64),
-      authenticator-data: (buff 256),
-      client-data-prefix: (buff 128),
-      client-data-suffix: (buff 512),
-    }))
-    (gas (optional <gas-trait>))
-  )
-  (begin
-    (update-activity)
-    (match sig-auth
-      sig-auth-details (begin
-        (asserts! (not (var-get token-lock-enabled)) err-token-locked)
-        (try! (is-authorized (some {
-          message-hash: (contract-call?
-            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe-auth-helpers-v1
-            build-set-keeper-hash {
-            auth-id: (get auth-id sig-auth-details),
-            keeper: new-keeper,
-          }),
-          pubkey: (get pubkey sig-auth-details),
-          signature: (get signature sig-auth-details),
-          authenticator-data: (get authenticator-data sig-auth-details),
-          client-data-prefix: (get client-data-prefix sig-auth-details),
-          client-data-suffix: (get client-data-suffix sig-auth-details),
-        })))
-        (match gas
-          g (try! (pay-gas-accounted g GAS-ENFORCED))
-          true
-        )
-      )
-      (try! (is-authorized none))
-    )
-    (print {
-      event: "set-keeper",
-      old: (var-get keeper),
-      new: new-keeper,
-    })
-    (var-set keeper new-keeper)
-    (ok true)
-  )
-)
-
-(define-public (restake (signer <signer-manager-trait>))
-  (let (
-      (amount (get unlocked (stx-account current-contract)))
-      (info (unwrap! (contract-call? POX5 get-staker-info current-contract)
-        err-not-staking
-      ))
-      (current-cycle (contract-call? POX5 current-pox-reward-cycle))
-      (unlock-cycle (+ (get first-reward-cycle info) (get num-cycles info)))
-      (target-unlock-cycle (+ current-cycle u1 NUM-CYCLES))
-      (cycles-to-extend (if (> target-unlock-cycle unlock-cycle)
-        (- target-unlock-cycle unlock-cycle)
-        u0
-      ))
-    )
-    (asserts! (is-eq contract-caller (var-get keeper)) err-unauthorised)
-    ;; keeper stays in the current pool, never switches it.
-    (asserts! (is-eq (contract-of signer) (get signer info)) err-invalid-pool)
-    (asserts! (> unlock-cycle (+ current-cycle u1)) err-not-staking)
-    (asserts! (or (> amount u0) (> cycles-to-extend u0)) err-zero-amount)
-    (try! (contract-call?
-      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
-      log-stake-stx amount
-    ))
-    (try! (as-contract? ((with-staking (+ (locked-ustx) amount)))
-      (try! (contract-call? POX5 stake-update signer signer
-        cycles-to-extend amount none
-      ))
-    ))
-    (print {
-      event: "restake",
-      keeper: contract-caller,
-      amount: amount,
-      cycles-to-extend: cycles-to-extend,
-    })
-    (ok {
-      amount: amount,
-      cycles-to-extend: cycles-to-extend,
-    })
   )
 )
 
