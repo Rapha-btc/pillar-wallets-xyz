@@ -246,13 +246,18 @@ plan:
       path: contracts/juice-safe-auth-helpers-v1.clar
       clarity-version: 4
     - transaction-type: emulated-contract-publish
-      contract-name: juice-safe-v0
+      contract-name: juice-safe-auth-helpers-v2
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-      path: contracts/juice-safe-v0.clar
+      path: contracts/juice-safe-auth-helpers-v2.clar
       clarity-version: 4
     epoch: '4.0'
   - id: 5
     transactions:
+    - transaction-type: emulated-contract-publish
+      contract-name: juice-safe-v0
+      emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      path: contracts/juice-safe-v0.clar
+      clarity-version: 4
     - transaction-type: emulated-contract-publish
       contract-name: juice-safe-v1
       emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM

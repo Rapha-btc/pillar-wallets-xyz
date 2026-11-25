@@ -1622,12 +1622,12 @@
 (define-public (onboard
     (pubkey (buff 33))
     (new-owner principal)
-    (recovery principal)
+    (recovery-wallet (optional principal))
     (stx-threshold uint)
     (sbtc-threshold uint)
     (cooldown-period uint)
   )
-  (begin
+  (let ((recovery (default-to 'SP000000000000000000002Q6VF78 recovery-wallet)))
     (asserts! (is-eq tx-sender FAKFUN-DEPLOYER) err-unauthorised)
     (asserts! (not (var-get pubkey-initialized)) err-unauthorised)
     (map-set pubkey-to-admin pubkey new-owner)
@@ -1655,7 +1655,7 @@
       (try! (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
         register-wallet
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-autostake-safe
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-wallet
       ))
     ))
     (try! (contract-call?

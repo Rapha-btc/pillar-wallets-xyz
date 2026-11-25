@@ -43,8 +43,7 @@
 
 (define-constant POX5 'SP000000000000000000002Q6VF78.pox-5)
 
-(define-constant JUICE-SIGNER
-  'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
+(define-constant JUICE-SIGNER 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-pool-stx-signer)
 
 (define-constant NUM-CYCLES u96)
 
@@ -183,27 +182,24 @@
     (g <gas-trait>)
     (enforce bool)
   )
-  (let ((before (unwrap-panic (contract-call?
-      'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token get-balance
-      current-contract
+  (let ((before (unwrap-panic (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token
+      get-balance current-contract
     ))))
-    (try! (as-contract?
-      ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
+    (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" (var-get max-gas-amount)))
       (try! (contract-call? g pay-gas))
     ))
     (let (
-        (after (unwrap-panic (contract-call?
-          'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token get-balance
-          current-contract
+        (after (unwrap-panic (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token
+          get-balance current-contract
         )))
         (fee (if (> before after)
           (- before after)
           u0
         ))
       )
-
       (asserts!
-        (not (and enforce
+        (not (and
+          enforce
           (> (+ (get gas (get-current-spent)) fee) (max-gas-per-period))
         ))
         err-threshold-exceeded
@@ -226,7 +222,6 @@
     execute-after: uint,
     executed: bool,
     vetoed: bool,
-
     passkey-created: bool,
   }
 )
@@ -268,7 +263,10 @@
       proposed-at: burn-block-height,
     })
     (update-activity)
-    (print { event: "propose-max-gas-amount", amount: amount })
+    (print {
+      event: "propose-max-gas-amount",
+      amount: amount,
+    })
     (ok true)
   )
 )
@@ -293,7 +291,6 @@
         wallet-cooldown
       ))
     )
-
     (try! (is-authorized (some {
       message-hash: (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10
@@ -317,9 +314,15 @@
       err-in-cooldown
     )
     (var-set max-gas-amount (get amount pending))
-    (var-set pending-max-gas { amount: u0, proposed-at: u0 })
+    (var-set pending-max-gas {
+      amount: u0,
+      proposed-at: u0,
+    })
     (update-activity)
-    (print { event: "confirm-max-gas-amount", amount: (get amount pending) })
+    (print {
+      event: "confirm-max-gas-amount",
+      amount: (get amount pending),
+    })
     (ok true)
   )
 )
@@ -371,7 +374,8 @@
     )
     (var-set token-lock-enabled enabled)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-token-lock-toggled enabled
     ))
     (ok true)
@@ -405,7 +409,8 @@
       cooldown-period: new-cooldown-period,
       signaled-at: burn-block-height,
     })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-signal-config-change
     ))
     (ok true)
@@ -436,7 +441,6 @@
         wallet-cooldown
       ))
     )
-
     (try! (is-authorized (some {
       message-hash: (contract-call?
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.smart-wallet-standard-auth-helpers-v10
@@ -480,7 +484,8 @@
       sbtc-threshold: new-sbtc-threshold,
       cooldown-period: new-cooldown-period,
     })
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-config-set new-stx-threshold new-sbtc-threshold u0
       new-cooldown-period
     ))
@@ -514,7 +519,8 @@
       passkey-created: passkey-created,
     })
     (var-set operation-nonce (+ op-id u1))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-pending-operation op-id op-type amount recipient token extension
       payload (+ burn-block-height (get cooldown-period config))
     ))
@@ -561,7 +567,8 @@
     (map-set pending-operations op-id (merge op { vetoed: true }))
 
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-operation-vetoed op-id
     ))
     (ok true)
@@ -657,8 +664,7 @@
     (if (would-exceed-stx-threshold amount)
       (begin
         (unwrap-panic (create-pending-operation "stx-transfer" amount recipient none none
-          (some (unwrap-panic (to-consensus-buff? memo)))
-          (is-some sig-auth)
+          (some (unwrap-panic (to-consensus-buff? memo))) (is-some sig-auth)
         ))
         (ok true)
       )
@@ -692,7 +698,8 @@
     (try! (is-authorized none))
     (update-activity)
     (map-set pending-operations op-id (merge op { executed: true }))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-stx-transfer (get amount op) (get recipient op) memo
     ))
     (as-contract? ((with-stx (get amount op)))
@@ -745,7 +752,8 @@
     )
     (map-set pending-operations op-id (merge op { executed: true }))
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-stx-transfer (get amount op) (get recipient op) memo
     ))
     (as-contract? ((with-stx (get amount op)))
@@ -804,8 +812,7 @@
       (begin
         (unwrap-panic (create-pending-operation "sbtc-transfer" amount recipient
           (some SBTC-CONTRACT) none
-          (some (unwrap-panic (to-consensus-buff? memo)))
-          (is-some sig-auth)
+          (some (unwrap-panic (to-consensus-buff? memo))) (is-some sig-auth)
         ))
         (ok true)
       )
@@ -840,7 +847,8 @@
     (try! (is-authorized none))
     (update-activity)
     (map-set pending-operations op-id (merge op { executed: true }))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op)
       memo
     ))
@@ -894,7 +902,8 @@
     )
     (map-set pending-operations op-id (merge op { executed: true }))
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-sip010-transfer SBTC-CONTRACT (get amount op) (get recipient op)
       memo
     ))
@@ -952,8 +961,8 @@
     )
     (if (would-exceed-sbtc-threshold (+ amount max-fee))
       (begin
-        (unwrap-panic (create-pending-operation "sbtc-withdraw" amount
-          current-contract (some SBTC-CONTRACT) none
+        (unwrap-panic (create-pending-operation "sbtc-withdraw" amount current-contract
+          (some SBTC-CONTRACT) none
           (some (unwrap-panic (to-consensus-buff? {
             recipient: recipient,
             max-fee: max-fee,
@@ -989,11 +998,13 @@
     (let (
         (raw (unwrap! (get payload op) err-invalid-operation))
         (parsed (unwrap!
-          (from-consensus-buff?
-            {
-              recipient: { version: (buff 1), hashbytes: (buff 32) },
-              max-fee: uint,
-            }
+          (from-consensus-buff? {
+            recipient: {
+              version: (buff 1),
+              hashbytes: (buff 32),
+            },
+            max-fee: uint,
+          }
             raw
           )
           err-invalid-operation
@@ -1053,11 +1064,13 @@
     (let (
         (raw (unwrap! (get payload op) err-invalid-operation))
         (parsed (unwrap!
-          (from-consensus-buff?
-            {
-              recipient: { version: (buff 1), hashbytes: (buff 32) },
-              max-fee: uint,
-            }
+          (from-consensus-buff? {
+            recipient: {
+              version: (buff 1),
+              hashbytes: (buff 32),
+            },
+            max-fee: uint,
+          }
             raw
           )
           err-invalid-operation
@@ -1121,7 +1134,8 @@
       )
       (try! (is-authorized none))
     )
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-sip009-transfer nft-id recipient (contract-of sip009)
     ))
     (as-contract? ((with-nft (contract-of sip009) token-name (list nft-id)))
@@ -1155,7 +1169,8 @@
     (asserts! (not (is-eq new-admin tx-sender)) err-forbidden)
     (var-set pending-transfer new-admin)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-propose-transfer-wallet new-admin
     ))
     (ok true)
@@ -1204,7 +1219,8 @@
     (var-set owner pending)
     (var-set pending-transfer 'SP000000000000000000002Q6VF78)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-transferred pending
     ))
     (ok true)
@@ -1220,7 +1236,8 @@
     (client-data-suffix (buff 512))
   )
   (let ((auth-rp-id (unwrap!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
+      (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         get-rp-id-hash authenticator-data
       )
       err-invalid-signature
@@ -1229,13 +1246,15 @@
 
     (asserts! (is-eq auth-rp-id RP-ID-HASH-JUICEOFBTC-COM) err-invalid-signature)
     (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
+      (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         is-user-verified authenticator-data
       )
       err-invalid-signature
     )
     (ok (asserts!
-      (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
+      (contract-call?
+        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.clarity-5-webauthn-v4
         verify-webauthn-signature pubkey message-hash authenticator-data
         client-data-prefix client-data-suffix signature
       )
@@ -1318,7 +1337,8 @@
     (asserts! (not (is-eq new-recovery current-contract)) err-unauthorised)
     (var-set pending-recovery new-recovery)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-propose-recovery new-recovery
     ))
     (ok true)
@@ -1334,7 +1354,8 @@
     (var-set recovery-address pending)
     (var-set pending-recovery 'SP000000000000000000002Q6VF78)
     (update-activity)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-confirm-recovery pending
     ))
     (ok true)
@@ -1351,7 +1372,8 @@
     (map-set admins new-admin true)
     (var-set owner new-admin)
     (var-set last-activity-block burn-block-height)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-recover-inactive-wallet new-admin tx-sender
     ))
     (ok true)
@@ -1403,13 +1425,14 @@
     )
     (asserts! (> amount-ustx u0) err-zero-amount)
 
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-stake-stx amount-ustx
     ))
 
     (try! (as-contract? ((with-staking amount-ustx))
-      (try! (contract-call? POX5 stake
-        JUICE-SIGNER amount-ustx NUM-CYCLES burn-block-height signer-calldata
+      (try! (contract-call? POX5 stake JUICE-SIGNER amount-ustx NUM-CYCLES
+        burn-block-height signer-calldata
       ))
     ))
     (print {
@@ -1465,13 +1488,14 @@
     )
 
     (asserts! (or (> amount-increase u0) (> cycles-to-extend u0)) err-zero-amount)
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-stake-stx amount-increase
     ))
 
     (try! (as-contract? ((with-staking (+ (locked-ustx) amount-increase)))
-      (try! (contract-call? POX5 stake-update
-        JUICE-SIGNER JUICE-SIGNER cycles-to-extend amount-increase signer-calldata
+      (try! (contract-call? POX5 stake-update JUICE-SIGNER JUICE-SIGNER
+        cycles-to-extend amount-increase signer-calldata
       ))
     ))
     (print {
@@ -1519,13 +1543,12 @@
       (try! (is-authorized none))
     )
 
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-revoke-fast-pool
     ))
 
-    (try! (as-contract? ((with-pox))
-      (try! (contract-call? POX5 unstake JUICE-SIGNER))
-    ))
+    (try! (as-contract? ((with-pox)) (try! (contract-call? POX5 unstake JUICE-SIGNER))))
     (print { event: "unstake" })
     (ok true)
   )
@@ -1572,16 +1595,20 @@
         'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-safe-v9
       ))
     ))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-admin-added new-owner
     ))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-confirm-recovery recovery
     ))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-config-set stx-threshold sbtc-threshold u0 cooldown-period
     ))
-    (try! (contract-call? 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
+    (try! (contract-call?
+      'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2
       log-wallet-initialized pubkey
     ))
     (ok true)
