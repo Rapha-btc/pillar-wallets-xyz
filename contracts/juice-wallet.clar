@@ -1022,14 +1022,14 @@
 
 (define-public (execute-pending-sbtc-withdrawal-now
     (op-id uint)
-    (sig-auth {
+    (sig-auth (optional {
       auth-id: uint,
       pubkey: (buff 33),
       signature: (buff 64),
       authenticator-data: (buff 256),
       client-data-prefix: (buff 128),
       client-data-suffix: (buff 512),
-    })
+    }))
     (gas (optional <gas-trait>))
   )
   (let ((op (unwrap! (map-get? pending-operations op-id) err-invalid-operation)))
@@ -1037,24 +1037,29 @@
     (asserts! (not (get executed op)) err-already-executed)
     (asserts! (not (get vetoed op)) err-vetoed)
 
-    (asserts! (not (get passkey-created op)) err-forbidden)
     (asserts! (not (var-get token-lock-enabled)) err-token-locked)
-    (try! (is-authorized (some {
-      message-hash: (contract-call?
-        'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1
-        build-execute-now-hash {
-        auth-id: (get auth-id sig-auth),
-        op-id: op-id,
-      }),
-      pubkey: (get pubkey sig-auth),
-      signature: (get signature sig-auth),
-      authenticator-data: (get authenticator-data sig-auth),
-      client-data-prefix: (get client-data-prefix sig-auth),
-      client-data-suffix: (get client-data-suffix sig-auth),
-    })))
-    (match gas
-      g (try! (pay-gas-accounted g GAS-ENFORCED))
-      true
+    ;; 2FA skip: the key that did NOT start the op confirms it.
+    (if (get passkey-created op)
+      (try! (is-admin-calling tx-sender))
+      (let ((sa (unwrap! sig-auth err-unauthorised)))
+        (try! (is-authorized (some {
+          message-hash: (contract-call?
+            'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.mm-safe-auth-helpers-v1
+            build-execute-now-hash {
+            auth-id: (get auth-id sa),
+            op-id: op-id,
+          }),
+          pubkey: (get pubkey sa),
+          signature: (get signature sa),
+          authenticator-data: (get authenticator-data sa),
+          client-data-prefix: (get client-data-prefix sa),
+          client-data-suffix: (get client-data-suffix sa),
+        })))
+        (match gas
+          g (try! (pay-gas-accounted g GAS-ENFORCED))
+          true
+        )
+      )
     )
     (let (
         (raw (unwrap! (get payload op) err-invalid-operation))
