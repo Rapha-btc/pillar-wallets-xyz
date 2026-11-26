@@ -2231,10 +2231,12 @@
   rung: <rung-trait>,
   amount: uint,
 }))
-  {
-    rung: (contract-of (get rung a)),
-    amount: (get amount a),
-  }
+  (let ((r (get rung a)))
+    {
+      rung: (contract-of r),
+      amount: (get amount a),
+    }
+  )
 )
 
 (define-public (place-ladder
