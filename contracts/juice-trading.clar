@@ -49,9 +49,10 @@
 (define-constant SBTC-CONTRACT 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token)
 (define-constant USDCX-CONTRACT 'SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx)
 
-;; Live Jing routers. sbtc-stx v6 has a Zest leg; sbtc-usdcx v5-6 has none.
+;; Jing routers, all with a Zest leg: sbtc-stx v6-1 (pool u3), sbtc-usdcx v6
+;; (pool u4), stx-usdcx v6 (pool u1).
 (define-constant ROUTER-SBTC-STX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-stx-jing-v6-1)
-(define-constant ROUTER-SBTC-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-usdcx-jing-v5-6)
+(define-constant ROUTER-SBTC-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-sbtc-usdcx-jing-v6)
 (define-constant ROUTER-STX-USDCX 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.swap-router-stx-usdcx-jing-v6)
 
 ;; Jing ladder dispatchers (pegged limit orders), one per pair.
@@ -2195,15 +2196,12 @@
         ))
         (ok true)
       )
-    ;; sbtc-usdcx router (v5-6) has no Zest leg: zest amounts are dropped.
     (if (is-eq action "sbtc-usdcx")
           (begin
             (try! (as-contract? ((with-ft SBTC-CONTRACT "sbtc-token" amount))
               (try! (contract-call? ROUTER-SBTC-USDCX swap-sbtc-for-usdcx amount
-                jing-amount limit-price update fallback
-                { dlmm: (get dlmm amm-amounts), xyk: (get xyk amm-amounts), velar: (get velar amm-amounts) }
-                { dlmm: (get dlmm amm-mins), xyk: (get xyk amm-mins), velar: (get velar amm-mins) }
-                min-out
+                jing-amount limit-price update fallback amm-amounts amm-mins
+                min-out zest-route
               ))
             ))
             (ok true)
@@ -2212,10 +2210,8 @@
           (begin
             (try! (as-contract? ((with-ft USDCX-CONTRACT "usdcx-token" amount))
               (try! (contract-call? ROUTER-SBTC-USDCX swap-usdcx-for-sbtc amount
-                jing-amount limit-price update fallback
-                { dlmm: (get dlmm amm-amounts), xyk: (get xyk amm-amounts), velar: (get velar amm-amounts) }
-                { dlmm: (get dlmm amm-mins), xyk: (get xyk amm-mins), velar: (get velar amm-mins) }
-                min-out
+                jing-amount limit-price update fallback amm-amounts amm-mins
+                min-out zest-route
               ))
             ))
             (ok true)
