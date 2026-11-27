@@ -1,0 +1,5 @@
+{
+  "juice-savings": "contracts/juice-savings.clar",
+  "juice-trading": "contracts/juice-trading.clar",
+  "juice-safe-auth-helpers-v3": "contracts/juice-safe-auth-helpers-v3.clar"
+}

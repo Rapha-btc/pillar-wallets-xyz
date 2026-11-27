@@ -1,0 +1,32 @@
+(use-trait nftmarket-trait 'SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-nftmarket-trait.nftmarket-trait)
+(use-trait nft-trait 'SP2PABAF9FTAJYNFZH93XENAJ8FVY99RRM50D2JG9.nft-trait.nft-trait)
+(use-trait ft-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
+(define-public (list-nft
+    (marketplace <nftmarket-trait>)
+    (token-id uint)
+    (nft-contract <nft-trait>)
+    (ft-contract <ft-trait>)
+    (price uint)
+  ) (if true (ok true) (err u999)))
+(define-public (buy-nft
+    (marketplace <nftmarket-trait>)
+    (token-id uint)
+    (nft-contract <nft-trait>)
+    (ft-contract <ft-trait>)
+  ) (if true (ok true) (err u999)))
+(define-public (unlist-nft
+    (marketplace <nftmarket-trait>)
+    (token-id uint)
+    (nft-contract <nft-trait>)
+  ) (if true (ok true) (err u999)))
+(define-public (update-price
+    (marketplace <nftmarket-trait>)
+    (token-id uint)
+    (new-price uint)
+  ) (if true (ok true) (err u999)))
+(define-public (update-listing-ft
+    (marketplace <nftmarket-trait>)
+    (token-id uint)
+    (new-ft-contract <ft-trait>)
+    (new-price uint)
+  ) (if true (ok true) (err u999)))

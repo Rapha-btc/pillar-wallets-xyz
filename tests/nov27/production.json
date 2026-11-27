@@ -1,0 +1,13 @@
+{
+  "smart-wallet-standard-auth-helpers-v10": "tests/nov27/dependencies/smart-wallet-standard-auth-helpers-v10.clar",
+  "juice-savings": "contracts/juice-savings.clar",
+  "juice-safe-auth-helpers-v1": "tests/nov27/dependencies/juice-safe-auth-helpers-v1.clar",
+  "juice-safe-auth-helpers-v3": "contracts/juice-safe-auth-helpers-v3.clar",
+  "juice-trading": "contracts/juice-trading.clar",
+  "clarity-5-webauthn-v4": "tests/nov27/dependencies/clarity-5-webauthn-v4.clar",
+  "juice-autostake-safe-auth-helpers-v1": "tests/nov27/dependencies/juice-autostake-safe-auth-helpers-v1.clar",
+  "smart-wallet-standard-auth-helpers-v8": "tests/nov27/dependencies/smart-wallet-standard-auth-helpers-v8.clar",
+  "smart-execute-auth-helper": "tests/nov27/dependencies/smart-execute-auth-helper.clar",
+  "mm-safe-auth-helpers-v1": "tests/nov27/dependencies/mm-safe-auth-helpers-v1.clar",
+  "smart-wallet-standard-auth-helpers-v7": "tests/nov27/dependencies/smart-wallet-standard-auth-helpers-v7.clar"
+}

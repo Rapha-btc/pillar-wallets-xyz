@@ -1,0 +1,5 @@
+(impl-trait .faktory-smart-trait-v1.smart-trait)
+(define-public (buy-with-sbtc (n uint) (min uint) (ratio uint) (flag bool)) (if true (ok {sbtc-amount:n,token-from-fak:u0,token-from-dex:u0,total-token-out:u0}) (err u999)))
+(define-public (buy-with-stx (n uint) (min uint) (ratio uint) (flag bool)) (if true (ok {stx-amount:n,token-from-alex:u0,token-from-fak:u0,total-token-out:u0}) (err u999)))
+(define-public (sell-for-sbtc (n uint) (min uint) (ratio uint) (flag bool)) (if true (ok {token-amount:n,sbtc-from-fak:u0,sbtc-from-dex:u0,total-sbtc-out:u0}) (err u999)))
+(define-public (sell-for-stx (n uint) (min uint) (ratio uint) (flag bool)) (if true (ok {token-amount:n,stx-from-alex:u0,stx-from-dex:u0,total-stx-out:u0}) (err u999)))

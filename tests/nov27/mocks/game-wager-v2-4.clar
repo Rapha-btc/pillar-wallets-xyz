@@ -1,0 +1,10 @@
+(define-map wallets (buff 33) principal)
+(define-public (set-wallet (pubkey (buff 33)) (wallet principal)) (ok (map-set wallets pubkey wallet)))
+(use-trait sip-010-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
+(use-trait pillar-wallet-trait 'SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.pillar-wallet-trait.pillar-wallet-trait)
+(define-read-only (get-registered-wallet (pubkey (buff 33))) (map-get? wallets pubkey))
+(define-public (deposit
+    (token <sip-010-trait>)
+    (amount uint)
+    (pubkey (buff 33))
+  ) (if true (ok true) (err u999)))
