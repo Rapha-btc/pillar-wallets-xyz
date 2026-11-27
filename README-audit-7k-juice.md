@@ -11,6 +11,10 @@ stxer mainnet fork:
   <https://stxer.xyz/simulations/mainnet/92145730db71e3a514df33be6e1034f8>
 - juice-trading: 186/186
   <https://stxer.xyz/simulations/mainnet/fd35f788717606860585b68e5f9cb0bc>
+- deployed bytes (2026-11-27): juice-savings 154/154
+  <https://stxer.xyz/simulations/mainnet/72c41605c95006bfcf1fa1c9990a64a2>, juice-trading 194/194
+  <https://stxer.xyz/simulations/mainnet/3de98dc2697be56ce9b25caecd262e04>, router v6-1 397/397
+  <https://stxer.xyz/simulations/mainnet/f7791025d244fc81245b307bd70eb7fd>
 - router v6-1: 395/395
   <https://stxer.xyz/simulations/mainnet/f14835d54c8481211e14c202d07bc36c>
 

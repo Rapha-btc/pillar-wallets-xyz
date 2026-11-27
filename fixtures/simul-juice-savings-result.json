@@ -1,0 +1,944 @@
+{
+ "simulation": "https://stxer.xyz/simulations/mainnet/72c41605c95006bfcf1fa1c9990a64a2",
+ "passed": 154,
+ "total": 154,
+ "startBurn": 977762,
+ "gasSats": "20",
+ "sources": {
+  "juice-savings": {
+   "sha256": "dfc433815fece0bd3cc719645657aadda06296a27b62d8154bdddad416eb6eeb",
+   "bytes": 53707,
+   "clarity": 6
+  },
+  "juice-safe-auth-helpers-v3": {
+   "sha256": "45eb4a57499572c100478017219a76e67f20a9d0cee337fae1fa7be61e2d6171",
+   "clarity": 4
+  }
+ },
+ "rows": [
+  {
+   "i": 1,
+   "label": "D3 relay deploys bob-savings B (same bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 2,
+   "label": "D4 relay deploys carol-savings C (same bytes)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 3,
+   "label": "D5 relay deploys evil-savings (same source + 1 comment line)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 4,
+   "label": "D6 attacker deploys rogue-pool (juice-pool-stx-signer bytes, not allow-listed)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 5,
+   "label": "D8 attacker deploys hostile-dapp (calls B as whoever calls it)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 6,
+   "label": "O1 onboard B before core-v2 knows juice-savings -> core u6001",
+   "actual": "(err u6001)",
+   "passed": true
+  },
+  {
+   "i": 7,
+   "label": "O2 core-v2 set-verified-contract(juice-savings) (hash computed)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 8,
+   "label": "O3 RANDOM onboard A -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 9,
+   "label": "O4 onboard A with recovery = owner -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 10,
+   "label": "O5 onboard A with recovery = the safe itself -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 11,
+   "label": "O6 onboard A cooldown 143 -> u4017 (renumbered err-cooldown-too-short)",
+   "actual": "(err u4017)",
+   "passed": true
+  },
+  {
+   "i": 12,
+   "label": "O7 onboard A cooldown 4033 -> u4016 (renumbered err-cooldown-too-long)",
+   "actual": "(err u4016)",
+   "passed": true
+  },
+  {
+   "i": 13,
+   "label": "O8 onboard A, recovery some",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 14,
+   "label": "O9 onboard A twice -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 15,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 16,
+   "label": "O10 onboard B (relay copy), recovery none",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 17,
+   "label": "O11 onboard C (relay copy), recovery some",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 18,
+   "label": "O12 onboard evil-savings (other bytes) -> core u6002",
+   "actual": "(err u6002)",
+   "passed": true
+  },
+  {
+   "i": 21,
+   "label": "O15 B (recovery none): RECOVERY recover-inactive-wallet -> u4007 (renumbered err-inactive-required)",
+   "actual": "(err u4007)",
+   "passed": true
+  },
+  {
+   "i": 22,
+   "label": "fund juice-savings 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 23,
+   "label": "fund bob-savings 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 24,
+   "label": "fund carol-savings 1000 STX",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 25,
+   "label": "fund B 600000 sats",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 26,
+   "label": "fund juice-savings 5000 sats (gas)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 27,
+   "label": "fund carol-savings 5000 sats (gas)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 32,
+   "label": "K1 owner stake 0 -> u4020 (renumbered err-zero-amount)",
+   "actual": "(err u4020)",
+   "passed": true
+  },
+  {
+   "i": 33,
+   "label": "K2 owner stake into rogue-pool -> u4023 err-invalid-pool",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "i": 34,
+   "label": "K3 RANDOM stake (admin path) -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 35,
+   "label": "K4 passkey sig for pool stx-signer, sent with sbtc-signer -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 36,
+   "label": "K5 passkey sig for amount+1 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 37,
+   "label": "K6 passkey sig for calldata some 0x78, sent none -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 38,
+   "label": "K7 passkey sig auth-id 4 submitted as auth-id 5 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 39,
+   "label": "K8 passkey sig made for safe B, sent to A -> u4002 (domain)",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 40,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 41,
+   "label": "K9 unregistered passkey -> u4004",
+   "actual": "(err u4004)",
+   "passed": true
+  },
+  {
+   "i": 42,
+   "label": "K10 passkey sig into rogue-pool (signed rogue) -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "i": 44,
+   "label": "K11 passkey stake 500 STX into juice-pool-sbtc-signer, gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 46,
+   "label": "K12 K11 signature replayed -> u4006",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "i": 47,
+   "label": "K13 owner stake again (other pool) -> pox-5 ERR_ALREADY_STAKED u19",
+   "actual": "(err u19)",
+   "passed": true
+  },
+  {
+   "i": 48,
+   "label": "U1 owner update 0/0, same pool -> u4020",
+   "actual": "(err u4020)",
+   "passed": true
+  },
+  {
+   "i": 49,
+   "label": "U2 owner update +10 STX into rogue-pool -> u4023",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "i": 50,
+   "label": "U3 owner update 0/0 switch to rogue-pool -> u4023 (0/0 passes, pool check refuses)",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "i": 51,
+   "label": "U4 (triage #6) owner switch with wrong old-signer (fastpool) -> pox-5 u36, abort only",
+   "actual": "(err u36)",
+   "passed": true
+  },
+  {
+   "i": 52,
+   "label": "U5 owner update extend 1 cycle (97 > 96) -> pox-5 u20",
+   "actual": "(err u20)",
+   "passed": true
+  },
+  {
+   "i": 53,
+   "label": "U6 passkey switch sig for pool fastpool, sent stx-signer -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 54,
+   "label": "U7 passkey sig for amount-increase 1, sent 0 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 55,
+   "label": "U8 passkey sig for cycles 1, sent 0 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 56,
+   "label": "U9 passkey sig for calldata some 0x78, sent none -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 57,
+   "label": "U10 (triage #6) passkey switch signed correctly, submitter swaps old-signer -> pox-5 u36 (unsigned field, abort only)",
+   "actual": "(err u36)",
+   "passed": true
+  },
+  {
+   "i": 58,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 59,
+   "label": "U11 passkey switch 0/0 sbtc-signer -> stx-signer, gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 61,
+   "label": "U12 owner update +100 STX, same pool stx-signer",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 63,
+   "label": "U13 owner switch 0/0 stx-signer -> fastpool, calldata = payout config",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 66,
+   "label": "R1 RANDOM restake -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 67,
+   "label": "R2 owner (not keeper) restake -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 68,
+   "label": "R3 (#5 fixed) keeper restake A staked in fastpool -> u4023 err-invalid-pool",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "i": 70,
+   "label": "X1 (triage #6) owner unstake with old-signer stx-signer (not current) -> pox-5 u36",
+   "actual": "(err u36)",
+   "passed": true
+  },
+  {
+   "i": 71,
+   "label": "X2 RANDOM unstake -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 72,
+   "label": "X3 passkey unstake (fastpool), gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 74,
+   "label": "X4 keeper restake after unstake -> u4023 (pool check; A still listed under fastpool until unlock)",
+   "actual": "(err u4023)",
+   "passed": true
+  },
+  {
+   "i": 75,
+   "label": "C1 owner stake C 500 STX into juice-pool-sbtc-signer",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 77,
+   "label": "C2 RANDOM restake C -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 78,
+   "label": "C3 keeper restake C (no args) -> stakes all unlocked STX on juice-pool-sbtc-signer",
+   "actual": "(ok (tuple (amount u500000000) (cycles-to-extend u0)))",
+   "passed": true
+  },
+  {
+   "i": 80,
+   "label": "C4 keeper restake C again, nothing unlocked, no cycles -> u4020",
+   "actual": "(err u4020)",
+   "passed": true
+  },
+  {
+   "i": 82,
+   "label": "Q0 owner stx 150 (over) -> op0 admin-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 83,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 84,
+   "label": "Q1 passkey stx 150 -> op1 passkey-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 85,
+   "label": "Q2 passkey stx 150 -> op2 passkey-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 86,
+   "label": "Q3 owner sBTC 150000 -> op3 admin-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 87,
+   "label": "Q4 passkey sBTC 150000 -> op4 passkey-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 88,
+   "label": "Q5 owner withdrawal 120000+1000 -> op5 admin-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 89,
+   "label": "Q6 passkey withdrawal 120000+1000 -> op6 passkey-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 90,
+   "label": "Q7 passkey stx 150 -> op7 passkey-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 91,
+   "label": "Q8 owner stx 150 -> op8 admin-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 92,
+   "label": "Q9 owner stx 150 -> op9 admin-created",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 97,
+   "label": "E1 op1 (passkey-created): relayer + passkey sig -> u4001 (the passkey cannot confirm its own op)",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 98,
+   "label": "E2 op1: RANDOM, no sig -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 99,
+   "label": "E3 op1: owner with memo some -> u4021 (renumbered err-memo-mismatch)",
+   "actual": "(err u4021)",
+   "passed": true
+  },
+  {
+   "i": 100,
+   "label": "E4 owner turns the token lock on",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 101,
+   "label": "E5 op1: owner while locked -> u4019 (renumbered err-token-locked)",
+   "actual": "(err u4019)",
+   "passed": true
+  },
+  {
+   "i": 102,
+   "label": "E6 owner turns the lock off",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 104,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 105,
+   "label": "E7 op1: owner confirms (no sig, gas passed but unused) -> 150 STX moves before the cooldown",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 107,
+   "label": "E8 op1 again -> u4011 (renumbered err-already-executed)",
+   "actual": "(err u4011)",
+   "passed": true
+  },
+  {
+   "i": 108,
+   "label": "E9 op1 plain execute (executed) -> u4011",
+   "actual": "(err u4011)",
+   "passed": true
+  },
+  {
+   "i": 109,
+   "label": "E10 op0 (admin-created): owner, no sig -> u4001 (admin cannot confirm its own op)",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 110,
+   "label": "E11 op0: passkey sig for op9 -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 111,
+   "label": "E12 op0: passkey sig made for safe A -> u4002",
+   "actual": "(err u4002)",
+   "passed": true
+  },
+  {
+   "i": 112,
+   "label": "E13 op0: passkey confirms, gas -> 150 STX moves, gas paid",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 114,
+   "label": "E14 op0 again (fresh sig) -> u4011",
+   "actual": "(err u4011)",
+   "passed": true
+  },
+  {
+   "i": 115,
+   "label": "E15 stx-now on an sBTC op (op3) -> u4010 (renumbered err-invalid-operation)",
+   "actual": "(err u4010)",
+   "passed": true
+  },
+  {
+   "i": 116,
+   "label": "E16 stx-now unknown op 99 -> u4010",
+   "actual": "(err u4010)",
+   "passed": true
+  },
+  {
+   "i": 117,
+   "label": "S1 op4 (passkey-created): relayer + passkey sig -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 118,
+   "label": "S2 op4: owner confirms -> 150000 sats move",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 120,
+   "label": "S3 op3 (admin-created): owner, no sig -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 121,
+   "label": "S4 op3: passkey confirms, no gas -> 150000 sats move",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 123,
+   "label": "S5 sbtc-now on an STX op (op8) -> u4010",
+   "actual": "(err u4010)",
+   "passed": true
+  },
+  {
+   "i": 124,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 125,
+   "label": "W1 op6 (passkey-created): relayer + passkey sig -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 126,
+   "label": "W2 op6: owner confirms -> 121000 sats locked in sbtc-withdrawal",
+   "actual": "(ok u5629)",
+   "passed": true
+  },
+  {
+   "i": 128,
+   "label": "W3 op5 (admin-created): owner, no sig -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 129,
+   "label": "W4 op5: passkey confirms, gas",
+   "actual": "(ok u5630)",
+   "passed": true
+  },
+  {
+   "i": 131,
+   "label": "W5 op5 again -> u4011",
+   "actual": "(err u4011)",
+   "passed": true
+  },
+  {
+   "i": 132,
+   "label": "W6 withdrawal-now on an STX op (op8) -> u4010",
+   "actual": "(err u4010)",
+   "passed": true
+  },
+  {
+   "i": 133,
+   "label": "V1 owner vetoes op7 (passkey-created)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 134,
+   "label": "V2 op7: owner -now -> u4012 (renumbered err-vetoed)",
+   "actual": "(err u4012)",
+   "passed": true
+  },
+  {
+   "i": 135,
+   "label": "V3 passkey vetoes op8 (admin-created)",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 136,
+   "label": "V4 op8: passkey -now -> u4012",
+   "actual": "(err u4012)",
+   "passed": true
+  },
+  {
+   "i": 137,
+   "label": "V5 RANDOM veto op9 -> u4001",
+   "actual": "(err u4001)",
+   "passed": true
+  },
+  {
+   "i": 138,
+   "label": "V6 replay V3 veto signature on op8 -> u4006",
+   "actual": "(err u4006)",
+   "passed": true
+  },
+  {
+   "i": 140,
+   "label": "P1 (triage #4) owner calls hostile-dapp.claim-airdrop -> op2 (passkey-created) executes before the cooldown",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 143,
+   "label": "P2 (base, pre-existing) owner calls hostile-dapp.free-mint -> 50 STX under threshold to the attacker",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 145,
+   "label": "L1 op9 plain execute before the cooldown -> u4014 (renumbered err-cooldown-not-passed)",
+   "actual": "(err u4014)",
+   "passed": true
+  },
+  {
+   "i": 146,
+   "label": "advance 145 burn blocks (cooldown)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 147,
+   "label": "advance 1 burn block (fresh block budget)",
+   "actual": "advanced",
+   "passed": true
+  },
+  {
+   "i": 148,
+   "label": "L2 op9 plain execute after the cooldown",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 149,
+   "label": "L3 op7 (vetoed) plain execute -> u4012",
+   "actual": "(err u4012)",
+   "passed": true
+  },
+  {
+   "i": 151,
+   "label": "RC1 passkey propose-recovery RECOVERY on B",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 152,
+   "label": "RC2 owner confirm-recovery",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 154,
+   "label": "BK1 owner stake B 300 STX into juice-pool-stx-signer",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": 156,
+   "label": "BK2 passkey unstake B (stx-signer), no gas",
+   "actual": "(ok true)",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "H1 build-stake-stx-juice-pool-hash (cd none): contract hash == JS mirror",
+   "actual": "0x98977493187d1f5c91122b9f455d35ae2aa6b279a4854a4d00103add756c9864 vs 0x98977493187d1f5c91122b9f455d35ae2aa6b279a4854a4d00103add756c9864",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "H2 build-stake-stx-juice-pool-hash (cd some): contract hash == JS mirror",
+   "actual": "0x24173c7ec906041a2849f5b3b84a0ad580589b4397715cf4e114f2fdae235e7c vs 0x24173c7ec906041a2849f5b3b84a0ad580589b4397715cf4e114f2fdae235e7c",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "H3 build-update-stake-stx-juice-pool-hash: contract hash == JS mirror",
+   "actual": "0x0ff200852da457c2c58ab4d87b8d4423f8af46742d5bfc8f149412d5dc69e244 vs 0x0ff200852da457c2c58ab4d87b8d4423f8af46742d5bfc8f149412d5dc69e244",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "H4 build-stake-stx-juice-pool-hash from B (domain binds B): contract hash == JS mirror",
+   "actual": "0xcc7ec317a9ff3e0e043098fa6e49e47153f4d673c96a809c128b287bb9892ff1 vs 0xcc7ec317a9ff3e0e043098fa6e49e47153f4d673c96a809c128b287bb9892ff1",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "H4 != H1 (same tuple, other safe -> other hash)",
+   "actual": "",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "O13 A, B, C whitelisted; evil-savings not; A recovery = RECOVERY",
+   "actual": "(tuple (a true) (b true) (c true) (e false) (ra SP3HXJJMJQ06GNAZ8XWDN1QM48JEDC6PP6W3YZPZJ))",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "O14 B onboarded with recovery none -> recovery-address SP000...",
+   "actual": "(tuple (o SP2C7BCAP2NH3EYWCCVHJ6K0DMZBXDFKQ56KR7QN2) (r SP000000000000000000002Q6VF78))",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "K11 A locked 500000000 with juice-pool-sbtc-signer, 96 cycles, gas 20 paid",
+   "actual": "(tuple (acct (tuple (locked u500000000) (unlock-height u1180550) (unlocked u500000000))) (cyc u148) (info (some (tuple (amount-ustx u500000000) (first-reward-cycle u149) (num-cycles u96) (signer SPV9K",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "K11 safe print carries pool = juice-pool-sbtc-signer",
+   "actual": "[{\"cid\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station\",\"v\":\"(tuple (a \\\"pay-gas\\\") (amount u20) (from SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-savings) (to SPV9K21TBFAK4KNRJXF5DFP8N7W46G",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "U11 0/0 switch: signer stx-signer, locked still 500000000, same unlock cycle, gas 20",
+   "actual": "(tuple (acct (tuple (locked u500000000) (unlock-height u1180550) (unlocked u500000000))) (cyc u148) (info (some (tuple (amount-ustx u500000000) (first-reward-cycle u149) (num-cycles u96) (signer SPV9K",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "U11 pox-5 stake-update print: old-signer sbtc-signer -> signer stx-signer",
+   "actual": "[{\"cid\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.gas-station\",\"v\":\"(tuple (a \\\"pay-gas\\\") (amount u20) (from SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.juice-savings) (to SPV9K21TBFAK4KNRJXF5DFP8N7W46G",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "U12 locked 600000000",
+   "actual": "(tuple (acct (tuple (locked u600000000) (unlock-height u1180550) (unlocked u400000000))) (cyc u148) (info (some (tuple (amount-ustx u600000000) (first-reward-cycle u149) (num-cycles u96) (signer SPV9K",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "U13 switched to fastpool, locked unchanged",
+   "actual": "(tuple (acct (tuple (locked u600000000) (unlock-height u1180550) (unlocked u400000000))) (cyc u148) (info (some (tuple (amount-ustx u600000000) (first-reward-cycle u149) (num-cycles u96) (signer SPMPM",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "U14 fastpool stored A's payout config from calldata",
+   "actual": "(some (tuple (max-fee u1000) (min-claim u5000) (pox-addr (tuple (hashbytes 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) (version 0x04)))))",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "R3/R4 (#5 fixed) refused restake left A's fastpool payout config in place",
+   "actual": "(some (tuple (max-fee u1000) (min-claim u5000) (pox-addr (tuple (hashbytes 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) (version 0x04)))))",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "X3 unstake: lock ends next cycle",
+   "actual": "(tuple (acct (tuple (locked u600000000) (unlock-height u978950) (unlocked u400000000))) (cyc u148) (info (some (tuple (amount-ustx u600000000) (first-reward-cycle u149) (num-cycles u0) (signer SPMPMA1",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "C1 C staked 500 STX with juice-pool-sbtc-signer",
+   "actual": "(tuple (acct (tuple (locked u500000000) (unlock-height u1180550) (unlocked u500000000))) (cyc u148) (info (some (tuple (amount-ustx u500000000) (first-reward-cycle u149) (num-cycles u96) (signer SPV9K",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "C3 keeper restake locked all of C's unlocked STX, pool unchanged",
+   "actual": "(tuple (acct (tuple (locked u1000000000) (unlock-height u1180550) (unlocked u0))) (cyc u148) (info (some (tuple (amount-ustx u1000000000) (first-reward-cycle u149) (num-cycles u96) (signer SPV9K21TBFA",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "C3 pox-5 stake-update print: signer = old-signer = juice-pool-sbtc-signer",
+   "actual": "[{\"cid\":\"SPV9K21TBFAK4KNRJXF5DFP8N7W46G4V9RCJDC22.fakfun-wallet-core-v2\",\"v\":\"(tuple (event \\\"stake-stx\\\") (stx-amount u500000000) (wallet SP28MP1HQDJWQAFSQJN2HBAXBVP7H7THD1W2NYZVK.carol-savings))\"},{",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "op0 admin-created, op1/op6 passkey-created",
+   "actual": "(some (tuple (amount u150000000) (execute-after u977908) (executed false) (extension none) (op-type \"stx-transfer\") (passkey-created false) (payload (some 0x09)) (recipient SP22WH53NS94VR6N145ZX77BK4S",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "Q0..Q9 queued, nothing moved",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u1000000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10267341) (rstx u1171112) (sbtc u600000",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "E7 owner confirm of op1: safe -150 STX, recipient +150 STX, no gas",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u850000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10267341) (rstx u151171112) (sbtc u60000",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "E13 passkey confirm of op0: -150 STX, gas 20",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u700000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10267341) (rstx u301171112) (sbtc u59998",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "S2 owner confirm of op4: -150000 sats to recipient",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u700000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10417341) (rstx u301171112) (sbtc u44998",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "S4 passkey confirm of op3: -150000 sats, no gas",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u700000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10567341) (rstx u301171112) (sbtc u29998",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "W2 owner confirm of op6: 121000 sats leave the safe (locked in the withdrawal request)",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u700000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10567341) (rstx u301171112) (sbtc u17898",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "W4 passkey confirm of op5: 121000 sats + gas 20",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u700000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10567341) (rstx u301171112) (sbtc u57960",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "P1 (triage #4 REPRODUCED if PASS) hostile contract confirmed op2: 150 STX to the op recipient before the cooldown",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u550000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10567341) (rstx u451171112) (sbtc u57960",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "P2 (base) hostile contract moved 50 STX to the attacker",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u500000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10567341) (rstx u451171112) (sbtc u57960",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "L2 op9 after cooldown: -150 STX",
+   "actual": "(tuple (acct (tuple (locked u0) (unlock-height u0) (unlocked u350000000))) (cyc u148) (info none) (lock false) (recovery SP000000000000000000002Q6VF78) (rsbtc u10567341) (rstx u601171112) (sbtc u57960",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "RC3 B recovery-address set to RECOVERY after starting from none",
+   "actual": "SP3HXJJMJQ06GNAZ8XWDN1QM48JEDC6PP6W3YZPZJ",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "BK1 B locked 300000000 with juice-pool-stx-signer",
+   "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u1180550) (unlocked u50000000))) (cyc u148) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u149) (num-cycles u96) (signer SPV9K2",
+   "passed": true
+  },
+  {
+   "i": "-",
+   "label": "BK2 B unstake: lock ends next cycle",
+   "actual": "(tuple (acct (tuple (locked u300000000) (unlock-height u978950) (unlocked u50000000))) (cyc u148) (info (some (tuple (amount-ustx u300000000) (first-reward-cycle u149) (num-cycles u0) (signer SPV9K21T",
+   "passed": true
+  }
+ ]
+}
