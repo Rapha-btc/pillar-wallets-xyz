@@ -1618,7 +1618,7 @@
   )
 )
 
-(define-public (restake (signer <signer-manager-trait>))
+(define-public (restake)
   (let (
       (amount (get unlocked (stx-account current-contract)))
       (info (unwrap! (contract-call? POX5 get-staker-info current-contract)
@@ -1633,8 +1633,10 @@
       ))
     )
     (asserts! (is-eq contract-caller (var-get keeper)) err-unauthorised)
-    ;; keeper stays in the current pool, never switches it.
-    (asserts! (is-eq (contract-of signer) (get signer info)) err-invalid-pool)
+    ;; restake is only for juice-pool-sbtc-signer (the pool that pays STX), and
+    ;; the keeper never switches pools. Fastpool would wipe the payout config
+    ;; on none calldata.
+    (asserts! (is-eq (get signer info) JUICE-SIGNER) err-invalid-pool)
     (asserts! (> unlock-cycle (+ current-cycle u1)) err-not-staking)
     (asserts! (or (> amount u0) (> cycles-to-extend u0)) err-zero-amount)
     (try! (contract-call?
@@ -1642,7 +1644,7 @@
       log-stake-stx amount
     ))
     (try! (as-contract? ((with-staking (+ (locked-ustx) amount)))
-      (try! (contract-call? POX5 stake-update signer signer
+      (try! (contract-call? POX5 stake-update JUICE-SIGNER JUICE-SIGNER
         cycles-to-extend amount none
       ))
     ))
