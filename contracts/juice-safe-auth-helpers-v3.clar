@@ -1,12 +1,12 @@
 ;; juice-safe-auth-helpers-v3
 ;;
-;; SIP-018 hash builder for juice-safe-v10's set-pool. Same scheme and domain
-;; tuple as juice-safe-auth-helpers-v1/v2 (wallet = contract-caller), so a
-;; signature binds to one wallet. All other juice-safe-v10 builders stay on
-;; v1 (unstake), v2 (stake, update-stake) and
-;; juice-autostake-safe-auth-helpers-v1 (set-keeper).
+;; SIP-018 hash builders for juice-savings and juice-trading (stake,
+;; update-stake, jing-swap, ladder place/withdraw/claim). Same scheme and
+;; domain tuple as juice-safe-auth-helpers-v1/v2 (wallet = contract-caller), so
+;; a signature binds to one wallet. unstake stays on v1 and set-keeper on
+;; juice-autostake-safe-auth-helpers-v1.
 ;;
-;; Deploy from account 0 (SPV9K21T...) BEFORE juice-safe-v10.
+;; Deploy from account 0 (SPV9K21T...) BEFORE juice-savings and juice-trading.
 
 (define-constant SIP018_MSG_PREFIX 0x534950303138)
 
